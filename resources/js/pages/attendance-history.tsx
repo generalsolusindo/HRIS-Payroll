@@ -89,9 +89,7 @@ function AttendanceMiniStatus({
                 </span>
             )}
             <div className="flex flex-col gap-0.5">
-                <span className="text-xs text-muted-foreground">
-                    {label}
-                </span>
+                <span className="text-xs text-muted-foreground">{label}</span>
                 {time ? (
                     <span className="text-sm font-semibold">{time}</span>
                 ) : (

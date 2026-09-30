@@ -77,9 +77,7 @@ function PendingUserCard({ user }: { user: PendingUser }) {
                 <Form
                     {...EmployeeApprovalController.reject.form(user.id)}
                     disableWhileProcessing
-                    onBefore={() =>
-                        confirm(`Tolak pendaftaran ${user.name}?`)
-                    }
+                    onBefore={() => confirm(`Tolak pendaftaran ${user.name}?`)}
                 >
                     {({ processing }) => (
                         <Button
@@ -109,9 +107,9 @@ export default function EmployeeApproval({ pendingUsers }: Props) {
                         Persetujuan Karyawan
                     </h1>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Karyawan baru mendaftar dengan status menunggu.
-                        Setujui untuk mengaktifkan akun mereka, atau tolak
-                        jika tidak valid.
+                        Karyawan baru mendaftar dengan status menunggu. Setujui
+                        untuk mengaktifkan akun mereka, atau tolak jika tidak
+                        valid.
                     </p>
                 </div>
 

@@ -100,9 +100,7 @@ function StatusCell({
                 </a>
             )}
             <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">
-                    {formatTime(time)}
-                </span>
+                <span className="text-sm font-medium">{formatTime(time)}</span>
                 {status && (
                     <AttendanceStatusBadge status={status} minutes={minutes} />
                 )}
@@ -122,9 +120,7 @@ export default function AttendanceDashboard({ tanggal, employees }: Props) {
 
     const totalKaryawan = employees.length;
     const sudahAbsen = employees.filter((e) => e.clock_in_time).length;
-    const telat = employees.filter(
-        (e) => e.clock_in_status === 'telat',
-    ).length;
+    const telat = employees.filter((e) => e.clock_in_status === 'telat').length;
     const belumAbsen = totalKaryawan - sudahAbsen;
 
     return (

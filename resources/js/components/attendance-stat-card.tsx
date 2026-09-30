@@ -61,10 +61,7 @@ export function AttendanceStatCard({
                         aria-label={`Lihat foto ${label}`}
                     >
                         <Avatar className="size-9 ring-2 ring-background">
-                            <AvatarImage
-                                src={photoUrl}
-                                alt={`Foto ${label}`}
-                            />
+                            <AvatarImage src={photoUrl} alt={`Foto ${label}`} />
                             <AvatarFallback>{label.charAt(0)}</AvatarFallback>
                         </Avatar>
                     </a>

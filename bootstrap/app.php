@@ -17,6 +17,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trusts only a proxy running on this same machine (e.g. a local
+        // HTTPS-terminating proxy used for LAN device testing) to report
+        // the original request scheme via X-Forwarded-Proto.
+        $middleware->trustProxies(at: ['127.0.0.1']);
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         $middleware->web(append: [

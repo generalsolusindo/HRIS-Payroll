@@ -53,7 +53,7 @@ class CompanySeeder extends Seeder
         $positionNames = [
             'Sales', 'Marketing', 'Finance', 'Operasional', 'Procurement',
             'Teknisi', 'Internship', 'Admin Store', 'Content Creator',
-            'HR', 'Digital Marketing', 'SI Officer',
+            'HR', 'Digital Marketing', 'SI Officer', 'Manager',
         ];
 
         $positions = collect($positionNames)->mapWithKeys(

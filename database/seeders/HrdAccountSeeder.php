@@ -14,14 +14,21 @@ class HrdAccountSeeder extends Seeder
         $company = Company::where('code', 'GS')->firstOrFail();
         $position = Position::where('name', 'HR')->firstOrFail();
 
-        $hrd = User::create([
+        // Password is only set when the account is first created — a
+        // re-run must never reset a password the HRD user has since
+        // changed themselves.
+        $hrd = User::firstOrNew(['email' => config('seed.hrd.email')]);
+
+        $hrd->fill([
             'company_id' => $company->id,
             'position_id' => $position->id,
-            'name' => 'HRD General Solusindo',
-            'email' => 'hrd@generalsolusindo.com',
+            'name' => config('seed.hrd.name'),
             'phone' => '081234567890',
-            'password' => 'password',
         ]);
+
+        if (! $hrd->exists) {
+            $hrd->password = config('seed.user_password');
+        }
 
         $hrd->role = 'hrd';
         $hrd->status = 'active';

@@ -4,6 +4,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AttendanceHistoryController;
 use App\Http\Controllers\Hrd\AttendanceDashboardController;
 use App\Http\Controllers\Hrd\EmployeeApprovalController;
+use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
 use App\Http\Controllers\LeaveRequestController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -55,6 +56,10 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::patch('karyawan/{user}/reject', [EmployeeApprovalController::class, 'reject'])->name('karyawan.reject');
 
     Route::get('absensi', [AttendanceDashboardController::class, 'index'])->name('absensi.index');
+
+    Route::get('izin', [LeaveRequestApprovalController::class, 'index'])->name('izin.index');
+    Route::patch('izin/{leaveRequest}/approve', [LeaveRequestApprovalController::class, 'approve'])->name('izin.approve');
+    Route::patch('izin/{leaveRequest}/reject', [LeaveRequestApprovalController::class, 'reject'])->name('izin.reject');
 });
 
 require __DIR__.'/settings.php';

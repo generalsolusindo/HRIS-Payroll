@@ -47,6 +47,15 @@ return [
             'report' => false,
         ],
 
+        'leave_attachments' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/leave-attachments'),
+            'url' => rtrim((string) env('APP_URL', 'http://localhost'), '/').'/leave-attachments',
+            'serve' => true,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

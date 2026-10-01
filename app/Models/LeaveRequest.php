@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $start_time
  * @property string|null $end_time
  * @property string|null $estimated_arrival
+ * @property string|null $duration
  * @property string|null $reason
  * @property bool $emergency
  * @property string|null $emergency_reason
@@ -49,6 +50,7 @@ class LeaveRequest extends Model
     {
         return [
             'leave_date' => 'date',
+            'duration' => 'decimal:2',
             'emergency' => 'boolean',
             'contactable' => 'boolean',
             'processed_at' => 'datetime',

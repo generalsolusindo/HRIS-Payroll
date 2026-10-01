@@ -45,17 +45,7 @@ class StoreLeaveRequestRequest extends FormRequest
                 return;
             }
 
-            $normalized = [
-                'leave_date' => $this->input('leave_date'),
-                'start_time' => $this->input('start_time'),
-                'end_time' => $this->input('end_time'),
-                'estimated_arrival' => $this->input('estimated_arrival'),
-                'duration' => $this->input('duration'),
-                'emergency' => $this->boolean('emergency'),
-                'contactable' => $this->has('contactable') ? $this->boolean('contactable') : null,
-            ];
-
-            foreach ((new LeaveTypeValidator)->validate($type, $normalized) as $field => $message) {
+            foreach ((new LeaveTypeValidator)->validate($type, $this->normalized()) as $field => $message) {
                 $validator->errors()->add($field, $message);
             }
 
@@ -63,5 +53,41 @@ class StoreLeaveRequestRequest extends FormRequest
                 $validator->errors()->add('attachments', 'Surat dokter wajib dilampirkan untuk sakit lebih dari 1 hari.');
             }
         });
+    }
+
+    /**
+     * The fields LeaveTypeValidator cares about, coerced the same way
+     * regardless of caller — shared by withValidator() and by the
+     * controller when it builds the row to store.
+     *
+     * @return array<string, mixed>
+     */
+    private function normalized(): array
+    {
+        return [
+            'leave_date' => $this->input('leave_date'),
+            'start_time' => $this->input('start_time'),
+            'end_time' => $this->input('end_time'),
+            'estimated_arrival' => $this->input('estimated_arrival'),
+            'duration' => $this->input('duration'),
+            'emergency' => $this->boolean('emergency'),
+            'contactable' => $this->has('contactable') ? $this->boolean('contactable') : null,
+        ];
+    }
+
+    /**
+     * Attributes ready to pass to LeaveRequest::create(), minus
+     * request_number and user_id which the controller fills in.
+     *
+     * @return array<string, mixed>
+     */
+    public function leaveRequestAttributes(): array
+    {
+        return [
+            'type' => $this->input('type'),
+            'reason' => $this->input('reason'),
+            'emergency_reason' => $this->input('emergency_reason'),
+            ...$this->normalized(),
+        ];
     }
 }

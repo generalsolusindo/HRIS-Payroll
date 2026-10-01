@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Manager;
 
 use App\Http\Controllers\Controller;
 use App\Models\LeaveRequest;
+use App\Services\LeaveRequestNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,10 @@ use Inertia\Response;
 
 class LeaveRequestApprovalController extends Controller
 {
+    public function __construct(
+        private readonly LeaveRequestNotifier $notifier,
+    ) {}
+
     public function index(): Response
     {
         $leaveRequests = LeaveRequest::where('status', 'pending_manager')
@@ -44,6 +49,10 @@ class LeaveRequestApprovalController extends Controller
             ])->save();
         });
 
+        $this->notifier->notifyFinalApproved(
+            $leaveRequest->refresh()->load(['user.company', 'user.position', 'hrdProcessedBy', 'processedBy']),
+        );
+
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Pengajuan disetujui.']);
 
         return back();
@@ -67,6 +76,11 @@ class LeaveRequestApprovalController extends Controller
                 'rejection_reason' => $validated['note'],
             ])->save();
         });
+
+        $this->notifier->notifyRejected(
+            $leaveRequest->refresh()->load(['user.company', 'user.position', 'hrdProcessedBy', 'processedBy']),
+            'manager',
+        );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Pengajuan ditolak.']);
 

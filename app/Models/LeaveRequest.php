@@ -35,6 +35,15 @@ use Illuminate\Support\Carbon;
  */
 class LeaveRequest extends Model
 {
+    private const TYPE_LABELS = [
+        'late' => 'Izin Terlambat',
+        'half_day' => 'Izin Setengah Hari',
+        'temporary_exit' => 'Izin Keluar Kantor Sebentar',
+        'leave' => 'Cuti',
+        'emergency' => 'Izin Darurat',
+        'sick' => 'Izin Sakit',
+    ];
+
     protected $fillable = [
         'request_number', 'user_id',
         'type', 'leave_date', 'start_time', 'end_time', 'estimated_arrival', 'duration',
@@ -95,5 +104,10 @@ class LeaveRequest extends Model
     public function isPending(): bool
     {
         return in_array($this->status, ['pending', 'pending_manager'], true);
+    }
+
+    public function typeLabel(): string
+    {
+        return self::TYPE_LABELS[$this->type] ?? $this->type;
     }
 }

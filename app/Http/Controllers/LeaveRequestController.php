@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreLeaveRequestRequest;
 use App\Models\LeaveRequest;
 use App\Models\LeaveRequestAttachment;
+use App\Services\LeaveRequestNotifier;
 use App\Services\LeaveRequestService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -13,6 +14,7 @@ class LeaveRequestController extends Controller
 {
     public function __construct(
         private readonly LeaveRequestService $leaveRequestService,
+        private readonly LeaveRequestNotifier $notifier,
     ) {}
 
     public function store(StoreLeaveRequestRequest $request): RedirectResponse
@@ -39,6 +41,8 @@ class LeaveRequestController extends Controller
                 'file_size' => $file->getSize(),
             ]);
         }
+
+        $this->notifier->notifySubmitted($leaveRequest->load(['user.company', 'user.position']));
 
         return back();
     }

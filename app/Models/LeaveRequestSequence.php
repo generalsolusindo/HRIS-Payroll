@@ -16,5 +16,7 @@ class LeaveRequestSequence extends Model
 
     protected $keyType = 'int';
 
+    public $timestamps = false;
+
     protected $fillable = ['year', 'last_sequence'];
 }

@@ -45,10 +45,11 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('penggajian', fn () => Inertia::render('penggajian'))->name('penggajian');
     Route::get('daily-report', fn () => Inertia::render('daily-report'))->name('daily-report');
-    Route::get('izin', fn () => Inertia::render('izin'))->name('izin');
+    Route::get('izin', [LeaveRequestController::class, 'index'])->name('izin');
     Route::post('izin', [LeaveRequestController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('izin.store');
+    Route::get('izin/{leaveRequest}', [LeaveRequestController::class, 'show'])->name('izin.show');
 });
 
 Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->group(function () {

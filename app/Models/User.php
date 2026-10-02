@@ -73,6 +73,14 @@ class User extends Authenticatable implements PasskeyUser
         return $this->hasMany(Leave::class);
     }
 
+    /**
+     * @return HasMany<LeaveRequest, $this>
+     */
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
+
     public function isHrd(): bool
     {
         return $this->role === 'hrd';

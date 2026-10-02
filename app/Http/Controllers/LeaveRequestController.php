@@ -8,7 +8,11 @@ use App\Models\LeaveRequestAttachment;
 use App\Services\LeaveRequestNotifier;
 use App\Services\LeaveRequestService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class LeaveRequestController extends Controller
 {
@@ -16,6 +20,29 @@ class LeaveRequestController extends Controller
         private readonly LeaveRequestService $leaveRequestService,
         private readonly LeaveRequestNotifier $notifier,
     ) {}
+
+    public function index(Request $request): Response
+    {
+        $leaveRequests = $request->user()->leaveRequests()
+            ->with(['processedBy:id,name', 'hrdProcessedBy:id,name'])
+            ->latest('leave_date')
+            ->get();
+
+        return Inertia::render('izin', [
+            'leaveRequests' => $leaveRequests,
+        ]);
+    }
+
+    public function show(LeaveRequest $leaveRequest): Response
+    {
+        Gate::authorize('view', $leaveRequest);
+
+        $leaveRequest->load(['user:id,name,company_id,position_id', 'user.company:id,name', 'user.position:id,name', 'attachments', 'hrdProcessedBy:id,name', 'processedBy:id,name']);
+
+        return Inertia::render('izin-detail', [
+            'leaveRequest' => $leaveRequest,
+        ]);
+    }
 
     public function store(StoreLeaveRequestRequest $request): RedirectResponse
     {

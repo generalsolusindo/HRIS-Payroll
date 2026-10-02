@@ -1,13 +1,4 @@
 import { router } from '@inertiajs/react';
-import {
-    AlarmClock,
-    LogOut,
-    Palmtree,
-    Siren,
-    Stethoscope,
-    Sunset,
-    type LucideIcon,
-} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import LeaveRequestController from '@/actions/App/Http/Controllers/LeaveRequestController';
@@ -32,16 +23,12 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { LEAVE_TYPES, LEAVE_TYPE_LABELS, type LeaveType } from '@/lib/izin';
-
-const TYPE_ICONS: Record<LeaveType, LucideIcon> = {
-    late: AlarmClock,
-    half_day: Sunset,
-    temporary_exit: LogOut,
-    leave: Palmtree,
-    emergency: Siren,
-    sick: Stethoscope,
-};
+import {
+    LEAVE_TYPE_ICONS,
+    LEAVE_TYPE_LABELS,
+    LEAVE_TYPES,
+    type LeaveType,
+} from '@/lib/izin';
 
 function todayIso(): string {
     return new Date().toISOString().slice(0, 10);
@@ -216,7 +203,7 @@ export function IzinRequestDialog({ onSuccess }: { onSuccess?: () => void }) {
                             </SelectTrigger>
                             <SelectContent>
                                 {LEAVE_TYPES.map((leaveType) => {
-                                    const Icon = TYPE_ICONS[leaveType];
+                                    const Icon = LEAVE_TYPE_ICONS[leaveType];
 
                                     return (
                                         <SelectItem

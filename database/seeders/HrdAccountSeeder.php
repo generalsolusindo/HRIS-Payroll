@@ -14,9 +14,6 @@ class HrdAccountSeeder extends Seeder
         $company = Company::where('code', 'GS')->firstOrFail();
         $position = Position::where('name', 'HR')->firstOrFail();
 
-        // Password is only set when the account is first created — a
-        // re-run must never reset a password the HRD user has since
-        // changed themselves.
         $hrd = User::firstOrNew(['email' => config('seed.hrd.email')]);
 
         $hrd->fill([

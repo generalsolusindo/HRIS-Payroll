@@ -47,11 +47,14 @@ return [
             'report' => false,
         ],
 
+        // No 'serve'/'url' here on purpose — unlike attendance_photos,
+        // these files are never reached through a signed URL. Every
+        // access goes through LeaveRequestAttachmentController, which
+        // checks the requester's identity (owner/HRD/Manager) on every
+        // single request, not just once when a link is generated.
         'leave_attachments' => [
             'driver' => 'local',
             'root' => storage_path('app/private/leave-attachments'),
-            'url' => rtrim((string) env('APP_URL', 'http://localhost'), '/').'/leave-attachments',
-            'serve' => true,
             'throw' => false,
             'report' => false,
         ],

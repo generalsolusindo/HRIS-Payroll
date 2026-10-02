@@ -5,6 +5,7 @@ use App\Http\Controllers\AttendanceHistoryController;
 use App\Http\Controllers\Hrd\AttendanceDashboardController;
 use App\Http\Controllers\Hrd\EmployeeApprovalController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
+use App\Http\Controllers\LeaveRequestAttachmentController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\Manager\LeaveRequestApprovalController as ManagerLeaveRequestApprovalController;
 use Illuminate\Support\Facades\Route;
@@ -49,6 +50,9 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('izin', [LeaveRequestController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('izin.store');
+    // Registered before izin/{leaveRequest} so "attachments" isn't
+    // swallowed as a {leaveRequest} parameter.
+    Route::get('izin/attachments/{attachment}', [LeaveRequestAttachmentController::class, 'show'])->name('izin.attachments.show');
     Route::get('izin/{leaveRequest}', [LeaveRequestController::class, 'show'])->name('izin.show');
 });
 

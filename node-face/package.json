@@ -5,11 +5,12 @@
     "description": "Standalone CLI invoked by Laravel to extract a face descriptor from a photo. Deliberately kept out of the main package.json so it never gets pulled into the Vite/browser bundle.",
     "type": "commonjs",
     "dependencies": {
-        "@tensorflow/tfjs-node": "^4.22.0",
+        "@canvas/image": "^2.0.0",
+        "@tensorflow/tfjs": "^4.22.0",
+        "@tensorflow/tfjs-backend-wasm": "^4.22.0",
         "@vladmandic/face-api": "^1.7.15"
     },
     "allowScripts": {
-        "@tensorflow/tfjs-node@4.22.0": true,
         "core-js@3.29.1": true
     }
 }

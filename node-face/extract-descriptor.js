@@ -12,29 +12,49 @@
  * rather than a long-running server — simpler to deploy/operate, and
  * attendance/enrollment traffic for a single company is far too low to
  * need a persistent process.
+ *
+ * Runs on the WASM TensorFlow backend rather than @tensorflow/tfjs-node's
+ * native addon — the native build is compiled assuming the host CPU has
+ * AVX, and crashes with SIGILL on servers whose CPU doesn't (this was
+ * discovered the hard way on the real deploy target). WASM has no such
+ * requirement.
  */
-
-// @tensorflow/tfjs-node's compiled backend still calls the long-deprecated
-// util.isNullOrUndefined, which Node removed outright in v23 — restore a
-// trivial polyfill before requiring tfjs-node, or tf.node.decodeImage
-// throws "isNullOrUndefined is not a function" on current Node.
-require('util').isNullOrUndefined =
-    require('util').isNullOrUndefined ||
-    ((value) => value === null || value === undefined);
 
 const fs = require('fs');
 const path = require('path');
-const tf = require('@tensorflow/tfjs-node');
-const faceapi = require('@vladmandic/face-api');
+const tf = require('@tensorflow/tfjs');
+const wasm = require('@tensorflow/tfjs-backend-wasm');
+const image = require('@canvas/image');
+const faceapi = require('@vladmandic/face-api/dist/face-api.node-wasm.js');
 
 const MODEL_PATH = path.join(
     __dirname,
     'node_modules/@vladmandic/face-api/model',
 );
+const WASM_PATH =
+    path.join(__dirname, 'node_modules/@tensorflow/tfjs-backend-wasm/dist') +
+    path.sep;
 
 function fail(error) {
     console.log(JSON.stringify({ ok: false, error }));
     process.exitCode = 0;
+}
+
+async function readImageAsTensor(photoPath) {
+    const buffer = fs.readFileSync(photoPath);
+    const canvas = await image.imageFromBuffer(buffer);
+    const imageData = image.getImageData(canvas);
+
+    return tf.tidy(() => {
+        const data = tf.tensor(
+            Array.from(imageData.data),
+            [canvas.height, canvas.width, 4],
+            'int32',
+        );
+        const channels = tf.split(data, 4, 2);
+        const rgb = tf.stack([channels[0], channels[1], channels[2]], 2);
+        return tf.squeeze(rgb);
+    });
 }
 
 async function main() {
@@ -47,6 +67,8 @@ async function main() {
 
     let models;
     try {
+        wasm.setWasmPaths(WASM_PATH);
+        await tf.setBackend('wasm');
         await tf.ready();
         await faceapi.nets.ssdMobilenetv1.loadFromDisk(MODEL_PATH);
         await faceapi.nets.faceLandmark68Net.loadFromDisk(MODEL_PATH);
@@ -63,8 +85,7 @@ async function main() {
 
     let tensor;
     try {
-        const buffer = fs.readFileSync(photoPath);
-        tensor = tf.node.decodeImage(buffer, 3);
+        tensor = await readImageAsTensor(photoPath);
     } catch {
         fail('invalid_input');
         return;

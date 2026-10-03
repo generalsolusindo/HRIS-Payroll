@@ -38,6 +38,8 @@ class Attendance extends Model
             'tanggal' => 'date',
             'clock_in_time' => 'datetime',
             'clock_out_time' => 'datetime',
+            'clock_in_late_minutes' => 'integer',
+            'clock_out_early_minutes' => 'integer',
             'clock_in_latitude' => 'decimal:7',
             'clock_in_longitude' => 'decimal:7',
             'clock_out_latitude' => 'decimal:7',

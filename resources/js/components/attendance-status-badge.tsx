@@ -31,7 +31,14 @@ export function AttendanceStatusBadge({
     minutes?: number | null;
 }) {
     const config = STATUS_CONFIG[status];
-    const label = minutes ? `${config.label} ${minutes} menit` : config.label;
+    const wholeMinutes =
+        minutes != null && Number.isFinite(minutes) && minutes >= 0
+            ? Math.max(1, Math.floor(minutes))
+            : null;
+    const label =
+        status !== 'tepat_waktu' && wholeMinutes !== null
+            ? `${config.label} ${wholeMinutes} menit`
+            : config.label;
 
     return (
         <span

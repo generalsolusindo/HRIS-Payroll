@@ -275,6 +275,44 @@ class AttendanceTest extends TestCase
         $this->assertSame(120, $attendance->clock_out_early_minutes);
     }
 
+    public function test_early_departure_saves_whole_minutes_without_fractional_seconds(): void
+    {
+        $user = $this->makeUser();
+        $this->travelTo(today()->setTime(7, 50));
+        $this->actingAs($user)->post(route('absen.masuk'), $this->payload());
+
+        $this->travelTo(today()->setTime(13, 40, 33));
+        $this->actingAs($user)->post(route('absen.pulang'), $this->payload())
+            ->assertSessionDoesntHaveErrors();
+
+        $attendance = Attendance::first();
+        $this->assertSame('pulang_cepat', $attendance->clock_out_status);
+        $this->assertSame(199, $attendance->clock_out_early_minutes);
+        $this->assertDatabaseHas('attendances', ['id' => $attendance->id, 'clock_out_early_minutes' => 199]);
+        $this->assertSame(199, $attendance->toArray()['clock_out_early_minutes']);
+    }
+
+    public function test_early_departure_of_less_than_a_minute_has_minimum_one_minute(): void
+    {
+        $user = $this->makeUser();
+        $this->travelTo(today()->setTime(7, 50));
+        $this->actingAs($user)->post(route('absen.masuk'), $this->payload());
+        $this->travelTo(today()->setTime(16, 59, 59));
+        $this->actingAs($user)->post(route('absen.pulang'), $this->payload());
+        $this->assertSame(1, Attendance::first()->clock_out_early_minutes);
+    }
+
+    public function test_legacy_fractional_minutes_are_serialized_as_integers(): void
+    {
+        $attendance = new Attendance;
+        $attendance->setRawAttributes([
+            'clock_out_early_minutes' => 199.45022413333,
+            'clock_in_late_minutes' => 4.75,
+        ]);
+        $this->assertSame(199, $attendance->toArray()['clock_out_early_minutes']);
+        $this->assertSame(4, $attendance->toArray()['clock_in_late_minutes']);
+    }
+
     public function test_employee_leaving_on_time_has_no_early_minutes()
     {
         $user = $this->makeUser();

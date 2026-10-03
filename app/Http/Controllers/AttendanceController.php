@@ -117,19 +117,20 @@ class AttendanceController extends Controller
             );
 
             $scheduledClockOut = today()->setTimeFromTimeString($this->workSchedule($user)->jam_pulang);
-            $isEarly = now()->lessThan($scheduledClockOut);
+            $clockOut = now();
+            $isEarly = $clockOut->lessThan($scheduledClockOut);
             $photoPath = $this->storePhoto($request, $user, 'pulang');
             $face = $this->evaluateFaceMatch($user, 'attendance_photos', $photoPath);
 
             $attendance->fill([
-                'clock_out_time' => now(),
+                'clock_out_time' => $clockOut,
                 'clock_out_latitude' => $request->float('latitude'),
                 'clock_out_longitude' => $request->float('longitude'),
                 'clock_out_accuracy_meter' => (int) round($request->float('accuracy')),
                 'clock_out_distance_meter' => $distance,
                 'clock_out_photo_path' => $photoPath,
                 'clock_out_status' => $isEarly ? 'pulang_cepat' : 'tepat_waktu',
-                'clock_out_early_minutes' => $isEarly ? abs($scheduledClockOut->diffInMinutes(now())) : null,
+                'clock_out_early_minutes' => $isEarly ? max(1, (int) $clockOut->diffInMinutes($scheduledClockOut)) : null,
                 'clock_out_face_match' => $face['match'],
                 'clock_out_face_distance' => $face['distance'],
             ])->save();

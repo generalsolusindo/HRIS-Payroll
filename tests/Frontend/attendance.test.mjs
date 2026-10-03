@@ -53,7 +53,7 @@ const position = (accuracy, latitude = -7, longitude = 112) => ({
     coords: { latitude, longitude, accuracy },
 });
 
-test('reports each improving fix but not a worse one', () => {
+void test('reports each improving fix but not a worse one', () => {
     const updates = [];
     watchBestPosition(
         (p) => updates.push(p.coords.accuracy),
@@ -69,7 +69,7 @@ test('reports each improving fix but not a worse one', () => {
     assert.equal(options.maximumAge, 0);
 });
 
-test('the returned stop function clears the underlying watch', () => {
+void test('the returned stop function clears the underlying watch', () => {
     const stop = watchBestPosition(
         () => {},
         () => {},
@@ -78,7 +78,7 @@ test('the returned stop function clears the underlying watch', () => {
     assert.deepEqual(cleared, [7]);
 });
 
-test('surfaces permission denial', () => {
+void test('surfaces permission denial', () => {
     const errors = [];
     watchBestPosition(
         () => {},
@@ -90,7 +90,7 @@ test('surfaces permission denial', () => {
     assert.match(errors[0], /Izin lokasi ditolak/);
 });
 
-test('stays quiet on a transient position-unavailable or timeout error', () => {
+void test('stays quiet on a transient position-unavailable or timeout error', () => {
     const updates = [];
     const errors = [];
     watchBestPosition(
@@ -106,14 +106,14 @@ test('stays quiet on a transient position-unavailable or timeout error', () => {
     assert.deepEqual(updates, [30]);
 });
 
-test('distanceInMeters is zero for the same point and grows with separation', () => {
+void test('distanceInMeters is zero for the same point and grows with separation', () => {
     assert.equal(distanceInMeters(-7, 112, -7, 112), 0);
     // Roughly 1 degree of latitude is on the order of 111km.
     const oneDegreeLatitude = distanceInMeters(-7, 112, -6, 112);
     assert.ok(oneDegreeLatitude > 110_000 && oneDegreeLatitude < 112_000);
 });
 
-test('nearestOffice picks the closest office and returns null when there are none', () => {
+void test('nearestOffice picks the closest office and returns null when there are none', () => {
     const offices = [
         {
             id: 1,

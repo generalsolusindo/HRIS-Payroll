@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\FaceProfileController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -24,6 +25,13 @@ Route::middleware(['auth'])->group(function () {
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
+
+    Route::middleware(RequirePassword::class)->group(function () {
+        Route::get('settings/face', [FaceProfileController::class, 'edit'])->name('face.edit');
+        Route::post('settings/face', [FaceProfileController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('face.store');
+    });
 });
 
 Route::get('.well-known/passkey-endpoints', function () {

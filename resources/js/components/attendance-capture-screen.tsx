@@ -4,14 +4,16 @@ import { AttendanceGeofenceMap } from '@/components/attendance-geofence-map';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import {
-    capturePhotoFromVideo,
     MAX_ACCURACY_METERS,
     nearestOffice,
-    startCameraStream,
-    stopCameraStream,
     watchBestPosition,
     type OfficeLocation,
 } from '@/lib/attendance';
+import {
+    capturePhotoFromVideo,
+    startCameraStream,
+    stopCameraStream,
+} from '@/lib/camera';
 import { cn } from '@/lib/utils';
 
 type Props = {

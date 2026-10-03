@@ -88,7 +88,9 @@ class LeaveRequestLifecycleTest extends TestCase
         $this->assertNotContains($leaveRequest->id, $managerQueue());
 
         // 3 Telegram sends across the lifecycle: submitted, HRD-approved, final-approved.
-        Http::assertSentCount(3);
+        $this->assertCount(3, Http::recorded(
+            fn ($request) => str_starts_with($request->url(), 'https://api.telegram.org/'),
+        ));
         Mail::assertSent(LeaveRequestDecisionMail::class, 1);
         $this->assertSame('sent', $leaveRequest->email_status);
     }

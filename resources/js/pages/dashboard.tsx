@@ -33,6 +33,7 @@ function formatTime(value: string | null): string | null {
     }
 
     return new Date(value).toLocaleTimeString('id-ID', {
+        timeZone: 'Asia/Jakarta',
         hour: '2-digit',
         minute: '2-digit',
     });
@@ -40,6 +41,7 @@ function formatTime(value: string | null): string | null {
 
 function formatToday(): string {
     return new Date().toLocaleDateString('id-ID', {
+        timeZone: 'Asia/Jakarta',
         weekday: 'long',
         day: 'numeric',
         month: 'long',
@@ -96,7 +98,7 @@ export default function Dashboard({ todayAttendance }: Props) {
 
                 <div className="grid max-w-xl gap-3 sm:grid-cols-2">
                     <AttendanceStatCard
-                        label="Absen Masuk"
+                        label="Absen Masuk (WIB)"
                         time={formatTime(
                             todayAttendance?.clock_in_time ?? null,
                         )}
@@ -107,7 +109,7 @@ export default function Dashboard({ todayAttendance }: Props) {
                         tone="navy"
                     />
                     <AttendanceStatCard
-                        label="Absen Pulang"
+                        label="Absen Pulang (WIB)"
                         time={formatTime(
                             todayAttendance?.clock_out_time ?? null,
                         )}

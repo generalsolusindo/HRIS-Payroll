@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\OfficeLocation;
 use App\Models\User;
 use App\Models\WorkSchedule;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -89,6 +90,37 @@ class AttendanceTest extends TestCase
 
         $this->assertSame('telat', $attendance->clock_in_status);
         $this->assertSame(30, $attendance->clock_in_late_minutes);
+    }
+
+    public function test_clock_in_at_0834_wib_is_four_minutes_late_even_with_old_grace_period(): void
+    {
+        $user = $this->makeUser();
+        $user->company->workSchedules()->update(['jam_masuk' => '08:30:00']);
+        $this->travelTo(CarbonImmutable::parse('2026-10-03 01:34:00', 'UTC'));
+
+        $this->actingAs($user)->post(route('absen.masuk'), $this->payload())
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('attendances', [
+            'user_id' => $user->id,
+            'clock_in_status' => 'telat',
+            'clock_in_late_minutes' => 4,
+            'clock_in_time' => '2026-10-03 08:34:00',
+        ]);
+    }
+
+    public function test_clock_in_at_exactly_0830_wib_is_on_time(): void
+    {
+        $user = $this->makeUser();
+        $user->company->workSchedules()->update(['jam_masuk' => '08:30:00']);
+        $this->travelTo(today()->setTime(8, 30));
+
+        $this->actingAs($user)->post(route('absen.masuk'), $this->payload())
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('attendances', [
+            'user_id' => $user->id, 'clock_in_status' => 'tepat_waktu', 'clock_in_late_minutes' => null,
+        ]);
     }
 
     public function test_employee_clocking_in_on_time_has_no_late_minutes()

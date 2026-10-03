@@ -28,6 +28,7 @@ type Props = {
 
 function formatDate(value: string): string {
     return new Date(value).toLocaleDateString('id-ID', {
+        timeZone: 'Asia/Jakarta',
         weekday: 'long',
         day: 'numeric',
         month: 'long',
@@ -40,6 +41,7 @@ function formatTime(value: string | null): string | null {
     }
 
     return new Date(value).toLocaleTimeString('id-ID', {
+        timeZone: 'Asia/Jakarta',
         hour: '2-digit',
         minute: '2-digit',
     });
@@ -111,7 +113,7 @@ function AttendanceHistoryRow({ attendance }: { attendance: AttendanceRow }) {
             </div>
             <div className="flex items-center gap-6">
                 <AttendanceMiniStatus
-                    label="Masuk"
+                    label="Masuk (WIB)"
                     time={formatTime(attendance.clock_in_time)}
                     status={attendance.clock_in_status}
                     minutes={attendance.clock_in_late_minutes}
@@ -120,7 +122,7 @@ function AttendanceHistoryRow({ attendance }: { attendance: AttendanceRow }) {
                     tone="navy"
                 />
                 <AttendanceMiniStatus
-                    label="Pulang"
+                    label="Pulang (WIB)"
                     time={formatTime(attendance.clock_out_time)}
                     status={attendance.clock_out_status}
                     minutes={attendance.clock_out_early_minutes}

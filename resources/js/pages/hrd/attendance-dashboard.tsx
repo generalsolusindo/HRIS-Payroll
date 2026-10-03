@@ -37,6 +37,7 @@ function formatTime(value: string | null): string {
     }
 
     return new Date(value).toLocaleTimeString('id-ID', {
+        timeZone: 'Asia/Jakarta',
         hour: '2-digit',
         minute: '2-digit',
     });
@@ -193,10 +194,10 @@ export default function AttendanceDashboard({ tanggal, employees }: Props) {
                                             Jabatan / Divisi
                                         </th>
                                         <th className="p-3 font-medium text-muted-foreground">
-                                            Absen Masuk
+                                            Absen Masuk (WIB)
                                         </th>
                                         <th className="p-3 font-medium text-muted-foreground">
-                                            Absen Pulang
+                                            Absen Pulang (WIB)
                                         </th>
                                     </tr>
                                 </thead>

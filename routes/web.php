@@ -23,7 +23,9 @@ Route::middleware(['auth'])->group(function () {
 
 Route::middleware(['auth', 'active'])->group(function () {
     Route::get('dashboard', function () {
-        $attendance = auth()->user()->attendances()->where('tanggal', today())->first();
+        $user = auth()->user();
+        $attendance = $user->attendances()->where('tanggal', today())->first();
+        $workSchedule = $user->company->workSchedules()->first();
 
         return Inertia::render('dashboard', [
             'todayAttendance' => $attendance ? [
@@ -35,6 +37,19 @@ Route::middleware(['auth', 'active'])->group(function () {
                 'clock_out_status' => $attendance->clock_out_status,
                 'clock_out_early_minutes' => $attendance->clock_out_early_minutes,
                 'clock_out_photo_url' => $attendance->clockOutPhotoUrl(),
+            ] : null,
+            // Display-only — the authoritative radius/accuracy check still
+            // happens server-side in AttendanceController on submit.
+            'officeLocations' => $user->company->officeLocations->map(fn ($office) => [
+                'id' => $office->id,
+                'name' => $office->name,
+                'latitude' => (float) $office->latitude,
+                'longitude' => (float) $office->longitude,
+                'radius_meter' => $office->radius_meter,
+            ]),
+            'workSchedule' => $workSchedule ? [
+                'jam_masuk' => $workSchedule->jam_masuk,
+                'jam_pulang' => $workSchedule->jam_pulang,
             ] : null,
         ]);
     })->name('dashboard');

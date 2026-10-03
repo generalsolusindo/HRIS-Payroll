@@ -1,0 +1,265 @@
+import { ArrowLeft, Camera, MapPin } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import {
+    capturePhotoFromVideo,
+    MAX_ACCURACY_METERS,
+    nearestOffice,
+    startCameraStream,
+    stopCameraStream,
+    watchBestPosition,
+    type OfficeLocation,
+} from '@/lib/attendance';
+import { cn } from '@/lib/utils';
+
+type Props = {
+    type: 'masuk' | 'pulang';
+    officeLocations: OfficeLocation[];
+    submitting: boolean;
+    onCancel: () => void;
+    onSubmit: (photo: File, position: GeolocationPosition) => void;
+};
+
+function formatClock(): string {
+    return new Date().toLocaleTimeString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+export function AttendanceCaptureScreen({
+    type,
+    officeLocations,
+    submitting,
+    onCancel,
+    onSubmit,
+}: Props) {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+
+    const [cameraReady, setCameraReady] = useState(false);
+    const [cameraError, setCameraError] = useState<string | null>(null);
+    const [position, setPosition] = useState<GeolocationPosition | null>(null);
+    const [locationError, setLocationError] = useState<string | null>(null);
+    const [clock, setClock] = useState(formatClock());
+
+    useEffect(() => {
+        let cancelled = false;
+
+        startCameraStream()
+            .then((stream) => {
+                if (cancelled) {
+                    stopCameraStream(stream);
+                    return;
+                }
+                streamRef.current = stream;
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                }
+                setCameraReady(true);
+            })
+            .catch((error: Error) => setCameraError(error.message));
+
+        const stopWatch = watchBestPosition(
+            (next) => setPosition(next),
+            (message) => setLocationError(message),
+        );
+
+        const clockInterval = window.setInterval(
+            () => setClock(formatClock()),
+            1000,
+        );
+
+        return () => {
+            cancelled = true;
+            if (streamRef.current) {
+                stopCameraStream(streamRef.current);
+            }
+            stopWatch();
+            window.clearInterval(clockInterval);
+        };
+    }, []);
+
+    function handleCancel() {
+        if (streamRef.current) {
+            stopCameraStream(streamRef.current);
+        }
+        onCancel();
+    }
+
+    function handleCapture() {
+        if (!videoRef.current || !position || submitting) {
+            return;
+        }
+
+        capturePhotoFromVideo(videoRef.current)
+            .then((photo) => onSubmit(photo, position))
+            .catch((error: Error) => setCameraError(error.message));
+    }
+
+    const nearest = position
+        ? nearestOffice(
+              officeLocations,
+              position.coords.latitude,
+              position.coords.longitude,
+          )
+        : null;
+    const accuracyReady =
+        position !== null && position.coords.accuracy <= MAX_ACCURACY_METERS;
+    const withinRadius =
+        nearest !== null && nearest.distance <= nearest.office.radius_meter;
+    const canSubmit = cameraReady && accuracyReady && !submitting;
+
+    return (
+        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+                <button
+                    type="button"
+                    onClick={handleCancel}
+                    aria-label="Batal"
+                    className="flex size-9 items-center justify-center rounded-full hover:bg-muted"
+                >
+                    <ArrowLeft className="size-5" />
+                </button>
+                <div className="font-semibold">
+                    {type === 'masuk' ? 'Absen Masuk' : 'Absen Pulang'}
+                </div>
+                <div className="font-mono text-sm text-muted-foreground">
+                    {clock} WIB
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+                <div className="relative mx-auto aspect-3/4 max-w-sm overflow-hidden rounded-3xl bg-brand-navy">
+                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                    <video
+                        ref={videoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="h-full w-full -scale-x-100 object-cover"
+                    />
+
+                    {!cameraReady && !cameraError && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-brand-navy-foreground">
+                            <Spinner className="size-6" />
+                            <p className="text-sm">Membuka kamera…</p>
+                        </div>
+                    )}
+
+                    {cameraError && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-brand-navy-foreground">
+                            <Camera className="size-6" />
+                            <p className="text-sm">{cameraError}</p>
+                        </div>
+                    )}
+
+                    {cameraReady && (
+                        <>
+                            <div className="pointer-events-none absolute inset-x-10 inset-y-12 rounded-[50%] border-2 border-dashed border-white/70" />
+                            <p className="absolute inset-x-0 bottom-4 text-center text-sm text-white/90">
+                                Posisikan wajah di dalam bingkai
+                            </p>
+                        </>
+                    )}
+                </div>
+
+                <div className="mx-auto mt-4 max-w-sm overflow-hidden rounded-3xl border">
+                    <div
+                        className="relative flex h-32 items-center justify-center bg-muted/60"
+                        style={{
+                            backgroundImage:
+                                'linear-gradient(to right, var(--border) 1px, transparent 1px), linear-gradient(to bottom, var(--border) 1px, transparent 1px)',
+                            backgroundSize: '20px 20px',
+                        }}
+                    >
+                        <div className="relative flex size-16 items-center justify-center">
+                            <div
+                                className={cn(
+                                    'absolute inset-0 rounded-full border-2 border-dashed',
+                                    withinRadius
+                                        ? 'border-emerald-500'
+                                        : 'border-muted-foreground/50',
+                                )}
+                            />
+                            <MapPin
+                                className={cn(
+                                    'size-6',
+                                    withinRadius
+                                        ? 'text-emerald-600'
+                                        : 'text-muted-foreground',
+                                )}
+                            />
+                        </div>
+                        {nearest && (
+                            <span className="absolute top-2 right-2 rounded-full bg-background px-2 py-0.5 text-xs font-medium shadow">
+                                ±{Math.round(nearest.distance)} m
+                            </span>
+                        )}
+                    </div>
+                    <div className="space-y-1 p-3 text-sm">
+                        <div className="font-medium">
+                            {nearest?.office.name ?? 'Mencari lokasi kantor…'}
+                        </div>
+                        {nearest && position && (
+                            <div
+                                className={cn(
+                                    'text-xs',
+                                    withinRadius
+                                        ? 'text-emerald-600'
+                                        : 'text-muted-foreground',
+                                )}
+                            >
+                                {withinRadius
+                                    ? `Dalam area kantor · radius ${nearest.office.radius_meter} m`
+                                    : `Di luar radius ${nearest.office.radius_meter} m`}{' '}
+                                · akurasi ±
+                                {Math.round(position.coords.accuracy)} m
+                            </div>
+                        )}
+                        {!position && !locationError && (
+                            <div className="text-xs text-muted-foreground">
+                                Mencari lokasi…
+                            </div>
+                        )}
+                        {locationError && (
+                            <div
+                                role="alert"
+                                className="text-xs text-destructive"
+                            >
+                                {locationError}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="border-t p-4">
+                <Button
+                    className="h-12 w-full rounded-full text-base font-semibold"
+                    onClick={handleCapture}
+                    disabled={!canSubmit}
+                >
+                    {submitting ? (
+                        <>
+                            <Spinner className="size-4" />
+                            Mengirim…
+                        </>
+                    ) : (
+                        <>
+                            <Camera className="size-4" />
+                            Ambil Foto &amp; Kirim
+                        </>
+                    )}
+                </Button>
+                {!accuracyReady && !locationError && (
+                    <p className="mt-2 text-center text-xs text-muted-foreground">
+                        Menunggu akurasi GPS yang cukup…
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+}

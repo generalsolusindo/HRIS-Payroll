@@ -1,5 +1,6 @@
-import { ArrowLeft, Camera, MapPin } from 'lucide-react';
+import { ArrowLeft, Camera } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { AttendanceGeofenceMap } from '@/components/attendance-geofence-map';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -167,32 +168,20 @@ export function AttendanceCaptureScreen({
                 </div>
 
                 <div className="mx-auto mt-4 max-w-sm overflow-hidden rounded-3xl border">
-                    <div
-                        className="relative flex h-32 items-center justify-center bg-muted/60"
-                        style={{
-                            backgroundImage:
-                                'linear-gradient(to right, var(--border) 1px, transparent 1px), linear-gradient(to bottom, var(--border) 1px, transparent 1px)',
-                            backgroundSize: '20px 20px',
-                        }}
-                    >
-                        <div className="relative flex size-16 items-center justify-center">
-                            <div
-                                className={cn(
-                                    'absolute inset-0 rounded-full border-2 border-dashed',
-                                    withinRadius
-                                        ? 'border-emerald-500'
-                                        : 'border-muted-foreground/50',
-                                )}
-                            />
-                            <MapPin
-                                className={cn(
-                                    'size-6',
-                                    withinRadius
-                                        ? 'text-emerald-600'
-                                        : 'text-muted-foreground',
-                                )}
-                            />
-                        </div>
+                    <div className="relative">
+                        <AttendanceGeofenceMap
+                            office={nearest?.office ?? null}
+                            userPosition={
+                                position
+                                    ? {
+                                          latitude: position.coords.latitude,
+                                          longitude: position.coords.longitude,
+                                          accuracy: position.coords.accuracy,
+                                      }
+                                    : null
+                            }
+                            withinRadius={withinRadius}
+                        />
                         {nearest && (
                             <span className="absolute top-2 right-2 rounded-full bg-background px-2 py-0.5 text-xs font-medium shadow">
                                 ±{Math.round(nearest.distance)} m

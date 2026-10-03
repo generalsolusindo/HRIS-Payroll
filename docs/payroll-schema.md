@@ -14,24 +14,24 @@ divisi tidak menimpa histori. Belum ada pemetaan otomatis jabatan menjadi divisi
 
 ## Breakdown tabel
 
-| Tabel | Fungsi dan kolom utama |
-| --- | --- |
-| `divisions` | Divisi per perusahaan: `company_id`, `code`, `name`, `is_active`. Kode unik dalam satu perusahaan. |
-| `payroll_components` | Kamus komponen per perusahaan: kode, nama, jenis earning/deduction/employer_contribution, kategori gaji pokok/tunjangan/insentif/lembur/reward/potongan/asuransi/pajak/lainnya. |
-| `payroll_policies` | Versi aturan: perusahaan, kode, versi, tanggal berlaku, `rules` JSON, pembuat. Berisi parameter deklaratif dan kode algoritme yang dikenal aplikasi; tidak mengeksekusi rumus PHP/SQL dari database. |
-| `employee_payroll_profiles` | Profil efektif per karyawan: perusahaan, divisi, jabatan, tanggal berlaku, masa kerja, jenis hubungan kerja, rekening dan identitas pajak/asuransi. |
-| `employee_salary_components` | Nilai komponen untuk satu versi profil: komponen, nominal, basis monthly/daily/hourly/fixed. Gaji pokok menjadi komponen, bukan kolom nominal kedua. |
-| `company_calendar_days` | Kalender kerja nyata per tanggal/perusahaan, termasuk hari istirahat, hari libur dan snapshot jadwal. Tidak menganggap semua tanggal sebagai hari kerja. |
-| `attendance_reviews` | Hasil pemeriksaan HRD per karyawan/hari, tautan opsional ke absensi asli, jam efektif, menit kerja/telat/pulang cepat/izin, snapshot sumber/jadwal/izin, alasan koreksi, bukti, validator dan versi. |
-| `overtime_requests` | Rentang lembur, jeda, menit disetujui, alasan, keputusan dan pemroses. Jam pulang lebih lama tidak otomatis dianggap lembur berbayar. |
-| `payroll_periods` | Periode per perusahaan, tanggal gaji, cutoff absensi terpisah, tanggal rencana bayar, mata uang, status open/closed. |
-| `payroll_runs` | Versi perhitungan satu periode, hubungan ke versi lama, kebijakan dan snapshot perusahaan, status, total, pembuat dan waktu pengajuan/persetujuan/penguncian. |
-| `payroll_entries` | Satu hasil per karyawan per run: profil, divisi, snapshot identitas/absensi/kompensasi, tujuan bayar, gross, reward, potongan, kontribusi perusahaan dan net. |
-| `payroll_entry_lines` | Rincian komponen: snapshot nama/kode/jenis, quantity, rate, amount, sumber, rincian perhitungan dan alasan penyesuaian. `line_key` mencegah duplikasi akibat penghitungan ulang dalam entry yang sama. |
-| `payroll_approvals` | Riwayat submit, revisi, approve, lock, permintaan/keputusan reopen, supersede dan cancel, beserta status awal/akhir, pelaku dan catatan. |
-| `payroll_payments` | Catatan pembayaran per karyawan, mendukung cicilan: nominal, metode, status, referensi, bukti privat, tujuan bayar, pencatat dan konfirmator. UUID idempotensi unik. Tidak mengirim uang. |
-| `payroll_payslips` | Slip versi tertentu, nomor unik, snapshot isi, lokasi berkas privat, checksum dan waktu/pelaku publikasi. |
-| `payroll_audit_logs` | Riwayat koreksi/penyesuaian, entitas, sebelum/sesudah, alasan, snapshot pelaku; opsional terkait run atau review absensi. |
+| Tabel                        | Fungsi dan kolom utama                                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `divisions`                  | Divisi per perusahaan: `company_id`, `code`, `name`, `is_active`. Kode unik dalam satu perusahaan.                                                                                                     |
+| `payroll_components`         | Kamus komponen per perusahaan: kode, nama, jenis earning/deduction/employer_contribution, kategori gaji pokok/tunjangan/insentif/lembur/reward/potongan/asuransi/pajak/lainnya.                        |
+| `payroll_policies`           | Versi aturan: perusahaan, kode, versi, tanggal berlaku, `rules` JSON, pembuat. Berisi parameter deklaratif dan kode algoritme yang dikenal aplikasi; tidak mengeksekusi rumus PHP/SQL dari database.   |
+| `employee_payroll_profiles`  | Profil efektif per karyawan: perusahaan, divisi, jabatan, tanggal berlaku, masa kerja, jenis hubungan kerja, rekening dan identitas pajak/asuransi.                                                    |
+| `employee_salary_components` | Nilai komponen untuk satu versi profil: komponen, nominal, basis monthly/daily/hourly/fixed. Gaji pokok menjadi komponen, bukan kolom nominal kedua.                                                   |
+| `company_calendar_days`      | Kalender kerja nyata per tanggal/perusahaan, termasuk hari istirahat, hari libur dan snapshot jadwal. Tidak menganggap semua tanggal sebagai hari kerja.                                               |
+| `attendance_reviews`         | Hasil pemeriksaan HRD per karyawan/hari, tautan opsional ke absensi asli, jam efektif, menit kerja/telat/pulang cepat/izin, snapshot sumber/jadwal/izin, alasan koreksi, bukti, validator dan versi.   |
+| `overtime_requests`          | Rentang lembur, jeda, menit disetujui, alasan, keputusan dan pemroses. Jam pulang lebih lama tidak otomatis dianggap lembur berbayar.                                                                  |
+| `payroll_periods`            | Periode per perusahaan, tanggal gaji, cutoff absensi terpisah, tanggal rencana bayar, mata uang, status open/closed.                                                                                   |
+| `payroll_runs`               | Versi perhitungan satu periode, hubungan ke versi lama, kebijakan dan snapshot perusahaan, status, total, pembuat dan waktu pengajuan/persetujuan/penguncian.                                          |
+| `payroll_entries`            | Satu hasil per karyawan per run: profil, divisi, snapshot identitas/absensi/kompensasi, tujuan bayar, gross, reward, potongan, kontribusi perusahaan dan net.                                          |
+| `payroll_entry_lines`        | Rincian komponen: snapshot nama/kode/jenis, quantity, rate, amount, sumber, rincian perhitungan dan alasan penyesuaian. `line_key` mencegah duplikasi akibat penghitungan ulang dalam entry yang sama. |
+| `payroll_approvals`          | Riwayat submit, revisi, approve, lock, permintaan/keputusan reopen, supersede dan cancel, beserta status awal/akhir, pelaku dan catatan.                                                               |
+| `payroll_payments`           | Catatan pembayaran per karyawan, mendukung cicilan: nominal, metode, status, referensi, bukti privat, tujuan bayar, pencatat dan konfirmator. UUID idempotensi unik. Tidak mengirim uang.              |
+| `payroll_payslips`           | Slip versi tertentu, nomor unik, snapshot isi, lokasi berkas privat, checksum dan waktu/pelaku publikasi.                                                                                              |
+| `payroll_audit_logs`         | Riwayat koreksi/penyesuaian, entitas, sebelum/sesudah, alasan, snapshot pelaku; opsional terkait run atau review absensi.                                                                              |
 
 ## Relasi utama
 

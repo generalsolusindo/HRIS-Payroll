@@ -47,6 +47,7 @@
             "@php artisan key:generate",
             "@php artisan migrate --force",
             "npm install",
+            "npm install --prefix node-face",
             "npm run build"
         ],
         "dev": [

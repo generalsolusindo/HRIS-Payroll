@@ -28,6 +28,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         $workSchedule = $user->company->workSchedules()->first();
 
         return Inertia::render('dashboard', [
+            'user' => [
+                'name' => $user->name,
+            ],
+            'isTeknisi' => $user->position?->name === 'Teknisi',
             'todayAttendance' => $attendance ? [
                 'clock_in_time' => $attendance->clock_in_time,
                 'clock_in_status' => $attendance->clock_in_status,
@@ -48,6 +52,7 @@ Route::middleware(['auth', 'active'])->group(function () {
                 'radius_meter' => $office->radius_meter,
             ]),
             'workSchedule' => $workSchedule ? [
+                'name' => $workSchedule->name,
                 'jam_masuk' => $workSchedule->jam_masuk,
                 'jam_pulang' => $workSchedule->jam_pulang,
             ] : null,

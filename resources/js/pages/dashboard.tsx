@@ -1,19 +1,29 @@
-import { Head, router } from '@inertiajs/react';
-import { CheckCircle2, LogIn, LogOut } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import {
+    Bell,
+    Briefcase,
+    Camera,
+    CheckCircle2,
+    ChevronRight,
+    MapPin,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AttendanceCaptureScreen } from '@/components/attendance-capture-screen';
 import { AttendanceStatCard } from '@/components/attendance-stat-card';
 import { AttendanceSuccessScreen } from '@/components/attendance-success-screen';
 import { type AttendanceStatus } from '@/components/attendance-status-badge';
-import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
     buildAttendanceFormData,
     nearestOffice,
+    watchBestPosition,
     type OfficeLocation,
 } from '@/lib/attendance';
+import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import absen from '@/routes/absen';
+import riwayatAbsen from '@/routes/riwayat-absen';
 
 type TodayAttendance = {
     clock_in_time: string | null;
@@ -26,9 +36,15 @@ type TodayAttendance = {
     clock_out_photo_url: string | null;
 } | null;
 
-type WorkSchedule = { jam_masuk: string; jam_pulang: string } | null;
+type WorkSchedule = {
+    name: string;
+    jam_masuk: string;
+    jam_pulang: string;
+} | null;
 
 type Props = {
+    user: { name: string };
+    isTeknisi: boolean;
     todayAttendance: TodayAttendance;
     officeLocations: OfficeLocation[];
     workSchedule: WorkSchedule;
@@ -56,6 +72,10 @@ function formatTime(value: string | null): string | null {
     });
 }
 
+function formatShiftTime(value: string): string {
+    return value.slice(0, 5);
+}
+
 function formatToday(): string {
     return new Date().toLocaleDateString('id-ID', {
         timeZone: 'Asia/Jakarta',
@@ -66,7 +86,52 @@ function formatToday(): string {
     });
 }
 
+function currentMonthName(): string {
+    return new Date().toLocaleDateString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        month: 'long',
+    });
+}
+
+function jakartaHour(): number {
+    return Number(
+        new Date().toLocaleString('en-US', {
+            timeZone: 'Asia/Jakarta',
+            hour: '2-digit',
+            hour12: false,
+        }),
+    );
+}
+
+function greeting(): string {
+    const hour = jakartaHour();
+    if (hour < 11) return 'Selamat pagi';
+    if (hour < 15) return 'Selamat siang';
+    if (hour < 18) return 'Selamat sore';
+    return 'Selamat malam';
+}
+
+function initialsOf(name: string): string {
+    return name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join('')
+        .toUpperCase();
+}
+
+function formatClock(): string {
+    return new Date().toLocaleTimeString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
 export default function Dashboard({
+    user,
+    isTeknisi,
     todayAttendance,
     officeLocations,
     workSchedule,
@@ -77,6 +142,14 @@ export default function Dashboard({
     const [activeType, setActiveType] = useState<'masuk' | 'pulang'>('masuk');
     const [submitting, setSubmitting] = useState(false);
     const [successData, setSuccessData] = useState<SuccessData | null>(null);
+    const [clock, setClock] = useState(formatClock());
+
+    // A single opportunistic location fix for the "Dalam area kantor" chip
+    // — not a continuous watch, since this is passive dashboard display,
+    // not the authoritative check (that happens on the capture screen and,
+    // independently, again on the server when submitting).
+    const [homePosition, setHomePosition] =
+        useState<GeolocationPosition | null>(null);
 
     // router.post's onSuccess fires after Inertia has already applied the
     // fresh props, but this closure was created on a prior render — so read
@@ -86,6 +159,32 @@ export default function Dashboard({
     useEffect(() => {
         todayAttendanceRef.current = todayAttendance;
     }, [todayAttendance]);
+
+    useEffect(() => {
+        if (screen !== 'home') {
+            return;
+        }
+
+        const stop = watchBestPosition(
+            (position) => {
+                setHomePosition(position);
+                stop();
+            },
+            () => {
+                // Silently ignore — the chip just stays hidden.
+            },
+        );
+
+        return stop;
+    }, [screen]);
+
+    useEffect(() => {
+        const interval = window.setInterval(
+            () => setClock(formatClock()),
+            1000,
+        );
+        return () => window.clearInterval(interval);
+    }, []);
 
     function handleStart(type: 'masuk' | 'pulang') {
         setActiveType(type);
@@ -186,69 +285,204 @@ export default function Dashboard({
         );
     }
 
+    const homeNearest = homePosition
+        ? nearestOffice(
+              officeLocations,
+              homePosition.coords.latitude,
+              homePosition.coords.longitude,
+          )
+        : null;
+    const homeWithinRadius =
+        homeNearest !== null &&
+        homeNearest.distance <= homeNearest.office.radius_meter;
+
     return (
         <>
             <Head title="Dashboard" />
-            <div className="flex flex-1 flex-col gap-6 p-4">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                        Absensi Hari Ini
-                    </h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        {formatToday()}
-                    </p>
-                </div>
+            <div className="flex flex-1 flex-col gap-4 p-4">
+                <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Avatar className="size-11">
+                                <AvatarFallback className="bg-brand-navy/8 font-semibold text-brand-navy dark:bg-brand-navy/35 dark:text-foreground">
+                                    {initialsOf(user.name)}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <div className="text-sm text-muted-foreground">
+                                    {greeting()},
+                                </div>
+                                <div className="font-semibold">{user.name}</div>
+                            </div>
+                        </div>
+                        <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                            <Bell className="size-4" />
+                        </span>
+                    </div>
 
-                <div className="grid max-w-xl gap-3 sm:grid-cols-2">
-                    <AttendanceStatCard
-                        label="Absen Masuk (WIB)"
-                        time={formatTime(
-                            todayAttendance?.clock_in_time ?? null,
+                    <div className="rounded-3xl bg-brand-navy p-5 text-brand-navy-foreground">
+                        <div className="flex items-center justify-between text-sm text-brand-navy-foreground/70">
+                            <span>{formatToday()}</span>
+                            {workSchedule && (
+                                <span>Shift {workSchedule.name}</span>
+                            )}
+                        </div>
+                        <div className="mt-2 flex items-end justify-between">
+                            <div className="font-mono text-4xl font-bold tracking-tight sm:text-5xl">
+                                {clock}{' '}
+                                <span className="text-base font-medium text-brand-navy-foreground/70">
+                                    WIB
+                                </span>
+                            </div>
+                            {workSchedule && (
+                                <div className="font-mono text-sm text-brand-navy-foreground/70">
+                                    {formatShiftTime(workSchedule.jam_masuk)}-
+                                    {formatShiftTime(workSchedule.jam_pulang)}
+                                </div>
+                            )}
+                        </div>
+                        {homeNearest && (
+                            <div className="mt-4 flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium">
+                                <MapPin className="size-3.5 shrink-0" />
+                                <span
+                                    className={
+                                        homeWithinRadius
+                                            ? 'text-emerald-400'
+                                            : 'text-amber-400'
+                                    }
+                                >
+                                    {homeWithinRadius
+                                        ? 'Dalam area kantor'
+                                        : 'Di luar area kantor'}
+                                </span>
+                                <span className="text-brand-navy-foreground/70">
+                                    · {Math.round(homeNearest.distance)} m dari
+                                    titik absen
+                                </span>
+                            </div>
                         )}
-                        status={todayAttendance?.clock_in_status}
-                        minutes={todayAttendance?.clock_in_late_minutes}
-                        photoUrl={todayAttendance?.clock_in_photo_url}
-                        icon={LogIn}
-                        tone="navy"
-                    />
-                    <AttendanceStatCard
-                        label="Absen Pulang (WIB)"
-                        time={formatTime(
-                            todayAttendance?.clock_out_time ?? null,
-                        )}
-                        status={todayAttendance?.clock_out_status}
-                        minutes={todayAttendance?.clock_out_early_minutes}
-                        photoUrl={todayAttendance?.clock_out_photo_url}
-                        icon={LogOut}
-                        tone="yellow"
-                    />
-                </div>
+                    </div>
 
-                <div className="max-w-xl">
                     {!hasClockedIn && (
-                        <Button
-                            className="h-12 w-full rounded-full text-base font-semibold"
+                        <button
+                            type="button"
                             onClick={() => handleStart('masuk')}
+                            className="flex items-center gap-4 rounded-3xl bg-emerald-600 p-4 text-left text-white transition hover:bg-emerald-700"
                         >
-                            Absen Masuk
-                        </Button>
+                            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/15">
+                                <Camera className="size-5" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-base font-semibold">
+                                    Absen Masuk
+                                </span>
+                                <span className="block text-sm text-white/80">
+                                    Selfie + lokasi GPS
+                                </span>
+                            </span>
+                            <ChevronRight className="size-5 shrink-0" />
+                        </button>
                     )}
 
                     {hasClockedIn && !hasClockedOut && (
-                        <Button
-                            className="h-12 w-full rounded-full text-base font-semibold"
+                        <button
+                            type="button"
                             onClick={() => handleStart('pulang')}
+                            className="flex items-center gap-4 rounded-3xl bg-emerald-600 p-4 text-left text-white transition hover:bg-emerald-700"
                         >
-                            Absen Pulang
-                        </Button>
+                            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/15">
+                                <Camera className="size-5" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-base font-semibold">
+                                    Absen Pulang
+                                </span>
+                                <span className="block text-sm text-white/80">
+                                    Selfie + lokasi GPS
+                                </span>
+                            </span>
+                            <ChevronRight className="size-5 shrink-0" />
+                        </button>
                     )}
 
                     {hasClockedIn && hasClockedOut && (
-                        <div className="flex items-center justify-center gap-2 rounded-full bg-muted/60 py-3.5 text-sm font-medium">
+                        <div className="flex items-center justify-center gap-2 rounded-3xl bg-muted/60 py-3.5 text-sm font-medium">
                             <CheckCircle2 className="size-4 text-emerald-500" />
                             Absensi hari ini selesai
                         </div>
                     )}
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <AttendanceStatCard
+                            label="Masuk"
+                            time={formatTime(
+                                todayAttendance?.clock_in_time ?? null,
+                            )}
+                            status={todayAttendance?.clock_in_status}
+                            minutes={todayAttendance?.clock_in_late_minutes}
+                            photoUrl={todayAttendance?.clock_in_photo_url}
+                            emptyText="Belum absen"
+                        />
+                        <AttendanceStatCard
+                            label="Pulang"
+                            time={formatTime(
+                                todayAttendance?.clock_out_time ?? null,
+                            )}
+                            status={todayAttendance?.clock_out_status}
+                            minutes={todayAttendance?.clock_out_early_minutes}
+                            photoUrl={todayAttendance?.clock_out_photo_url}
+                            emptyText={
+                                workSchedule
+                                    ? `Mulai ${formatShiftTime(workSchedule.jam_pulang)}`
+                                    : 'Belum absen'
+                            }
+                        />
+                    </div>
+
+                    <button
+                        type="button"
+                        disabled={!isTeknisi}
+                        onClick={() => {
+                            if (isTeknisi) {
+                                toast.info(
+                                    'Fitur absen dinas luar segera hadir.',
+                                );
+                            }
+                        }}
+                        className={cn(
+                            'flex items-center gap-4 rounded-3xl border p-4 text-left transition',
+                            isTeknisi
+                                ? 'hover:bg-muted/40'
+                                : 'cursor-not-allowed opacity-50',
+                        )}
+                    >
+                        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted">
+                            <Briefcase className="size-5 text-muted-foreground" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-semibold">
+                                Bertugas di lokasi klien?
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                                {isTeknisi
+                                    ? 'Absen dinas luar dengan foto lokasi'
+                                    : 'Khusus untuk Teknisi'}
+                            </span>
+                        </span>
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                    </button>
+
+                    <div className="flex items-center justify-between pt-2">
+                        <h2 className="text-sm font-semibold">
+                            Ringkasan {currentMonthName()}
+                        </h2>
+                        <Link
+                            href={riwayatAbsen.index()}
+                            className="text-sm font-medium text-brand-navy hover:underline dark:text-brand-yellow"
+                        >
+                            Lihat riwayat
+                        </Link>
+                    </div>
                 </div>
             </div>
         </>

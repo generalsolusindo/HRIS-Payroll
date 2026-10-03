@@ -1,21 +1,8 @@
-import { type LucideIcon } from 'lucide-react';
 import {
     AttendanceStatusBadge,
     type AttendanceStatus,
 } from '@/components/attendance-status-badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-    ATTENDANCE_TONE_CARD_STYLES,
-    type AttendanceTone,
-} from '@/lib/attendance-tone';
-import { cn } from '@/lib/utils';
-
-const ICON_TONE_STYLES = {
-    navy: 'bg-brand-navy text-brand-navy-foreground',
-    yellow: 'bg-brand-yellow text-brand-yellow-foreground',
-} as const;
-
-type Tone = AttendanceTone;
 
 export function AttendanceStatCard({
     label,
@@ -23,8 +10,6 @@ export function AttendanceStatCard({
     status,
     minutes,
     photoUrl,
-    icon: Icon,
-    tone,
     emptyText = 'Belum absen',
 }: {
     label: string;
@@ -32,27 +17,14 @@ export function AttendanceStatCard({
     status?: AttendanceStatus | null;
     minutes?: number | null;
     photoUrl?: string | null;
-    icon: LucideIcon;
-    tone: Tone;
     emptyText?: string;
 }) {
     return (
-        <div
-            className={cn(
-                'flex flex-col gap-4 rounded-3xl p-5',
-                ATTENDANCE_TONE_CARD_STYLES[tone],
-            )}
-        >
-            <div className="flex items-start justify-between">
-                <span
-                    className={cn(
-                        'flex size-9 items-center justify-center rounded-full',
-                        ICON_TONE_STYLES[tone],
-                    )}
-                >
-                    <Icon className="size-4" />
+        <div className="flex flex-col gap-2 rounded-2xl border bg-card p-4">
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-muted-foreground">
+                    {label}
                 </span>
-
                 {photoUrl && (
                     <a
                         href={photoUrl}
@@ -60,7 +32,7 @@ export function AttendanceStatCard({
                         rel="noreferrer"
                         aria-label={`Lihat foto ${label}`}
                     >
-                        <Avatar className="size-9 ring-2 ring-background">
+                        <Avatar className="size-7">
                             <AvatarImage src={photoUrl} alt={`Foto ${label}`} />
                             <AvatarFallback>{label.charAt(0)}</AvatarFallback>
                         </Avatar>
@@ -68,21 +40,16 @@ export function AttendanceStatCard({
                 )}
             </div>
 
-            <div>
-                <div className="text-sm text-muted-foreground">{label}</div>
-                {time ? (
-                    <div className="mt-1 text-3xl font-bold tracking-tight">
-                        {time}
-                    </div>
-                ) : (
-                    <div className="mt-1 text-xl font-semibold text-muted-foreground">
-                        {emptyText}
-                    </div>
-                )}
+            <div className="font-mono text-2xl font-bold tracking-tight">
+                {time ?? '--:--'}
             </div>
 
-            {status && (
+            {status ? (
                 <AttendanceStatusBadge status={status} minutes={minutes} />
+            ) : (
+                <span className="text-xs text-muted-foreground">
+                    {emptyText}
+                </span>
             )}
         </div>
     );

@@ -25,6 +25,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $phone
  * @property string $role
  * @property string $status
+ * @property array<int, float>|null $face_descriptor
+ * @property Carbon|null $face_enrolled_at
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -35,7 +37,12 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['company_id', 'position_id', 'employee_number', 'name', 'email', 'phone', 'password'])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
+// face_descriptor is deliberately never mass-assignable or serialized —
+// it's biometric data and must only ever be set via an explicit enrollment
+// code path, never via fill()/create(), and never sent to the frontend
+// (the "encrypted:array" cast below decrypts it on access, so toArray()/JSON
+// would otherwise leak the raw descriptor through the shared Inertia props).
+#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'face_descriptor'])]
 class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
@@ -91,6 +98,11 @@ class User extends Authenticatable implements PasskeyUser
         return $this->status === 'active';
     }
 
+    public function hasFaceEnrolled(): bool
+    {
+        return $this->face_descriptor !== null;
+    }
+
     /**
      * Get the attributes that should be cast.
      *
@@ -102,6 +114,8 @@ class User extends Authenticatable implements PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'face_descriptor' => 'encrypted:array',
+            'face_enrolled_at' => 'datetime',
         ];
     }
 }

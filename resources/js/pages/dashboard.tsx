@@ -300,7 +300,7 @@ export default function Dashboard({
         <>
             <Head title="Dashboard" />
             <div className="flex flex-1 flex-col gap-4 p-4">
-                <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
+                <div className="mx-auto flex w-full max-w-xl flex-col gap-4 lg:max-w-5xl">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <Avatar className="size-11">
@@ -320,168 +320,172 @@ export default function Dashboard({
                         </span>
                     </div>
 
-                    <div className="rounded-3xl bg-brand-navy p-5 text-brand-navy-foreground">
-                        <div className="flex items-center justify-between text-sm text-brand-navy-foreground/70">
-                            <span>{formatToday()}</span>
-                            {workSchedule && (
-                                <span>Shift {workSchedule.name}</span>
-                            )}
-                        </div>
-                        <div className="mt-2 flex items-end justify-between">
-                            <div className="font-mono text-4xl font-bold tracking-tight sm:text-5xl">
-                                {clock}{' '}
-                                <span className="text-base font-medium text-brand-navy-foreground/70">
-                                    WIB
-                                </span>
-                            </div>
-                            {workSchedule && (
-                                <div className="font-mono text-sm text-brand-navy-foreground/70">
-                                    {formatShiftTime(workSchedule.jam_masuk)}-
-                                    {formatShiftTime(workSchedule.jam_pulang)}
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+                        <div className="flex flex-col gap-4 lg:flex-1">
+                            <div className="rounded-3xl bg-brand-navy p-5 text-brand-navy-foreground">
+                                <div className="flex items-center justify-between text-sm text-brand-navy-foreground/70">
+                                    <span>{formatToday()}</span>
+                                    {workSchedule && (
+                                        <span>Shift {workSchedule.name}</span>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                        {homeNearest && (
-                            <div className="mt-4 flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium">
-                                <MapPin className="size-3.5 shrink-0" />
-                                <span
-                                    className={
-                                        homeWithinRadius
-                                            ? 'text-emerald-400'
-                                            : 'text-amber-400'
-                                    }
-                                >
-                                    {homeWithinRadius
-                                        ? 'Dalam area kantor'
-                                        : 'Di luar area kantor'}
-                                </span>
-                                <span className="text-brand-navy-foreground/70">
-                                    · {Math.round(homeNearest.distance)} m dari
-                                    titik absen
-                                </span>
+                                <div className="mt-2 flex items-end justify-between">
+                                    <div className="font-mono text-4xl font-bold tracking-tight sm:text-5xl">
+                                        {clock}{' '}
+                                        <span className="text-base font-medium text-brand-navy-foreground/70">
+                                            WIB
+                                        </span>
+                                    </div>
+                                    {workSchedule && (
+                                        <div className="font-mono text-sm text-brand-navy-foreground/70">
+                                            {formatShiftTime(
+                                                workSchedule.jam_masuk,
+                                            )}
+                                            -
+                                            {formatShiftTime(
+                                                workSchedule.jam_pulang,
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                {homeNearest && (
+                                    <div className="mt-4 flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium">
+                                        <MapPin className="size-3.5 shrink-0" />
+                                        <span
+                                            className={
+                                                homeWithinRadius
+                                                    ? 'text-emerald-400'
+                                                    : 'text-amber-400'
+                                            }
+                                        >
+                                            {homeWithinRadius
+                                                ? 'Dalam area kantor'
+                                                : 'Di luar area kantor'}
+                                        </span>
+                                        <span className="text-brand-navy-foreground/70">
+                                            · {Math.round(homeNearest.distance)}{' '}
+                                            m dari titik absen
+                                        </span>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
 
-                    {!hasClockedIn && (
-                        <button
-                            type="button"
-                            onClick={() => handleStart('masuk')}
-                            className="flex items-center gap-4 rounded-3xl bg-emerald-600 p-4 text-left text-white transition hover:bg-emerald-700"
-                        >
-                            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/15">
-                                <Camera className="size-5" />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                                <span className="block text-base font-semibold">
-                                    Absen Masuk
-                                </span>
-                                <span className="block text-sm text-white/80">
-                                    Selfie + lokasi GPS
-                                </span>
-                            </span>
-                            <ChevronRight className="size-5 shrink-0" />
-                        </button>
-                    )}
+                            {hasClockedOut ? (
+                                <div className="flex items-center justify-center gap-2 rounded-3xl bg-muted/60 py-3.5 text-sm font-medium">
+                                    <CheckCircle2 className="size-4 text-emerald-500" />
+                                    Absensi hari ini selesai
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        handleStart(
+                                            hasClockedIn ? 'pulang' : 'masuk',
+                                        )
+                                    }
+                                    className="flex items-center gap-4 rounded-3xl bg-primary p-4 text-left text-primary-foreground transition hover:bg-primary/90"
+                                >
+                                    <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
+                                        <Camera className="size-5" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-base font-semibold">
+                                            {hasClockedIn
+                                                ? 'Absen Pulang'
+                                                : 'Absen Masuk'}
+                                        </span>
+                                        <span className="block text-sm text-primary-foreground/80">
+                                            Selfie + lokasi GPS
+                                        </span>
+                                    </span>
+                                    <ChevronRight className="size-5 shrink-0" />
+                                </button>
+                            )}
 
-                    {hasClockedIn && !hasClockedOut && (
-                        <button
-                            type="button"
-                            onClick={() => handleStart('pulang')}
-                            className="flex items-center gap-4 rounded-3xl bg-emerald-600 p-4 text-left text-white transition hover:bg-emerald-700"
-                        >
-                            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/15">
-                                <Camera className="size-5" />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                                <span className="block text-base font-semibold">
-                                    Absen Pulang
-                                </span>
-                                <span className="block text-sm text-white/80">
-                                    Selfie + lokasi GPS
-                                </span>
-                            </span>
-                            <ChevronRight className="size-5 shrink-0" />
-                        </button>
-                    )}
-
-                    {hasClockedIn && hasClockedOut && (
-                        <div className="flex items-center justify-center gap-2 rounded-3xl bg-muted/60 py-3.5 text-sm font-medium">
-                            <CheckCircle2 className="size-4 text-emerald-500" />
-                            Absensi hari ini selesai
+                            <div className="grid grid-cols-2 gap-3">
+                                <AttendanceStatCard
+                                    label="Masuk"
+                                    time={formatTime(
+                                        todayAttendance?.clock_in_time ?? null,
+                                    )}
+                                    status={todayAttendance?.clock_in_status}
+                                    minutes={
+                                        todayAttendance?.clock_in_late_minutes
+                                    }
+                                    photoUrl={
+                                        todayAttendance?.clock_in_photo_url
+                                    }
+                                    emptyText="Belum absen"
+                                />
+                                <AttendanceStatCard
+                                    label="Pulang"
+                                    time={formatTime(
+                                        todayAttendance?.clock_out_time ?? null,
+                                    )}
+                                    status={todayAttendance?.clock_out_status}
+                                    minutes={
+                                        todayAttendance?.clock_out_early_minutes
+                                    }
+                                    photoUrl={
+                                        todayAttendance?.clock_out_photo_url
+                                    }
+                                    emptyText={
+                                        workSchedule
+                                            ? `Mulai ${formatShiftTime(workSchedule.jam_pulang)}`
+                                            : 'Belum absen'
+                                    }
+                                />
+                            </div>
                         </div>
-                    )}
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <AttendanceStatCard
-                            label="Masuk"
-                            time={formatTime(
-                                todayAttendance?.clock_in_time ?? null,
-                            )}
-                            status={todayAttendance?.clock_in_status}
-                            minutes={todayAttendance?.clock_in_late_minutes}
-                            photoUrl={todayAttendance?.clock_in_photo_url}
-                            emptyText="Belum absen"
-                        />
-                        <AttendanceStatCard
-                            label="Pulang"
-                            time={formatTime(
-                                todayAttendance?.clock_out_time ?? null,
-                            )}
-                            status={todayAttendance?.clock_out_status}
-                            minutes={todayAttendance?.clock_out_early_minutes}
-                            photoUrl={todayAttendance?.clock_out_photo_url}
-                            emptyText={
-                                workSchedule
-                                    ? `Mulai ${formatShiftTime(workSchedule.jam_pulang)}`
-                                    : 'Belum absen'
-                            }
-                        />
-                    </div>
+                        <div className="flex flex-col gap-4 lg:w-72 lg:shrink-0 xl:w-80">
+                            <button
+                                type="button"
+                                disabled={!isTeknisi}
+                                onClick={() => {
+                                    if (isTeknisi) {
+                                        toast.info(
+                                            'Fitur absen dinas luar segera hadir.',
+                                        );
+                                    }
+                                }}
+                                className={cn(
+                                    'flex items-center gap-4 rounded-3xl border p-4 text-left transition',
+                                    isTeknisi
+                                        ? 'hover:bg-muted/40'
+                                        : 'cursor-not-allowed opacity-50',
+                                )}
+                            >
+                                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted">
+                                    <Briefcase className="size-5 text-muted-foreground" />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-sm font-semibold">
+                                        Bertugas di lokasi klien?
+                                    </span>
+                                    <span className="block text-xs text-muted-foreground">
+                                        {isTeknisi
+                                            ? 'Absen dinas luar dengan foto lokasi'
+                                            : 'Khusus untuk Teknisi'}
+                                    </span>
+                                </span>
+                                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                            </button>
 
-                    <button
-                        type="button"
-                        disabled={!isTeknisi}
-                        onClick={() => {
-                            if (isTeknisi) {
-                                toast.info(
-                                    'Fitur absen dinas luar segera hadir.',
-                                );
-                            }
-                        }}
-                        className={cn(
-                            'flex items-center gap-4 rounded-3xl border p-4 text-left transition',
-                            isTeknisi
-                                ? 'hover:bg-muted/40'
-                                : 'cursor-not-allowed opacity-50',
-                        )}
-                    >
-                        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted">
-                            <Briefcase className="size-5 text-muted-foreground" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-semibold">
-                                Bertugas di lokasi klien?
-                            </span>
-                            <span className="block text-xs text-muted-foreground">
-                                {isTeknisi
-                                    ? 'Absen dinas luar dengan foto lokasi'
-                                    : 'Khusus untuk Teknisi'}
-                            </span>
-                        </span>
-                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                    </button>
-
-                    <div className="flex items-center justify-between pt-2">
-                        <h2 className="text-sm font-semibold">
-                            Ringkasan {currentMonthName()}
-                        </h2>
-                        <Link
-                            href={riwayatAbsen.index()}
-                            className="text-sm font-medium text-brand-navy hover:underline dark:text-brand-yellow"
-                        >
-                            Lihat riwayat
-                        </Link>
+                            <div className="rounded-3xl border p-4">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-sm font-semibold">
+                                        Ringkasan {currentMonthName()}
+                                    </h2>
+                                    <Link
+                                        href={riwayatAbsen.index()}
+                                        className="text-sm font-medium text-brand-navy hover:underline dark:text-brand-yellow"
+                                    >
+                                        Lihat riwayat
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

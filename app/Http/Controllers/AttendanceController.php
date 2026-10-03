@@ -11,6 +11,7 @@ use App\Services\AttendancePunctuality;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class AttendanceController extends Controller
@@ -32,12 +33,13 @@ class AttendanceController extends Controller
             ]);
         }
 
-        $this->assertGpsAccuracyIsUsable($request->float('accuracy'));
+        $this->assertGpsAccuracyIsUsable($user, $request->float('accuracy'));
 
         $distance = $this->assertWithinOfficeRadius(
             $user,
             $request->float('latitude'),
             $request->float('longitude'),
+            $request->float('accuracy'),
         );
 
         $workSchedule = $this->workSchedule($user);
@@ -95,12 +97,13 @@ class AttendanceController extends Controller
                 ]);
             }
 
-            $this->assertGpsAccuracyIsUsable($request->float('accuracy'));
+            $this->assertGpsAccuracyIsUsable($user, $request->float('accuracy'));
 
             $distance = $this->assertWithinOfficeRadius(
                 $user,
                 $request->float('latitude'),
                 $request->float('longitude'),
+                $request->float('accuracy'),
             );
 
             $scheduledClockOut = today()->setTimeFromTimeString($this->workSchedule($user)->jam_pulang);
@@ -121,9 +124,10 @@ class AttendanceController extends Controller
         return back();
     }
 
-    private function assertGpsAccuracyIsUsable(float $accuracyMeters): void
+    private function assertGpsAccuracyIsUsable(User $user, float $accuracyMeters): void
     {
         if ($accuracyMeters > self::MAX_GPS_ACCURACY_METERS) {
+            Log::notice('Attendance location rejected.', ['user_id' => $user->id, 'reason' => 'accuracy', 'accuracy_meters' => $accuracyMeters]);
             throw ValidationException::withMessages([
                 'accuracy' => sprintf(
                     'Akurasi GPS terlalu rendah (±%dm). Coba lagi di area terbuka.',
@@ -133,26 +137,40 @@ class AttendanceController extends Controller
         }
     }
 
-    private function assertWithinOfficeRadius(User $user, float $latitude, float $longitude): int
+    private function assertWithinOfficeRadius(User $user, float $latitude, float $longitude, float $accuracy): int
     {
         $officeLocations = $user->company->officeLocations;
 
         abort_if($officeLocations->isEmpty(), 500, 'Lokasi kantor belum diatur untuk instansi ini.');
 
-        $nearest = $officeLocations
+        $candidates = $officeLocations
             ->map(fn (OfficeLocation $office) => [
+                'id' => $office->id,
                 'distance' => $office->distanceInMetersFrom($latitude, $longitude),
                 'radius' => $office->radius_meter,
             ])
-            ->sortBy('distance')
-            ->first();
+            ->sortBy('distance');
+
+        // Any configured office may contain the employee, even if a closer
+        // office has a smaller radius that does not contain them.
+        $inside = $candidates->first(fn (array $office) => $office['distance'] <= $office['radius']);
+        if ($inside !== null) {
+            return (int) round($inside['distance']);
+        }
+        $nearest = $candidates->first();
 
         if ($nearest['distance'] > $nearest['radius']) {
+            Log::notice('Attendance location rejected.', [
+                'user_id' => $user->id, 'reason' => 'outside_radius',
+                'office_id' => $nearest['id'], 'distance_meters' => (int) round($nearest['distance']),
+                'radius_meters' => $nearest['radius'], 'accuracy_meters' => $accuracy,
+            ]);
             throw ValidationException::withMessages([
                 'latitude' => sprintf(
-                    'Anda berada sekitar %dm dari kantor, di luar radius %dm yang diizinkan.',
+                    'Titik lokasi perangkat terbaca %dm dari kantor (radius %dm; akurasi ±%dm). Jika Anda di kantor, coba dekat jendela/pintu dan periksa lokasi presisi. Hubungi HRD bila tetap gagal.',
                     round($nearest['distance']),
                     $nearest['radius'],
+                    round($accuracy),
                 ),
             ]);
         }

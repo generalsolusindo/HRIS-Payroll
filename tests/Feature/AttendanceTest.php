@@ -147,6 +147,43 @@ class AttendanceTest extends TestCase
         $this->assertDatabaseCount('attendances', 0);
     }
 
+    public function test_employee_inside_another_valid_office_is_not_rejected_by_nearest_small_office(): void
+    {
+        $user = $this->makeUser();
+        $user->company->officeLocations()->update(['radius_meter' => 5]);
+        OfficeLocation::create([
+            'company_id' => $user->company_id, 'name' => 'Area Kantor',
+            'latitude' => self::OFFICE_LATITUDE + 0.001,
+            'longitude' => self::OFFICE_LONGITUDE, 'radius_meter' => 200,
+        ]);
+        $this->actingAs($user)->post(route('absen.masuk'), $this->payload([
+            'latitude' => self::OFFICE_LATITUDE + 0.0002,
+        ]))->assertSessionDoesntHaveErrors();
+        $this->assertDatabaseCount('attendances', 1);
+    }
+
+    public function test_office_from_another_company_does_not_allow_attendance(): void
+    {
+        $user = $this->makeUser();
+        OfficeLocation::create([
+            'company_id' => Company::factory()->create()->id, 'name' => 'Kantor Lain',
+            'latitude' => -6.25, 'longitude' => 106.85, 'radius_meter' => 200,
+        ]);
+        $this->actingAs($user)->post(route('absen.masuk'), $this->payload([
+            'latitude' => -6.25, 'longitude' => 106.85,
+        ]))->assertSessionHasErrors('latitude');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_poor_accuracy_also_rejects_clock_out_without_writing_it(): void
+    {
+        $user = $this->makeUser();
+        $this->actingAs($user)->post(route('absen.masuk'), $this->payload());
+        $this->actingAs($user)->post(route('absen.pulang'), $this->payload(['accuracy' => 80]))
+            ->assertSessionHasErrors('accuracy');
+        $this->assertNull(Attendance::first()->clock_out_time);
+    }
+
     public function test_employee_with_poor_gps_accuracy_is_rejected()
     {
         $user = $this->makeUser();

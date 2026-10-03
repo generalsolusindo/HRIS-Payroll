@@ -15,17 +15,21 @@ use Illuminate\Support\Facades\Storage;
  * @property string|null $clock_in_status
  * @property int|null $clock_in_late_minutes
  * @property string|null $clock_in_photo_path
+ * @property bool|null $clock_in_face_match
+ * @property string|null $clock_in_face_distance
  * @property Carbon|null $clock_out_time
  * @property string|null $clock_out_status
  * @property int|null $clock_out_early_minutes
  * @property string|null $clock_out_photo_path
+ * @property bool|null $clock_out_face_match
+ * @property string|null $clock_out_face_distance
  */
 class Attendance extends Model
 {
     protected $fillable = [
         'user_id', 'tanggal',
-        'clock_in_time', 'clock_in_latitude', 'clock_in_longitude', 'clock_in_accuracy_meter', 'clock_in_distance_meter', 'clock_in_photo_path', 'clock_in_status', 'clock_in_late_minutes',
-        'clock_out_time', 'clock_out_latitude', 'clock_out_longitude', 'clock_out_accuracy_meter', 'clock_out_distance_meter', 'clock_out_photo_path', 'clock_out_status', 'clock_out_early_minutes',
+        'clock_in_time', 'clock_in_latitude', 'clock_in_longitude', 'clock_in_accuracy_meter', 'clock_in_distance_meter', 'clock_in_photo_path', 'clock_in_status', 'clock_in_late_minutes', 'clock_in_face_match', 'clock_in_face_distance',
+        'clock_out_time', 'clock_out_latitude', 'clock_out_longitude', 'clock_out_accuracy_meter', 'clock_out_distance_meter', 'clock_out_photo_path', 'clock_out_status', 'clock_out_early_minutes', 'clock_out_face_match', 'clock_out_face_distance',
     ];
 
     protected function casts(): array
@@ -38,6 +42,10 @@ class Attendance extends Model
             'clock_in_longitude' => 'decimal:7',
             'clock_out_latitude' => 'decimal:7',
             'clock_out_longitude' => 'decimal:7',
+            'clock_in_face_match' => 'boolean',
+            'clock_in_face_distance' => 'decimal:4',
+            'clock_out_face_match' => 'boolean',
+            'clock_out_face_distance' => 'decimal:4',
         ];
     }
 

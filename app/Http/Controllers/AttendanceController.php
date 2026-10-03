@@ -8,15 +8,21 @@ use App\Models\OfficeLocation;
 use App\Models\User;
 use App\Models\WorkSchedule;
 use App\Services\AttendancePunctuality;
+use App\Services\FaceDescriptorExtractor;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class AttendanceController extends Controller
 {
     private const MAX_GPS_ACCURACY_METERS = 50;
+
+    public function __construct(
+        private readonly FaceDescriptorExtractor $faceExtractor,
+    ) {}
 
     public function clockIn(StoreAttendanceRequest $request): RedirectResponse
     {
@@ -46,6 +52,8 @@ class AttendanceController extends Controller
 
         $clockIn = now();
         $punctuality = (new AttendancePunctuality)->evaluate($clockIn, $workSchedule->jam_masuk);
+        $photoPath = $this->storePhoto($request, $user, 'masuk');
+        $face = $this->evaluateFaceMatch($user, 'attendance_photos', $photoPath);
 
         $attendance->fill([
             'user_id' => $user->id,
@@ -55,9 +63,11 @@ class AttendanceController extends Controller
             'clock_in_longitude' => $request->float('longitude'),
             'clock_in_accuracy_meter' => (int) round($request->float('accuracy')),
             'clock_in_distance_meter' => $distance,
-            'clock_in_photo_path' => $this->storePhoto($request, $user, 'masuk'),
+            'clock_in_photo_path' => $photoPath,
             'clock_in_status' => $punctuality['status'],
             'clock_in_late_minutes' => $punctuality['minutes'],
+            'clock_in_face_match' => $face['match'],
+            'clock_in_face_distance' => $face['distance'],
         ]);
 
         try {
@@ -108,6 +118,8 @@ class AttendanceController extends Controller
 
             $scheduledClockOut = today()->setTimeFromTimeString($this->workSchedule($user)->jam_pulang);
             $isEarly = now()->lessThan($scheduledClockOut);
+            $photoPath = $this->storePhoto($request, $user, 'pulang');
+            $face = $this->evaluateFaceMatch($user, 'attendance_photos', $photoPath);
 
             $attendance->fill([
                 'clock_out_time' => now(),
@@ -115,9 +127,11 @@ class AttendanceController extends Controller
                 'clock_out_longitude' => $request->float('longitude'),
                 'clock_out_accuracy_meter' => (int) round($request->float('accuracy')),
                 'clock_out_distance_meter' => $distance,
-                'clock_out_photo_path' => $this->storePhoto($request, $user, 'pulang'),
+                'clock_out_photo_path' => $photoPath,
                 'clock_out_status' => $isEarly ? 'pulang_cepat' : 'tepat_waktu',
                 'clock_out_early_minutes' => $isEarly ? abs($scheduledClockOut->diffInMinutes(now())) : null,
+                'clock_out_face_match' => $face['match'],
+                'clock_out_face_distance' => $face['distance'],
             ])->save();
         });
 
@@ -198,5 +212,44 @@ class AttendanceController extends Controller
         abort_if($path === false, 500, 'Gagal menyimpan foto absen. Coba lagi.');
 
         return $path;
+    }
+
+    /**
+     * Face verification is optional (only runs for employees who've
+     * enrolled) and never blocks attendance either way — a mismatch is
+     * only flagged for HRD to review, since camera/lighting/angle can
+     * easily produce a false reject and GPS + the photo stay the
+     * authoritative check.
+     *
+     * @return array{match: bool|null, distance: string|null}
+     */
+    private function evaluateFaceMatch(User $user, string $disk, string $photoPath): array
+    {
+        if (! $user->hasFaceEnrolled()) {
+            return ['match' => null, 'distance' => null];
+        }
+
+        $result = $this->faceExtractor->extract(Storage::disk($disk)->path($photoPath));
+
+        if (! $result->ok) {
+            Log::notice('Attendance face verification could not run.', [
+                'user_id' => $user->id,
+                'reason' => $result->error,
+            ]);
+
+            return ['match' => false, 'distance' => null];
+        }
+
+        $distance = $this->faceExtractor->distance($user->face_descriptor, $result->descriptor);
+        $matches = $this->faceExtractor->matches($user->face_descriptor, $result->descriptor);
+
+        if (! $matches) {
+            Log::notice('Attendance face verification did not match the enrolled face.', [
+                'user_id' => $user->id,
+                'distance' => $distance,
+            ]);
+        }
+
+        return ['match' => $matches, 'distance' => (string) $distance];
     }
 }

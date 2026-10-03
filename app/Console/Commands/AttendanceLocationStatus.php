@@ -17,7 +17,7 @@ class AttendanceLocationStatus extends Command
             ['ID', 'Perusahaan ID', 'Kantor', 'Latitude', 'Longitude', 'Radius (m)'],
             OfficeLocation::orderBy('company_id')->get()->map(fn (OfficeLocation $office) => [
                 $office->id, $office->company_id, $office->name,
-                $office->latitude, $office->longitude, $office->radius_meter,
+                $office->latitude, $office->longitude, min($office->radius_meter, OfficeLocation::MAX_ATTENDANCE_RADIUS_METERS),
             ])->all(),
         );
         $this->info('Batas ketelitian lokasi: maksimal ±50 m. Ini berbeda dari radius kantor.');

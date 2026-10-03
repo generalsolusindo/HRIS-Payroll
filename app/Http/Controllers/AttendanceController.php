@@ -161,7 +161,7 @@ class AttendanceController extends Controller
             ->map(fn (OfficeLocation $office) => [
                 'id' => $office->id,
                 'distance' => $office->distanceInMetersFrom($latitude, $longitude),
-                'radius' => $office->radius_meter,
+                'radius' => min($office->radius_meter, OfficeLocation::MAX_ATTENDANCE_RADIUS_METERS),
             ])
             ->sortBy('distance');
 

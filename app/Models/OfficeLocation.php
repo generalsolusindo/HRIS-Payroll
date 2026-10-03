@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OfficeLocation extends Model
 {
+    public const MAX_ATTENDANCE_RADIUS_METERS = 20;
+
     protected $fillable = ['company_id', 'name', 'latitude', 'longitude', 'radius_meter'];
 
     protected function casts(): array

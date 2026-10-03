@@ -5,8 +5,9 @@ sebelum pemeriksaan radius. Angka accuracy adalah estimasi ketelitian koordinat
 perangkat dalam meter, bukan jarak karyawan dari kantor. Jadi seseorang di dalam
 kantor masih bisa ditolak bila ketelitian yang dilaporkan, misalnya, ±80 m.
 
-Radius awal pada CompanySeeder adalah 30 m. Nilai di database server mungkin
-berbeda. Memperbesar radius tidak menyelesaikan penolakan karena akurasi.
+Radius maksimal sekarang 20 m. Seeder memakai 20 m, backend membatasi nilai
+radius lama ke maksimum 20 m, dan migrasi menurunkan radius tersimpan yang
+lebih besar dari 20 m. Radius yang sudah lebih kecil tetap dipertahankan. Memperbesar radius tidak menyelesaikan penolakan karena akurasi.
 
 ## Perubahan
 
@@ -31,7 +32,9 @@ berbeda. Memperbesar radius tidak menyelesaikan penolakan karena akurasi.
 ## Pemeriksaan server setelah deploy
 
 Push/pull seluruh perubahan, build frontend (`npm run build`), lalu refresh
-browser. Tidak ada migrasi database untuk perubahan ini. Untuk melihat titik
+browser. Jalankan `php artisan migrate --force` untuk menerapkan migrasi batas
+radius 20 m. Rollback migrasi ini tidak memperbesar radius kembali karena
+nilai lama tiap kantor tidak diketahui. Untuk melihat titik
 kantor sebenarnya tanpa mengubah konfigurasi:
 
 ```bash

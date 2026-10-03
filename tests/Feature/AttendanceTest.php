@@ -133,6 +133,28 @@ class AttendanceTest extends TestCase
         $this->assertNull(Attendance::first()->clock_in_late_minutes);
     }
 
+    public function test_radius_is_capped_at_twenty_meters_even_with_larger_database_radius(): void
+    {
+        $user = $this->makeUser(); // Legacy radius is 100 m.
+        $this->actingAs($user)->post(route('absen.masuk'), $this->payload([
+            'latitude' => self::OFFICE_LATITUDE + rad2deg(21 / 6371000),
+        ]))->assertSessionHasErrors('latitude');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_nineteen_meters_is_allowed_but_clock_out_at_twenty_one_is_rejected(): void
+    {
+        $user = $this->makeUser();
+        $this->actingAs($user)->post(route('absen.masuk'), $this->payload([
+            'latitude' => self::OFFICE_LATITUDE + rad2deg(19 / 6371000),
+        ]))->assertSessionDoesntHaveErrors();
+        $this->assertDatabaseCount('attendances', 1);
+        $this->actingAs($user)->post(route('absen.pulang'), $this->payload([
+            'latitude' => self::OFFICE_LATITUDE + rad2deg(21 / 6371000),
+        ]))->assertSessionHasErrors('latitude');
+        $this->assertNull(Attendance::first()->clock_out_time);
+    }
+
     public function test_employee_outside_office_radius_is_rejected()
     {
         $user = $this->makeUser();
@@ -153,11 +175,11 @@ class AttendanceTest extends TestCase
         $user->company->officeLocations()->update(['radius_meter' => 5]);
         OfficeLocation::create([
             'company_id' => $user->company_id, 'name' => 'Area Kantor',
-            'latitude' => self::OFFICE_LATITUDE + 0.001,
+            'latitude' => self::OFFICE_LATITUDE + 0.0002,
             'longitude' => self::OFFICE_LONGITUDE, 'radius_meter' => 200,
         ]);
         $this->actingAs($user)->post(route('absen.masuk'), $this->payload([
-            'latitude' => self::OFFICE_LATITUDE + 0.0002,
+            'latitude' => self::OFFICE_LATITUDE + 0.0001,
         ]))->assertSessionDoesntHaveErrors();
         $this->assertDatabaseCount('attendances', 1);
     }

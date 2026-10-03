@@ -20,7 +20,7 @@ class CompanySeeder extends Seeder
 
         $latitude = -7.4433990;
         $longitude = 112.7021927;
-        $radiusMeter = 30;
+        $radiusMeter = OfficeLocation::MAX_ATTENDANCE_RADIUS_METERS;
 
         OfficeLocation::create([
             'company_id' => $generalSolusindo->id,

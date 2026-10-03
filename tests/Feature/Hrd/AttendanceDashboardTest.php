@@ -49,6 +49,50 @@ class AttendanceDashboardTest extends TestCase
         $this->assertSame('telat', $row['clock_in_status']);
     }
 
+    public function test_hrd_sees_a_face_mismatch_flag(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $employee = User::factory()->create(['status' => 'active']);
+
+        Attendance::create([
+            'user_id' => $employee->id,
+            'tanggal' => today(),
+            'clock_in_time' => today()->setTime(8, 0),
+            'clock_in_status' => 'tepat_waktu',
+            'clock_in_face_match' => false,
+            'clock_in_face_distance' => 0.74,
+        ]);
+
+        $employees = $this->actingAs($hrd)
+            ->get(route('hrd.absensi.index'))
+            ->viewData('page')['props']['employees'];
+
+        $row = collect($employees)->firstWhere('id', $employee->id);
+
+        $this->assertFalse($row['clock_in_face_match']);
+    }
+
+    public function test_an_employee_without_enrolled_face_shows_no_mismatch_flag(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $employee = User::factory()->create(['status' => 'active']);
+
+        Attendance::create([
+            'user_id' => $employee->id,
+            'tanggal' => today(),
+            'clock_in_time' => today()->setTime(8, 0),
+            'clock_in_status' => 'tepat_waktu',
+        ]);
+
+        $employees = $this->actingAs($hrd)
+            ->get(route('hrd.absensi.index'))
+            ->viewData('page')['props']['employees'];
+
+        $row = collect($employees)->firstWhere('id', $employee->id);
+
+        $this->assertNull($row['clock_in_face_match']);
+    }
+
     public function test_hrd_can_view_a_different_dates_attendance()
     {
         $hrd = User::factory()->create(['role' => 'hrd']);

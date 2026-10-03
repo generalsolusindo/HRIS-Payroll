@@ -38,7 +38,7 @@ class AttendanceDashboardController extends Controller
     }
 
     /**
-     * @return array{id: int, name: string, company: string, position: string, clock_in_time: ?string, clock_in_status: ?string, clock_in_late_minutes: ?int, clock_in_photo_url: ?string, clock_out_time: ?string, clock_out_status: ?string, clock_out_early_minutes: ?int, clock_out_photo_url: ?string}
+     * @return array{id: int, name: string, company: string, position: string, clock_in_time: ?string, clock_in_status: ?string, clock_in_late_minutes: ?int, clock_in_photo_url: ?string, clock_in_face_match: ?bool, clock_out_time: ?string, clock_out_status: ?string, clock_out_early_minutes: ?int, clock_out_photo_url: ?string, clock_out_face_match: ?bool}
      */
     private function presentEmployee(User $user, ?Attendance $attendance): array
     {
@@ -51,10 +51,12 @@ class AttendanceDashboardController extends Controller
             'clock_in_status' => $attendance?->clock_in_status,
             'clock_in_late_minutes' => $attendance?->clock_in_late_minutes,
             'clock_in_photo_url' => $attendance?->clockInPhotoUrl(),
+            'clock_in_face_match' => $attendance?->clock_in_face_match,
             'clock_out_time' => $attendance?->clock_out_time,
             'clock_out_status' => $attendance?->clock_out_status,
             'clock_out_early_minutes' => $attendance?->clock_out_early_minutes,
             'clock_out_photo_url' => $attendance?->clockOutPhotoUrl(),
+            'clock_out_face_match' => $attendance?->clock_out_face_match,
         ];
     }
 }

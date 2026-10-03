@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { Users } from 'lucide-react';
+import { TriangleAlert, Users } from 'lucide-react';
 import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/AttendanceDashboardController';
 import {
     AttendanceStatusBadge,
@@ -20,10 +20,12 @@ type Employee = {
     clock_in_status: AttendanceStatus | null;
     clock_in_late_minutes: number | null;
     clock_in_photo_url: string | null;
+    clock_in_face_match: boolean | null;
     clock_out_time: string | null;
     clock_out_status: AttendanceStatus | null;
     clock_out_early_minutes: number | null;
     clock_out_photo_url: string | null;
+    clock_out_face_match: boolean | null;
 };
 
 type Props = {
@@ -80,11 +82,13 @@ function StatusCell({
     status,
     minutes,
     photoUrl,
+    faceMatch,
 }: {
     time: string | null;
     status: AttendanceStatus | null;
     minutes: number | null;
     photoUrl: string | null;
+    faceMatch: boolean | null;
 }) {
     if (!time) {
         return <span className="text-muted-foreground">Belum absen</span>;
@@ -104,6 +108,17 @@ function StatusCell({
                 <span className="text-sm font-medium">{formatTime(time)}</span>
                 {status && (
                     <AttendanceStatusBadge status={status} minutes={minutes} />
+                )}
+                {/* null = face verification not enrolled/not applicable —
+                    only false (an actual mismatch) is worth flagging. */}
+                {faceMatch === false && (
+                    <span
+                        title="Wajah pada foto absen tidak cocok dengan wajah terdaftar. GPS dan foto tetap jadi bukti utama — tinjau foto secara manual."
+                        className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                    >
+                        <TriangleAlert className="size-3" />
+                        Wajah tidak cocok
+                    </span>
                 )}
             </div>
         </div>
@@ -230,6 +245,9 @@ export default function AttendanceDashboard({ tanggal, employees }: Props) {
                                                     photoUrl={
                                                         employee.clock_in_photo_url
                                                     }
+                                                    faceMatch={
+                                                        employee.clock_in_face_match
+                                                    }
                                                 />
                                             </td>
                                             <td className="p-3">
@@ -245,6 +263,9 @@ export default function AttendanceDashboard({ tanggal, employees }: Props) {
                                                     }
                                                     photoUrl={
                                                         employee.clock_out_photo_url
+                                                    }
+                                                    faceMatch={
+                                                        employee.clock_out_face_match
                                                     }
                                                 />
                                             </td>

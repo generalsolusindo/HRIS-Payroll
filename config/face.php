@@ -32,4 +32,9 @@ return [
     // below this is considered the same person.
     'match_threshold' => env('FACE_MATCH_THRESHOLD', 0.6),
 
+    // How long a "matched" live-preview receipt stays usable. A
+    // prototype value, not yet production-tuned against real network/
+    // worker latency — see docs/face-verification-plan.md section 5.
+    'receipt_ttl_seconds' => env('FACE_RECEIPT_TTL_SECONDS', 10),
+
 ];

@@ -1,0 +1,18 @@
+[Unit]
+Description=HRIS face descriptor extraction worker
+After=network.target
+
+[Service]
+Type=simple
+# Adjust these two paths/user if your deploy differs.
+WorkingDirectory=/home/gs/HRIS-Payroll/node-face
+ExecStart=/usr/bin/node server.js
+EnvironmentFile=/home/gs/HRIS-Payroll/node-face/.env.worker
+Restart=on-failure
+RestartSec=3
+# Never let this reach outside the box even by accident.
+User=gs
+Group=gs
+
+[Install]
+WantedBy=multi-user.target

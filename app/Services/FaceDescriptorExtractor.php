@@ -2,49 +2,58 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Process;
-use Symfony\Component\Process\Exception\ProcessTimedOutException;
 
 /**
- * Wraps the node-face/ CLI, which runs @vladmandic/face-api in Node.js to
- * turn a photo into a 128-value face descriptor. Deliberately never trusts
- * a descriptor computed in the browser — this always re-derives it from
- * the actual uploaded photo, server-side.
+ * Talks to node-face/server.js — a persistent local worker (127.0.0.1
+ * only) that runs @vladmandic/face-api in Node.js and turns a photo into
+ * a 128-value face descriptor. The worker loads its models once at
+ * startup, so requests here are fast (~0.5s) instead of the ~1.7s a
+ * fresh `node extract-descriptor.js` invocation costs per call — needed
+ * once the frontend starts polling this every ~1-1.5s for a live
+ * preview. Deliberately never trusts a descriptor computed in the
+ * browser — this always re-derives it from the actual uploaded photo,
+ * server-side.
  */
 class FaceDescriptorExtractor
 {
     public function extract(string $photoPath): FaceDescriptorResult
     {
         try {
-            $result = Process::timeout((int) config('face.timeout_seconds'))
-                ->run([
-                    config('face.node_binary'),
-                    config('face.script_path'),
-                    $photoPath,
+            $response = Http::timeout((int) config('face.timeout_seconds'))
+                ->withHeaders(array_filter([
+                    'X-Worker-Secret' => config('face.worker_secret'),
+                ]))
+                ->post(rtrim((string) config('face.worker_url'), '/').'/extract', [
+                    'path' => $photoPath,
                 ]);
-        } catch (ProcessTimedOutException) {
-            Log::warning('Face descriptor extraction timed out.', ['photo' => $photoPath]);
-
-            return FaceDescriptorResult::failure('process_failed');
-        }
-
-        if (! $result->successful()) {
-            Log::warning('Face descriptor extraction process failed.', [
+        } catch (ConnectionException $exception) {
+            Log::warning('Face worker unreachable.', [
                 'photo' => $photoPath,
-                'exit_code' => $result->exitCode(),
-                'stderr' => $result->errorOutput(),
+                'error' => $exception->getMessage(),
             ]);
 
             return FaceDescriptorResult::failure('process_failed');
         }
 
-        $decoded = json_decode($result->output(), true);
+        if ($response->failed()) {
+            Log::warning('Face worker request failed.', [
+                'photo' => $photoPath,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return FaceDescriptorResult::failure('process_failed');
+        }
+
+        $decoded = $response->json();
 
         if (! is_array($decoded) || ! array_key_exists('ok', $decoded)) {
-            Log::warning('Face descriptor extraction returned unparseable output.', [
+            Log::warning('Face worker returned unparseable output.', [
                 'photo' => $photoPath,
-                'output' => $result->output(),
+                'output' => $response->body(),
             ]);
 
             return FaceDescriptorResult::failure('invalid_output');
@@ -56,6 +65,9 @@ class FaceDescriptorExtractor
                 'multiple_faces' => 'multiple_faces',
                 'invalid_input' => 'invalid_input',
                 'load_failed' => 'load_failed',
+                // The worker's internal queue/timeout guards — a process
+                // problem, not a malformed-response problem.
+                'queue_full', 'timeout' => 'process_failed',
                 default => 'invalid_output',
             });
         }

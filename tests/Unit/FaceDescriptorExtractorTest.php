@@ -3,7 +3,8 @@
 namespace Tests\Unit;
 
 use App\Services\FaceDescriptorExtractor;
-use Illuminate\Support\Facades\Process;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class FaceDescriptorExtractorTest extends TestCase
@@ -11,8 +12,8 @@ class FaceDescriptorExtractorTest extends TestCase
     public function test_parses_a_successful_extraction(): void
     {
         $descriptor = array_fill(0, 128, 0.1);
-        Process::fake([
-            '*' => Process::result(json_encode(['ok' => true, 'descriptor' => $descriptor])),
+        Http::fake([
+            '*/extract' => Http::response(['ok' => true, 'descriptor' => $descriptor]),
         ]);
 
         $result = (new FaceDescriptorExtractor)->extract('/tmp/photo.jpg');
@@ -22,10 +23,22 @@ class FaceDescriptorExtractorTest extends TestCase
         $this->assertSame(0.1, $result->descriptor[0]);
     }
 
+    public function test_sends_the_configured_worker_secret_header(): void
+    {
+        config(['face.worker_secret' => 'super-secret']);
+        Http::fake([
+            '*/extract' => Http::response(['ok' => true, 'descriptor' => array_fill(0, 128, 0.1)]),
+        ]);
+
+        (new FaceDescriptorExtractor)->extract('/tmp/photo.jpg');
+
+        Http::assertSent(fn ($request) => $request->hasHeader('X-Worker-Secret', 'super-secret'));
+    }
+
     public function test_reports_no_face_detected(): void
     {
-        Process::fake([
-            '*' => Process::result(json_encode(['ok' => false, 'error' => 'no_face'])),
+        Http::fake([
+            '*/extract' => Http::response(['ok' => false, 'error' => 'no_face']),
         ]);
 
         $result = (new FaceDescriptorExtractor)->extract('/tmp/photo.jpg');
@@ -36,8 +49,8 @@ class FaceDescriptorExtractorTest extends TestCase
 
     public function test_reports_multiple_faces_detected(): void
     {
-        Process::fake([
-            '*' => Process::result(json_encode(['ok' => false, 'error' => 'multiple_faces'])),
+        Http::fake([
+            '*/extract' => Http::response(['ok' => false, 'error' => 'multiple_faces']),
         ]);
 
         $result = (new FaceDescriptorExtractor)->extract('/tmp/photo.jpg');
@@ -46,11 +59,9 @@ class FaceDescriptorExtractorTest extends TestCase
         $this->assertSame('multiple_faces', $result->error);
     }
 
-    public function test_treats_a_nonzero_exit_code_as_a_process_failure(): void
+    public function test_treats_an_unreachable_worker_as_a_process_failure(): void
     {
-        Process::fake([
-            '*' => Process::result(output: '', errorOutput: 'boom', exitCode: 1),
-        ]);
+        Http::fake(['*/extract' => fn () => throw new ConnectionException('refused')]);
 
         $result = (new FaceDescriptorExtractor)->extract('/tmp/photo.jpg');
 
@@ -58,11 +69,31 @@ class FaceDescriptorExtractorTest extends TestCase
         $this->assertSame('process_failed', $result->error);
     }
 
+    public function test_treats_a_non_2xx_response_as_a_process_failure(): void
+    {
+        Http::fake(['*/extract' => Http::response(['ok' => false, 'error' => 'unauthorized'], 401)]);
+
+        $result = (new FaceDescriptorExtractor)->extract('/tmp/photo.jpg');
+
+        $this->assertFalse($result->ok);
+        $this->assertSame('process_failed', $result->error);
+    }
+
+    public function test_treats_the_workers_own_timeout_and_queue_errors_as_process_failures(): void
+    {
+        foreach (['timeout', 'queue_full'] as $workerError) {
+            Http::fake(['*/extract' => Http::response(['ok' => false, 'error' => $workerError])]);
+
+            $result = (new FaceDescriptorExtractor)->extract('/tmp/photo.jpg');
+
+            $this->assertFalse($result->ok);
+            $this->assertSame('process_failed', $result->error);
+        }
+    }
+
     public function test_treats_unparseable_output_as_invalid(): void
     {
-        Process::fake([
-            '*' => Process::result('not json at all'),
-        ]);
+        Http::fake(['*/extract' => Http::response('not json at all')]);
 
         $result = (new FaceDescriptorExtractor)->extract('/tmp/photo.jpg');
 
@@ -72,9 +103,7 @@ class FaceDescriptorExtractorTest extends TestCase
 
     public function test_treats_a_malformed_descriptor_length_as_invalid(): void
     {
-        Process::fake([
-            '*' => Process::result(json_encode(['ok' => true, 'descriptor' => [1, 2, 3]])),
-        ]);
+        Http::fake(['*/extract' => Http::response(['ok' => true, 'descriptor' => [1, 2, 3]])]);
 
         $result = (new FaceDescriptorExtractor)->extract('/tmp/photo.jpg');
 

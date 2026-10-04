@@ -39,12 +39,13 @@ class CompanySeeder extends Seeder
         ]);
 
         // Jam operasional diambil dari listing Google Maps General Solusindo
-        // (Senin-Sabtu 08.30-16.30, Minggu tutup), tanpa toleransi keterlambatan.
+        // (Senin-Sabtu 08.30-16.30, Minggu tutup). Batas masuk tepat waktu
+        // digeser ke 08.35 atas keputusan bisnis, tanpa toleransi lain.
         foreach ([$generalSolusindo, $tabinaco] as $company) {
             WorkSchedule::create([
                 'company_id' => $company->id,
                 'name' => 'Reguler',
-                'jam_masuk' => '08:30:00',
+                'jam_masuk' => '08:35:00',
                 'jam_pulang' => '16:30:00',
                 'toleransi_telat_menit' => 0,
             ]);

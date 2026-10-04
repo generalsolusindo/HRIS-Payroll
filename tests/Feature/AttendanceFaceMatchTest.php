@@ -50,6 +50,13 @@ class AttendanceFaceMatchTest extends TestCase
             'toleransi_telat_menit' => 15,
         ]);
 
+        // A real enrollment always sets both columns together (see
+        // FaceProfileController::store), so default face_enrolled_at
+        // alongside face_descriptor unless a test overrides it on purpose.
+        if (isset($attributes['face_descriptor']) && ! array_key_exists('face_enrolled_at', $attributes)) {
+            $attributes['face_enrolled_at'] = now();
+        }
+
         return User::factory()->create(array_merge(['company_id' => $company->id], $attributes));
     }
 
@@ -170,5 +177,95 @@ class AttendanceFaceMatchTest extends TestCase
         $fresh = $attendance->fresh();
         $this->assertNull($fresh->clock_out_time);
         $this->assertEquals($clockInTime->toDateTimeString(), $fresh->clock_in_time->toDateTimeString());
+    }
+
+    public function test_a_clock_in_that_loses_a_concurrent_race_leaves_no_duplicate_and_no_orphaned_photo(): void
+    {
+        $descriptor = array_fill(0, 128, 0.2);
+        $user = $this->makeUser(['face_descriptor' => $descriptor]);
+
+        $extractor = Mockery::mock(FaceDescriptorExtractor::class);
+        $extractor->shouldReceive('extract')->once()->andReturnUsing(function () use ($user) {
+            // Simulate a second request's clock-in committing while this
+            // request's (possibly several-second) model call was in flight.
+            Attendance::create([
+                'user_id' => $user->id,
+                'tanggal' => today(),
+                'clock_in_time' => now(),
+            ]);
+
+            return FaceDescriptorResult::success(array_fill(0, 128, 0.2));
+        });
+        $extractor->shouldReceive('distance')->andReturn(0.0);
+        $extractor->shouldReceive('matches')->andReturn(true);
+        $this->app->instance(FaceDescriptorExtractor::class, $extractor);
+
+        $response = $this->actingAs($user)->post(route('absen.masuk'), $this->payload());
+
+        $response->assertSessionHasErrors('photo');
+        $this->assertSame(1, Attendance::count(), 'Only the already-committed row must exist — no duplicate.');
+        $this->assertEmpty(
+            Storage::disk('attendance_photos')->allFiles($user->id.'/'.today()->toDateString()),
+            'The losing attempt must not leave its own photo behind.',
+        );
+    }
+
+    public function test_a_face_re_enrollment_mid_verification_blocks_clock_in_and_cleans_up_the_photo(): void
+    {
+        $descriptor = array_fill(0, 128, 0.2);
+        $user = $this->makeUser(['face_descriptor' => $descriptor, 'face_enrolled_at' => now()->subDay()]);
+
+        $extractor = Mockery::mock(FaceDescriptorExtractor::class);
+        $extractor->shouldReceive('extract')->once()->andReturnUsing(function () use ($user) {
+            // Simulate HRD approving a face change while this request's
+            // model call was in flight — the snapshot taken before the
+            // call started is now stale.
+            $user->forceFill(['face_enrolled_at' => now()])->save();
+
+            return FaceDescriptorResult::success(array_fill(0, 128, 0.2));
+        });
+        $extractor->shouldReceive('distance')->andReturn(0.0);
+        $extractor->shouldReceive('matches')->andReturn(true);
+        $this->app->instance(FaceDescriptorExtractor::class, $extractor);
+
+        $response = $this->actingAs($user)->post(route('absen.masuk'), $this->payload());
+
+        $response->assertSessionHasErrors('photo');
+        $this->assertSame(0, Attendance::count());
+        $this->assertEmpty(
+            Storage::disk('attendance_photos')->allFiles($user->id.'/'.today()->toDateString()),
+        );
+    }
+
+    public function test_a_clock_out_that_loses_a_concurrent_race_cleans_up_its_own_photo(): void
+    {
+        $descriptor = array_fill(0, 128, 0.2);
+        $user = $this->makeUser(['face_descriptor' => $descriptor]);
+
+        $attendance = Attendance::create([
+            'user_id' => $user->id,
+            'tanggal' => today(),
+            'clock_in_time' => now()->subHours(8),
+        ]);
+
+        $extractor = Mockery::mock(FaceDescriptorExtractor::class);
+        $extractor->shouldReceive('extract')->once()->andReturnUsing(function () use ($attendance) {
+            // Simulate a second request's clock-out committing while this
+            // request's model call was in flight.
+            $attendance->fresh()->forceFill(['clock_out_time' => now()])->save();
+
+            return FaceDescriptorResult::success(array_fill(0, 128, 0.2));
+        });
+        $extractor->shouldReceive('distance')->andReturn(0.0);
+        $extractor->shouldReceive('matches')->andReturn(true);
+        $this->app->instance(FaceDescriptorExtractor::class, $extractor);
+
+        $response = $this->actingAs($user)->post(route('absen.pulang'), $this->payload());
+
+        $response->assertSessionHasErrors('photo');
+        $this->assertEmpty(
+            Storage::disk('attendance_photos')->allFiles($user->id.'/'.today()->toDateString()),
+            'The losing attempt must not leave its own photo behind.',
+        );
     }
 }

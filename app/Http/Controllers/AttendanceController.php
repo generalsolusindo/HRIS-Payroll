@@ -10,11 +10,13 @@ use App\Models\User;
 use App\Models\WorkSchedule;
 use App\Services\AttendancePunctuality;
 use App\Services\FaceDescriptorExtractor;
+use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AttendanceController extends Controller
@@ -29,16 +31,9 @@ class AttendanceController extends Controller
     {
         $user = $request->user();
 
-        $attendance = Attendance::firstOrNew([
-            'user_id' => $user->id,
-            'tanggal' => today(),
-        ]);
-
-        if ($attendance->exists && $attendance->clock_in_time) {
-            throw ValidationException::withMessages([
-                'photo' => 'Anda sudah absen masuk hari ini.',
-            ]);
-        }
+        // Fast, unlocked pre-check — rejects an obviously-already-done
+        // attempt before paying for a photo upload and a face-model call.
+        $this->assertNotAlreadyClockedIn($user);
 
         $this->assertGpsAccuracyIsUsable($user, $request->float('accuracy'));
 
@@ -53,93 +48,152 @@ class AttendanceController extends Controller
 
         $clockIn = now();
         $punctuality = (new AttendancePunctuality)->evaluate($clockIn, $workSchedule->jam_masuk);
-        $photoPath = $this->storePhoto($request, $user, 'masuk');
-        $face = $this->assertFaceMatches($user, 'attendance_photos', $photoPath);
-        $this->consumeReceiptIfProvided($request, $user, 'masuk');
 
-        $attendance->fill([
-            'user_id' => $user->id,
-            'tanggal' => today(),
-            'clock_in_time' => $clockIn,
-            'clock_in_latitude' => $request->float('latitude'),
-            'clock_in_longitude' => $request->float('longitude'),
-            'clock_in_accuracy_meter' => (int) round($request->float('accuracy')),
-            'clock_in_distance_meter' => $distance,
-            'clock_in_photo_path' => $photoPath,
-            'clock_in_status' => $punctuality['status'],
-            'clock_in_late_minutes' => $punctuality['minutes'],
-            'clock_in_face_match' => $face['match'],
-            'clock_in_face_distance' => $face['distance'],
-        ]);
+        // Snapshotted before the model call below (which can take several
+        // seconds) — a re-enrollment landing mid-verification must not
+        // silently ride through on a comparison made against the
+        // descriptor it just replaced.
+        $enrolledAtSnapshot = $user->face_enrolled_at;
+        $photoPath = $this->storePhoto($request, $user, 'masuk');
 
         try {
-            $attendance->save();
-        } catch (UniqueConstraintViolationException) {
+            $face = $this->assertFaceMatches($user, 'attendance_photos', $photoPath);
+
+            DB::transaction(function () use ($request, $user, $enrolledAtSnapshot, $clockIn, $distance, $punctuality, $photoPath, $face): void {
+                // Everything slow (photo upload, model inference) already
+                // happened above, outside of any lock. This transaction
+                // only re-checks what could have changed meanwhile and
+                // commits — it never holds a row lock across the model call.
+                $this->assertNotAlreadyClockedIn($user);
+                $this->assertEnrollmentUnchanged($user, $enrolledAtSnapshot);
+                $this->consumeReceiptIfProvided($request, $user, 'masuk');
+
+                try {
+                    Attendance::create([
+                        'user_id' => $user->id,
+                        'tanggal' => today(),
+                        'clock_in_time' => $clockIn,
+                        'clock_in_latitude' => $request->float('latitude'),
+                        'clock_in_longitude' => $request->float('longitude'),
+                        'clock_in_accuracy_meter' => (int) round($request->float('accuracy')),
+                        'clock_in_distance_meter' => $distance,
+                        'clock_in_photo_path' => $photoPath,
+                        'clock_in_status' => $punctuality['status'],
+                        'clock_in_late_minutes' => $punctuality['minutes'],
+                        'clock_in_face_match' => $face['match'],
+                        'clock_in_face_distance' => $face['distance'],
+                    ]);
+                } catch (UniqueConstraintViolationException) {
+                    throw ValidationException::withMessages([
+                        'photo' => 'Anda sudah absen masuk hari ini.',
+                    ]);
+                }
+            });
+        } catch (\Throwable $e) {
+            // Whatever failed after the photo was written — a stale
+            // re-check, a double-submit losing the race, anything — this
+            // attempt's own file must not linger unreferenced.
+            Storage::disk('attendance_photos')->delete($photoPath);
+
+            throw $e;
+        }
+
+        return back();
+    }
+
+    private function assertNotAlreadyClockedIn(User $user): void
+    {
+        $alreadyClockedIn = Attendance::where('user_id', $user->id)
+            ->where('tanggal', today())
+            ->whereNotNull('clock_in_time')
+            ->exists();
+
+        if ($alreadyClockedIn) {
             throw ValidationException::withMessages([
                 'photo' => 'Anda sudah absen masuk hari ini.',
             ]);
         }
-
-        return back();
     }
 
     public function clockOut(StoreAttendanceRequest $request): RedirectResponse
     {
         $user = $request->user();
 
-        DB::transaction(function () use ($request, $user) {
-            // Locked so a second near-simultaneous clock-out (double tap,
-            // network retry) waits for this one to finish instead of
-            // silently overwriting it — clock-out updates an existing row,
-            // so unlike clock-in there's no unique-constraint to catch it.
-            $attendance = Attendance::where('user_id', $user->id)
-                ->where('tanggal', today())
-                ->lockForUpdate()
-                ->first();
+        // Fast, unlocked pre-check — same reasoning as clock-in: fail an
+        // obviously-already-done attempt before the photo/model work.
+        $this->assertCanClockOut(
+            Attendance::where('user_id', $user->id)->where('tanggal', today())->first(),
+        );
 
-            if (! $attendance || ! $attendance->clock_in_time) {
-                throw ValidationException::withMessages([
-                    'photo' => 'Anda belum absen masuk hari ini.',
-                ]);
-            }
+        $this->assertGpsAccuracyIsUsable($user, $request->float('accuracy'));
 
-            if ($attendance->clock_out_time) {
-                throw ValidationException::withMessages([
-                    'photo' => 'Anda sudah absen pulang hari ini.',
-                ]);
-            }
+        $distance = $this->assertWithinOfficeRadius(
+            $user,
+            $request->float('latitude'),
+            $request->float('longitude'),
+            $request->float('accuracy'),
+        );
 
-            $this->assertGpsAccuracyIsUsable($user, $request->float('accuracy'));
+        $scheduledClockOut = today()->setTimeFromTimeString($this->workSchedule($user)->jam_pulang);
+        $clockOut = now();
+        $isEarly = $clockOut->lessThan($scheduledClockOut);
 
-            $distance = $this->assertWithinOfficeRadius(
-                $user,
-                $request->float('latitude'),
-                $request->float('longitude'),
-                $request->float('accuracy'),
-            );
+        $enrolledAtSnapshot = $user->face_enrolled_at;
+        $photoPath = $this->storePhoto($request, $user, 'pulang');
 
-            $scheduledClockOut = today()->setTimeFromTimeString($this->workSchedule($user)->jam_pulang);
-            $clockOut = now();
-            $isEarly = $clockOut->lessThan($scheduledClockOut);
-            $photoPath = $this->storePhoto($request, $user, 'pulang');
+        try {
             $face = $this->assertFaceMatches($user, 'attendance_photos', $photoPath);
-            $this->consumeReceiptIfProvided($request, $user, 'pulang');
 
-            $attendance->fill([
-                'clock_out_time' => $clockOut,
-                'clock_out_latitude' => $request->float('latitude'),
-                'clock_out_longitude' => $request->float('longitude'),
-                'clock_out_accuracy_meter' => (int) round($request->float('accuracy')),
-                'clock_out_distance_meter' => $distance,
-                'clock_out_photo_path' => $photoPath,
-                'clock_out_status' => $isEarly ? 'pulang_cepat' : 'tepat_waktu',
-                'clock_out_early_minutes' => $isEarly ? max(1, (int) $clockOut->diffInMinutes($scheduledClockOut)) : null,
-                'clock_out_face_match' => $face['match'],
-                'clock_out_face_distance' => $face['distance'],
-            ])->save();
-        });
+            DB::transaction(function () use ($request, $user, $enrolledAtSnapshot, $clockOut, $isEarly, $scheduledClockOut, $distance, $photoPath, $face): void {
+                // The row lock is acquired here, after the model call has
+                // already finished — never held across it. A second
+                // near-simultaneous clock-out (double tap, network retry)
+                // that reaches this point waits here, then fails the
+                // re-check below instead of overwriting anything.
+                $attendance = Attendance::where('user_id', $user->id)
+                    ->where('tanggal', today())
+                    ->lockForUpdate()
+                    ->first();
+
+                $this->assertCanClockOut($attendance);
+                $this->assertEnrollmentUnchanged($user, $enrolledAtSnapshot);
+                $this->consumeReceiptIfProvided($request, $user, 'pulang');
+
+                $attendance->fill([
+                    'clock_out_time' => $clockOut,
+                    'clock_out_latitude' => $request->float('latitude'),
+                    'clock_out_longitude' => $request->float('longitude'),
+                    'clock_out_accuracy_meter' => (int) round($request->float('accuracy')),
+                    'clock_out_distance_meter' => $distance,
+                    'clock_out_photo_path' => $photoPath,
+                    'clock_out_status' => $isEarly ? 'pulang_cepat' : 'tepat_waktu',
+                    'clock_out_early_minutes' => $isEarly ? max(1, (int) $clockOut->diffInMinutes($scheduledClockOut)) : null,
+                    'clock_out_face_match' => $face['match'],
+                    'clock_out_face_distance' => $face['distance'],
+                ])->save();
+            });
+        } catch (\Throwable $e) {
+            Storage::disk('attendance_photos')->delete($photoPath);
+
+            throw $e;
+        }
 
         return back();
+    }
+
+    private function assertCanClockOut(?Attendance $attendance): void
+    {
+        if (! $attendance || ! $attendance->clock_in_time) {
+            throw ValidationException::withMessages([
+                'photo' => 'Anda belum absen masuk hari ini.',
+            ]);
+        }
+
+        if ($attendance->clock_out_time) {
+            throw ValidationException::withMessages([
+                'photo' => 'Anda sudah absen pulang hari ini.',
+            ]);
+        }
     }
 
     private function assertGpsAccuracyIsUsable(User $user, float $accuracyMeters): void
@@ -207,15 +261,46 @@ class AttendanceController extends Controller
 
     private function storePhoto(StoreAttendanceRequest $request, User $user, string $type): string
     {
+        // A random suffix per attempt — not a fixed "masuk.jpg"/"pulang.jpg"
+        // — so two near-simultaneous attempts for the same user/day/type
+        // can never overwrite each other's file before either one has been
+        // verified.
         $path = $request->file('photo')->storeAs(
             $user->id.'/'.today()->toDateString(),
-            $type.'.'.$request->file('photo')->extension(),
+            $type.'-'.Str::random(32).'.'.$request->file('photo')->extension(),
             'attendance_photos',
         );
 
         abort_if($path === false, 500, 'Gagal menyimpan foto absen. Coba lagi.');
 
         return $path;
+    }
+
+    /**
+     * Re-checked right before committing — after the (possibly
+     * several-second) model call above — so a re-enrollment or
+     * deactivation landing mid-verification can't silently ride through
+     * on a decision made against a profile that no longer applies.
+     */
+    private function assertEnrollmentUnchanged(User $user, ?CarbonInterface $enrolledAtSnapshot): void
+    {
+        $current = $user->fresh();
+
+        if (! $current || ! $current->isActive() || ! $current->hasFaceEnrolled()) {
+            throw ValidationException::withMessages([
+                'photo' => 'Profil Anda berubah saat verifikasi berlangsung. Coba absen lagi.',
+            ]);
+        }
+
+        if (
+            $current->face_enrolled_at === null
+            || $enrolledAtSnapshot === null
+            || ! $current->face_enrolled_at->equalTo($enrolledAtSnapshot)
+        ) {
+            throw ValidationException::withMessages([
+                'photo' => 'Profil wajah Anda berubah saat verifikasi berlangsung. Coba absen lagi.',
+            ]);
+        }
     }
 
     /**

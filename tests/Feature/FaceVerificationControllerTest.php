@@ -40,6 +40,9 @@ class FaceVerificationControllerTest extends TestCase
         $extractor->shouldReceive('matches')->andReturnUsing(
             fn (array $a, array $b) => $a === $b,
         );
+        $extractor->shouldReceive('distance')->andReturnUsing(
+            fn (array $a, array $b) => array_sum(array_map(fn ($x, $y) => ($x - $y) ** 2, $a, $b)) ** 0.5,
+        );
         $this->app->instance(FaceDescriptorExtractor::class, $extractor);
     }
 

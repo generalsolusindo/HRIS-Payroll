@@ -6,6 +6,7 @@ use App\Models\FaceVerificationReceipt;
 use App\Services\FaceDescriptorExtractor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -80,6 +81,16 @@ class FaceVerificationController extends Controller
         $matches = $this->faceExtractor->matches($user->face_descriptor, $result->descriptor);
 
         if (! $matches) {
+            // The live preview polls every ~2s, so this fires often during
+            // normal use (still framing up) — kept at notice level, but the
+            // distance is the one thing that tells a real "always rejects"
+            // report apart from ordinary in-progress alignment.
+            Log::notice('Live face preview did not match the enrolled face.', [
+                'user_id' => $user->id,
+                'action' => $validated['action'],
+                'distance' => $this->faceExtractor->distance($user->face_descriptor, $result->descriptor),
+            ]);
+
             return response()->json([
                 'status' => 'mismatch',
                 'message' => 'Wajah tidak cocok dengan yang terdaftar.',

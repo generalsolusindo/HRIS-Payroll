@@ -191,7 +191,11 @@ export default function Dashboard({
         setScreen('capture');
     }
 
-    function handleCaptured(photo: File, position: GeolocationPosition) {
+    function handleCaptured(
+        photo: File,
+        position: GeolocationPosition,
+        receipt: string | null,
+    ) {
         setSubmitting(true);
 
         const nearest = nearestOffice(
@@ -199,7 +203,7 @@ export default function Dashboard({
             position.coords.latitude,
             position.coords.longitude,
         );
-        const formData = buildAttendanceFormData(photo, position);
+        const formData = buildAttendanceFormData(photo, position, receipt);
         const url =
             activeType === 'masuk' ? absen.masuk.url() : absen.pulang.url();
 

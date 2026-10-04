@@ -100,6 +100,7 @@ export function nearestOffice(
 export function buildAttendanceFormData(
     photo: File,
     position: GeolocationPosition,
+    receipt?: string | null,
 ): FormData {
     const formData = new FormData();
 
@@ -107,6 +108,11 @@ export function buildAttendanceFormData(
     formData.append('longitude', String(position.coords.longitude));
     formData.append('accuracy', String(position.coords.accuracy));
     formData.append('photo', photo);
+    // Optional — see absen/face-verification. The server never trusts
+    // this alone; it always re-verifies the photo above regardless.
+    if (receipt) {
+        formData.append('receipt', receipt);
+    }
 
     return formData;
 }

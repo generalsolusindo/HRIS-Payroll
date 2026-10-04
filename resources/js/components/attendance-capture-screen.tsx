@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AttendanceGeofenceMap } from '@/components/attendance-geofence-map';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useLiveFaceCheck } from '@/hooks/use-live-face-check';
 import {
     MAX_ACCURACY_METERS,
     nearestOffice,
@@ -21,7 +22,11 @@ type Props = {
     officeLocations: OfficeLocation[];
     submitting: boolean;
     onCancel: () => void;
-    onSubmit: (photo: File, position: GeolocationPosition) => void;
+    onSubmit: (
+        photo: File,
+        position: GeolocationPosition,
+        receipt: string | null,
+    ) => void;
 };
 
 function formatClock(): string {
@@ -47,6 +52,12 @@ export function AttendanceCaptureScreen({
     const [position, setPosition] = useState<GeolocationPosition | null>(null);
     const [locationError, setLocationError] = useState<string | null>(null);
     const [clock, setClock] = useState(formatClock());
+
+    const faceCheck = useLiveFaceCheck({
+        enabled: cameraReady && !cameraError,
+        videoRef,
+        action: type,
+    });
 
     useEffect(() => {
         let cancelled = false;
@@ -93,12 +104,19 @@ export function AttendanceCaptureScreen({
     }
 
     function handleCapture() {
-        if (!videoRef.current || !position || submitting) {
+        if (
+            !videoRef.current ||
+            !position ||
+            !faceCheck.isStable ||
+            submitting
+        ) {
             return;
         }
 
+        const receipt = faceCheck.receipt;
+
         capturePhotoFromVideo(videoRef.current)
-            .then((photo) => onSubmit(photo, position))
+            .then((photo) => onSubmit(photo, position, receipt))
             .catch((error: Error) => setCameraError(error.message));
     }
 
@@ -113,7 +131,41 @@ export function AttendanceCaptureScreen({
         position !== null && position.coords.accuracy <= MAX_ACCURACY_METERS;
     const withinRadius =
         nearest !== null && nearest.distance <= nearest.office.radius_meter;
-    const canSubmit = cameraReady && accuracyReady && !submitting;
+    const canSubmit =
+        cameraReady && accuracyReady && faceCheck.isStable && !submitting;
+
+    const frameBorderClass = (() => {
+        switch (faceCheck.status) {
+            case 'matched':
+                return faceCheck.isStable
+                    ? 'border-emerald-400'
+                    : 'border-amber-400';
+            case 'mismatch':
+            case 'multiple_faces':
+                return 'border-red-400';
+            case 'checking':
+            case 'no_face':
+            case 'service_unavailable':
+                return 'border-amber-400';
+            default:
+                return 'border-white/70';
+        }
+    })();
+
+    const frameHint = (() => {
+        switch (faceCheck.status) {
+            case 'idle':
+                return 'Posisikan wajah di dalam bingkai';
+            case 'checking':
+                return 'Memeriksa wajah…';
+            case 'matched':
+                return faceCheck.isStable
+                    ? 'Wajah terverifikasi'
+                    : 'Mengonfirmasi wajah…';
+            default:
+                return faceCheck.message ?? 'Memeriksa wajah…';
+        }
+    })();
 
     return (
         <div className="fixed inset-0 z-50 flex flex-col bg-background">
@@ -161,9 +213,14 @@ export function AttendanceCaptureScreen({
 
                     {cameraReady && (
                         <>
-                            <div className="pointer-events-none absolute inset-x-10 inset-y-12 rounded-[50%] border-2 border-dashed border-white/70" />
-                            <p className="absolute inset-x-0 bottom-4 text-center text-sm text-white/90">
-                                Posisikan wajah di dalam bingkai
+                            <div
+                                className={cn(
+                                    'pointer-events-none absolute inset-x-10 inset-y-12 rounded-[50%] border-2 border-dashed transition-colors duration-300',
+                                    frameBorderClass,
+                                )}
+                            />
+                            <p className="absolute inset-x-0 bottom-4 px-6 text-center text-sm text-white/90">
+                                {frameHint}
                             </p>
                         </>
                     )}
@@ -245,9 +302,11 @@ export function AttendanceCaptureScreen({
                         </>
                     )}
                 </Button>
-                {!accuracyReady && !locationError && (
+                {!submitting && cameraReady && !faceCheck.isStable && (
                     <p className="mt-2 text-center text-xs text-muted-foreground">
-                        Menunggu akurasi GPS yang cukup…
+                        {!accuracyReady
+                            ? 'Menunggu akurasi GPS yang cukup…'
+                            : 'Menunggu wajah terverifikasi…'}
                     </p>
                 )}
             </div>

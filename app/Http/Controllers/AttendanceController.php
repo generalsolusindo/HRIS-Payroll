@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreAttendanceRequest;
 use App\Models\Attendance;
+use App\Models\FaceVerificationReceipt;
 use App\Models\OfficeLocation;
 use App\Models\User;
 use App\Models\WorkSchedule;
@@ -54,6 +55,7 @@ class AttendanceController extends Controller
         $punctuality = (new AttendancePunctuality)->evaluate($clockIn, $workSchedule->jam_masuk);
         $photoPath = $this->storePhoto($request, $user, 'masuk');
         $face = $this->assertFaceMatches($user, 'attendance_photos', $photoPath);
+        $this->consumeReceiptIfProvided($request, $user, 'masuk');
 
         $attendance->fill([
             'user_id' => $user->id,
@@ -121,6 +123,7 @@ class AttendanceController extends Controller
             $isEarly = $clockOut->lessThan($scheduledClockOut);
             $photoPath = $this->storePhoto($request, $user, 'pulang');
             $face = $this->assertFaceMatches($user, 'attendance_photos', $photoPath);
+            $this->consumeReceiptIfProvided($request, $user, 'pulang');
 
             $attendance->fill([
                 'clock_out_time' => $clockOut,
@@ -263,5 +266,45 @@ class AttendanceController extends Controller
         }
 
         return ['match' => true, 'distance' => (string) $distance];
+    }
+
+    /**
+     * Consumes a live-preview receipt if one was supplied — purely an
+     * audit trail that a preview check happened. Never authoritative:
+     * assertFaceMatches() above always independently re-extracts and
+     * compares the actual submitted photo regardless of whether a
+     * receipt was present, valid, or missing entirely (the frontend
+     * live-preview is a later addition, so requests without one must
+     * keep working exactly as before).
+     */
+    private function consumeReceiptIfProvided(StoreAttendanceRequest $request, User $user, string $action): void
+    {
+        $token = trim((string) $request->input('receipt', ''));
+
+        if ($token === '') {
+            return;
+        }
+
+        DB::transaction(function () use ($token, $user, $request, $action) {
+            $receipt = FaceVerificationReceipt::where('token', $token)->lockForUpdate()->first();
+
+            if ($receipt === null) {
+                Log::notice('Attendance submitted with an unknown face-verification receipt.', [
+                    'user_id' => $user->id, 'action' => $action,
+                ]);
+
+                return;
+            }
+
+            if (! $receipt->isValidFor($user, $request->session()->getId(), $action)) {
+                Log::notice('Attendance submitted with a stale or mismatched face-verification receipt.', [
+                    'user_id' => $user->id, 'receipt_id' => $receipt->id, 'action' => $action,
+                ]);
+
+                return;
+            }
+
+            $receipt->forceFill(['consumed_at' => now()])->save();
+        });
     }
 }

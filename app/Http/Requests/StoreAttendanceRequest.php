@@ -27,6 +27,9 @@ class StoreAttendanceRequest extends FormRequest
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'accuracy' => ['required', 'numeric', 'min:0'],
             'photo' => ['required', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
+            // Optional — a live-preview receipt from absen/face-verification.
+            // Never authoritative on its own; see AttendanceController.
+            'receipt' => ['nullable', 'string', 'max:64'],
         ];
     }
 }

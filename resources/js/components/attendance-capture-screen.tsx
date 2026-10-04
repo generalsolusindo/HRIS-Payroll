@@ -302,7 +302,7 @@ export function AttendanceCaptureScreen({
                         </>
                     )}
                 </Button>
-                {!submitting && cameraReady && !faceCheck.isStable && (
+                {!submitting && cameraReady && !canSubmit && (
                     <p className="mt-2 text-center text-xs text-muted-foreground">
                         {!accuracyReady
                             ? 'Menunggu akurasi GPS yang cukup…'

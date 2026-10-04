@@ -7,6 +7,8 @@ use App\Models\Company;
 use App\Models\OfficeLocation;
 use App\Models\User;
 use App\Models\WorkSchedule;
+use App\Services\FaceDescriptorExtractor;
+use App\Services\FaceDescriptorResult;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,6 +29,9 @@ class AttendanceTest extends TestCase
         parent::setUp();
 
         Storage::fake('attendance_photos');
+        $extractor = \Mockery::mock(FaceDescriptorExtractor::class)->makePartial();
+        $extractor->shouldReceive('extract')->andReturn(FaceDescriptorResult::success(array_fill(0, 128, 0.2)));
+        $this->app->instance(FaceDescriptorExtractor::class, $extractor);
     }
 
     private function makeUser(): User
@@ -49,7 +54,7 @@ class AttendanceTest extends TestCase
             'toleransi_telat_menit' => 15,
         ]);
 
-        return User::factory()->create(['company_id' => $company->id]);
+        return User::factory()->withEnrolledFace()->create(['company_id' => $company->id]);
     }
 
     private function payload(array $overrides = []): array

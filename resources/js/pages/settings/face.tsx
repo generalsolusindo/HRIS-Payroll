@@ -191,6 +191,13 @@ export default function Face({ hasFaceEnrolled, faceEnrolledAt }: Props) {
                     description="Dipakai untuk mencocokkan wajah Anda saat absen. Foto wajah Anda tidak disimpan — hanya data numerik hasil pemrosesan yang tersimpan terenkripsi."
                 />
 
+                {!hasFaceEnrolled && (
+                    <p role="status" className="text-sm text-muted-foreground">
+                        Pendaftaran wajah wajib diselesaikan sebelum Anda dapat
+                        melakukan absensi.
+                    </p>
+                )}
+
                 <div className="flex items-center gap-4 rounded-2xl border p-4">
                     <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted">
                         {hasFaceEnrolled ? (

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -100,7 +101,33 @@ class User extends Authenticatable implements PasskeyUser
 
     public function hasFaceEnrolled(): bool
     {
-        return $this->face_descriptor !== null;
+        try {
+            $descriptor = $this->readStoredFaceDescriptor();
+        } catch (DecryptException) {
+            return false;
+        }
+
+        if (! is_array($descriptor) || ! array_is_list($descriptor) || count($descriptor) !== 128) {
+            return false;
+        }
+
+        foreach ($descriptor as $value) {
+            if ((! is_int($value) && ! is_float($value)) || ! is_finite((float) $value)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Read through the encrypted cast without assuming stored data is valid.
+     *
+     * @throws DecryptException
+     */
+    private function readStoredFaceDescriptor(): mixed
+    {
+        return $this->getAttribute('face_descriptor');
     }
 
     /**

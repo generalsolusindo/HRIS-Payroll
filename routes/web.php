@@ -57,10 +57,10 @@ Route::middleware(['auth', 'active'])->group(function () {
                 'jam_pulang' => $workSchedule->jam_pulang,
             ] : null,
         ]);
-    })->name('dashboard');
+    })->middleware('face.enrolled')->name('dashboard');
 
-    Route::post('absen/masuk', [AttendanceController::class, 'clockIn'])->name('absen.masuk');
-    Route::post('absen/pulang', [AttendanceController::class, 'clockOut'])->name('absen.pulang');
+    Route::post('absen/masuk', [AttendanceController::class, 'clockIn'])->middleware('face.enrolled')->name('absen.masuk');
+    Route::post('absen/pulang', [AttendanceController::class, 'clockOut'])->middleware('face.enrolled')->name('absen.pulang');
 
     Route::get('riwayat-absen', [AttendanceHistoryController::class, 'index'])->name('riwayat-absen.index');
 

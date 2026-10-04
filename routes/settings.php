@@ -26,7 +26,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
 
-    Route::middleware(RequirePassword::class)->group(function () {
+    Route::middleware(['active', RequirePassword::class])->group(function () {
         Route::get('settings/face', [FaceProfileController::class, 'edit'])->name('face.edit');
         Route::post('settings/face', [FaceProfileController::class, 'store'])
             ->middleware('throttle:10,1')

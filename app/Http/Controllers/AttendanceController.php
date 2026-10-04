@@ -53,7 +53,7 @@ class AttendanceController extends Controller
         $clockIn = now();
         $punctuality = (new AttendancePunctuality)->evaluate($clockIn, $workSchedule->jam_masuk);
         $photoPath = $this->storePhoto($request, $user, 'masuk');
-        $face = $this->evaluateFaceMatch($user, 'attendance_photos', $photoPath);
+        $face = $this->assertFaceMatches($user, 'attendance_photos', $photoPath);
 
         $attendance->fill([
             'user_id' => $user->id,
@@ -120,7 +120,7 @@ class AttendanceController extends Controller
             $clockOut = now();
             $isEarly = $clockOut->lessThan($scheduledClockOut);
             $photoPath = $this->storePhoto($request, $user, 'pulang');
-            $face = $this->evaluateFaceMatch($user, 'attendance_photos', $photoPath);
+            $face = $this->assertFaceMatches($user, 'attendance_photos', $photoPath);
 
             $attendance->fill([
                 'clock_out_time' => $clockOut,
@@ -216,18 +216,19 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Face verification is optional (only runs for employees who've
-     * enrolled) and never blocks attendance either way — a mismatch is
-     * only flagged for HRD to review, since camera/lighting/angle can
-     * easily produce a false reject and GPS + the photo stay the
-     * authoritative check.
+     * Face enrollment is required. A mismatch — or a
+     * selfie the model can't read a face from at all — rejects the whole
+     * attempt the same way an out-of-radius GPS reading does: nothing is
+     * saved, and the employee has to retake the photo.
      *
      * @return array{match: bool|null, distance: string|null}
      */
-    private function evaluateFaceMatch(User $user, string $disk, string $photoPath): array
+    private function assertFaceMatches(User $user, string $disk, string $photoPath): array
     {
         if (! $user->hasFaceEnrolled()) {
-            return ['match' => null, 'distance' => null];
+            throw ValidationException::withMessages([
+                'photo' => 'Daftarkan wajah Anda terlebih dahulu sebelum melakukan absensi.',
+            ]);
         }
 
         $result = $this->faceExtractor->extract(Storage::disk($disk)->path($photoPath));
@@ -238,19 +239,29 @@ class AttendanceController extends Controller
                 'reason' => $result->error,
             ]);
 
-            return ['match' => false, 'distance' => null];
+            Storage::disk($disk)->delete($photoPath);
+
+            throw ValidationException::withMessages([
+                'photo' => 'Wajah tidak terdeteksi dengan jelas di foto. Pastikan wajah Anda terlihat penuh dan coba lagi.',
+            ]);
         }
 
         $distance = $this->faceExtractor->distance($user->face_descriptor, $result->descriptor);
         $matches = $this->faceExtractor->matches($user->face_descriptor, $result->descriptor);
 
         if (! $matches) {
-            Log::notice('Attendance face verification did not match the enrolled face.', [
+            Log::notice('Attendance face verification rejected — did not match the enrolled face.', [
                 'user_id' => $user->id,
                 'distance' => $distance,
             ]);
+
+            Storage::disk($disk)->delete($photoPath);
+
+            throw ValidationException::withMessages([
+                'photo' => 'Wajah pada foto tidak cocok dengan wajah yang terdaftar. Coba lagi, atau hubungi HRD jika masalah berlanjut.',
+            ]);
         }
 
-        return ['match' => $matches, 'distance' => (string) $distance];
+        return ['match' => true, 'distance' => (string) $distance];
     }
 }

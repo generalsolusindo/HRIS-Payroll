@@ -79,6 +79,6 @@ class FaceProfileController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Wajah berhasil didaftarkan.']);
 
-        return back();
+        return $wasAlreadyEnrolled ? back() : redirect()->route('dashboard');
     }
 }

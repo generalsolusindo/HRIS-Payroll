@@ -76,17 +76,15 @@ class AttendanceFaceMatchTest extends TestCase
         $this->app->instance(FaceDescriptorExtractor::class, $extractor);
     }
 
-    public function test_an_employee_without_enrolled_face_is_not_checked(): void
+    public function test_an_employee_without_enrolled_face_cannot_clock_in(): void
     {
         $user = $this->makeUser(['face_descriptor' => null]);
 
         $this->actingAs($user)
             ->post(route('absen.masuk'), $this->payload())
-            ->assertSessionDoesntHaveErrors();
+            ->assertRedirect(route('face.edit'));
 
-        $attendance = Attendance::first();
-        $this->assertNull($attendance->clock_in_face_match);
-        $this->assertNull($attendance->clock_in_face_distance);
+        $this->assertDatabaseCount('attendances', 0);
     }
 
     public function test_a_matching_face_is_recorded_on_clock_in(): void
@@ -104,7 +102,7 @@ class AttendanceFaceMatchTest extends TestCase
         $this->assertNotNull($attendance->clock_in_face_distance);
     }
 
-    public function test_a_mismatched_face_does_not_block_clock_in_but_is_flagged(): void
+    public function test_a_mismatched_face_blocks_clock_in_and_saves_nothing(): void
     {
         $user = $this->makeUser(['face_descriptor' => array_fill(0, 128, 0.2)]);
         $this->fakeExtractor(FaceDescriptorResult::success(array_fill(0, 128, 0.9)));
@@ -112,15 +110,15 @@ class AttendanceFaceMatchTest extends TestCase
         $response = $this->actingAs($user)
             ->post(route('absen.masuk'), $this->payload());
 
-        $response->assertSessionDoesntHaveErrors();
-        $response->assertRedirect();
-
-        $attendance = Attendance::first();
-        $this->assertNotNull($attendance->clock_in_time);
-        $this->assertFalse($attendance->clock_in_face_match);
+        $response->assertSessionHasErrors('photo');
+        $this->assertSame(0, Attendance::count(), 'A mismatch must not create an attendance row at all.');
+        $this->assertEmpty(
+            Storage::disk('attendance_photos')->allFiles($user->id.'/'.today()->toDateString()),
+            'The rejected selfie must not be kept.',
+        );
     }
 
-    public function test_an_undetectable_face_in_the_selfie_does_not_block_clock_in(): void
+    public function test_an_undetectable_face_in_the_selfie_blocks_clock_in(): void
     {
         $user = $this->makeUser(['face_descriptor' => array_fill(0, 128, 0.2)]);
         $this->fakeExtractor(FaceDescriptorResult::failure('no_face'));
@@ -128,12 +126,8 @@ class AttendanceFaceMatchTest extends TestCase
         $response = $this->actingAs($user)
             ->post(route('absen.masuk'), $this->payload());
 
-        $response->assertSessionDoesntHaveErrors();
-
-        $attendance = Attendance::first();
-        $this->assertNotNull($attendance->clock_in_time);
-        $this->assertFalse($attendance->clock_in_face_match);
-        $this->assertNull($attendance->clock_in_face_distance);
+        $response->assertSessionHasErrors('photo');
+        $this->assertSame(0, Attendance::count());
     }
 
     public function test_face_match_is_also_recorded_on_clock_out(): void
@@ -153,5 +147,28 @@ class AttendanceFaceMatchTest extends TestCase
             ->assertSessionDoesntHaveErrors();
 
         $this->assertTrue($attendance->fresh()->clock_out_face_match);
+    }
+
+    public function test_a_mismatched_face_blocks_clock_out_and_leaves_clock_in_untouched(): void
+    {
+        $descriptor = array_fill(0, 128, 0.2);
+        $user = $this->makeUser(['face_descriptor' => $descriptor]);
+        $this->fakeExtractor(FaceDescriptorResult::success(array_fill(0, 128, 0.9)));
+
+        $clockInTime = now()->subHours(8);
+        $attendance = Attendance::create([
+            'user_id' => $user->id,
+            'tanggal' => today(),
+            'clock_in_time' => $clockInTime,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->post(route('absen.pulang'), $this->payload());
+
+        $response->assertSessionHasErrors('photo');
+
+        $fresh = $attendance->fresh();
+        $this->assertNull($fresh->clock_out_time);
+        $this->assertEquals($clockInTime->toDateTimeString(), $fresh->clock_in_time->toDateTimeString());
     }
 }

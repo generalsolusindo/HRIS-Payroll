@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureFaceIsEnrolled;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\HandleAppearance;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
+            'face.enrolled' => EnsureFaceIsEnrolled::class,
             'role' => EnsureUserHasRole::class,
         ]);
     })

@@ -44,6 +44,17 @@ class UserFactory extends Factory
     }
 
     /**
+     * Provide a deterministic descriptor for enrollment-aware tests.
+     */
+    public function withEnrolledFace(): static
+    {
+        return $this->state(fn () => [
+            'face_descriptor' => array_fill(0, 128, 0.2),
+            'face_enrolled_at' => now(),
+        ]);
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

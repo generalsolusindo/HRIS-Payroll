@@ -18,6 +18,10 @@ class EnsureUserIsActive
         $user = $request->user();
 
         if ($user && ! $user->isActive()) {
+            if ($request->expectsJson()) {
+                return response()->json(['code' => 'account_inactive', 'message' => 'Akun Anda belum aktif.'], 403);
+            }
+
             return redirect()->route('pending-approval');
         }
 

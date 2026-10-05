@@ -59,6 +59,7 @@ const ROLE_LABELS: Record<string, string> = {
     karyawan: 'Karyawan',
     hrd: 'HRD',
     admin: 'Admin (Manager)',
+    finance: 'Finance',
 };
 
 const STATUS_LABELS: Record<string, string> = {

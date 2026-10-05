@@ -35,7 +35,7 @@ class UpdateUserRequest extends FormRequest
             'employee_number' => ['nullable', 'string', 'max:255', Rule::unique(User::class)->ignore($user->id)],
             'company_id' => ['required', Rule::exists(Company::class, 'id')],
             'position_id' => ['required', 'integer'],
-            'role' => ['required', Rule::in(['karyawan', 'hrd', 'admin'])],
+            'role' => ['required', Rule::in(['karyawan', 'hrd', 'admin', 'finance'])],
             'status' => ['required', Rule::in(['pending', 'active', 'rejected'])],
             // Optional on edit — left blank means "don't change the password".
             'password' => ['nullable', 'string', Password::default(), 'confirmed'],

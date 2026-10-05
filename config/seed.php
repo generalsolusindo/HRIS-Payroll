@@ -26,4 +26,9 @@ return [
         'name' => env('ADMIN_NAME', 'Manager'),
     ],
 
+    'finance' => [
+        'email' => env('FINANCE_EMAIL', 'finance@example.com'),
+        'name' => env('FINANCE_NAME', 'Finance'),
+    ],
+
 ];

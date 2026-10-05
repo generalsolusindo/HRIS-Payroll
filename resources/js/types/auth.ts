@@ -6,7 +6,7 @@ export type User = {
     name: string;
     email: string;
     phone: string | null;
-    role: 'karyawan' | 'hrd';
+    role: 'karyawan' | 'hrd' | 'admin' | 'finance';
     status: 'pending' | 'active' | 'rejected';
     avatar?: string;
     email_verified_at: string | null;

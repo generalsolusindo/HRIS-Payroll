@@ -18,5 +18,6 @@ class DatabaseSeeder extends Seeder
         $this->call(HrdAccountSeeder::class);
         $this->call(ManagerAccountSeeder::class);
         $this->call(FinanceAccountSeeder::class);
+        $this->call(PayrollComponentSeeder::class);
     }
 }

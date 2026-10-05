@@ -1,15 +1,20 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    Building2,
     CalendarClock,
     CalendarOff,
     ClipboardList,
     LayoutGrid,
     NotebookPen,
+    UserCog,
     Users,
     Wallet,
 } from 'lucide-react';
 import AttendanceHistoryController from '@/actions/App/Http/Controllers/AttendanceHistoryController';
 import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/AttendanceDashboardController';
+import DivisionController from '@/actions/App/Http/Controllers/Hrd/DivisionController';
+import PayrollComponentController from '@/actions/App/Http/Controllers/Hrd/PayrollComponentController';
+import PayrollProfileController from '@/actions/App/Http/Controllers/Hrd/PayrollProfileController';
 import UserManagementController from '@/actions/App/Http/Controllers/Hrd/UserManagementController';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
@@ -68,6 +73,21 @@ const hrdNavItems: NavItem[] = [
         title: 'Rekap Absensi',
         href: AttendanceDashboardController.index(),
         icon: ClipboardList,
+    },
+    {
+        title: 'Divisi',
+        href: DivisionController.index(),
+        icon: Building2,
+    },
+    {
+        title: 'Komponen Gaji',
+        href: PayrollComponentController.index(),
+        icon: Wallet,
+    },
+    {
+        title: 'Profil Gaji',
+        href: PayrollProfileController.index(),
+        icon: UserCog,
     },
 ];
 

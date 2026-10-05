@@ -5,7 +5,10 @@ use App\Http\Controllers\AttendanceHistoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FaceVerificationController;
 use App\Http\Controllers\Hrd\AttendanceDashboardController;
+use App\Http\Controllers\Hrd\DivisionController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
+use App\Http\Controllers\Hrd\PayrollComponentController;
+use App\Http\Controllers\Hrd\PayrollProfileController;
 use App\Http\Controllers\Hrd\UserManagementController;
 use App\Http\Controllers\LeaveRequestAttachmentController;
 use App\Http\Controllers\LeaveRequestController;
@@ -63,6 +66,20 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::get('izin', [LeaveRequestApprovalController::class, 'index'])->name('izin.index');
     Route::patch('izin/{leaveRequest}/approve', [LeaveRequestApprovalController::class, 'approve'])->name('izin.approve');
     Route::patch('izin/{leaveRequest}/reject', [LeaveRequestApprovalController::class, 'reject'])->name('izin.reject');
+
+    Route::get('divisi', [DivisionController::class, 'index'])->name('divisi.index');
+    Route::post('divisi', [DivisionController::class, 'store'])->name('divisi.store');
+    Route::put('divisi/{division}', [DivisionController::class, 'update'])->name('divisi.update');
+    Route::delete('divisi/{division}', [DivisionController::class, 'destroy'])->name('divisi.destroy');
+
+    Route::get('komponen-gaji', [PayrollComponentController::class, 'index'])->name('komponen-gaji.index');
+    Route::post('komponen-gaji', [PayrollComponentController::class, 'store'])->name('komponen-gaji.store');
+    Route::put('komponen-gaji/{payroll_component}', [PayrollComponentController::class, 'update'])->name('komponen-gaji.update');
+    Route::delete('komponen-gaji/{payroll_component}', [PayrollComponentController::class, 'destroy'])->name('komponen-gaji.destroy');
+
+    Route::get('profil-gaji', [PayrollProfileController::class, 'index'])->name('profil-gaji.index');
+    Route::get('profil-gaji/{user}/edit', [PayrollProfileController::class, 'edit'])->name('profil-gaji.edit');
+    Route::put('profil-gaji/{user}', [PayrollProfileController::class, 'update'])->name('profil-gaji.update');
 });
 
 Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('manager.')->group(function () {

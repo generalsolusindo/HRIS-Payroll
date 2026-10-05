@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AttendanceHistoryController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FaceVerificationController;
 use App\Http\Controllers\Hrd\AttendanceDashboardController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
@@ -23,42 +24,7 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware(['auth', 'active'])->group(function () {
-    Route::get('dashboard', function () {
-        $user = auth()->user();
-        $attendance = $user->attendances()->where('tanggal', today())->first();
-        $workSchedule = $user->company->workSchedules()->first();
-
-        return Inertia::render('dashboard', [
-            'user' => [
-                'name' => $user->name,
-            ],
-            'isTeknisi' => $user->position?->name === 'Teknisi',
-            'todayAttendance' => $attendance ? [
-                'clock_in_time' => $attendance->clock_in_time,
-                'clock_in_status' => $attendance->clock_in_status,
-                'clock_in_late_minutes' => $attendance->clock_in_late_minutes,
-                'clock_in_photo_url' => $attendance->clockInPhotoUrl(),
-                'clock_out_time' => $attendance->clock_out_time,
-                'clock_out_status' => $attendance->clock_out_status,
-                'clock_out_early_minutes' => $attendance->clock_out_early_minutes,
-                'clock_out_photo_url' => $attendance->clockOutPhotoUrl(),
-            ] : null,
-            // Display-only — the authoritative radius/accuracy check still
-            // happens server-side in AttendanceController on submit.
-            'officeLocations' => $user->company->officeLocations->map(fn ($office) => [
-                'id' => $office->id,
-                'name' => $office->name,
-                'latitude' => (float) $office->latitude,
-                'longitude' => (float) $office->longitude,
-                'radius_meter' => $office->radius_meter,
-            ]),
-            'workSchedule' => $workSchedule ? [
-                'name' => $workSchedule->name,
-                'jam_masuk' => $workSchedule->jam_masuk,
-                'jam_pulang' => $workSchedule->jam_pulang,
-            ] : null,
-        ]);
-    })->middleware('face.enrolled')->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->middleware('face.enrolled')->name('dashboard');
 
     Route::post('absen/masuk', [AttendanceController::class, 'clockIn'])->middleware('face.enrolled')->name('absen.masuk');
     Route::post('absen/pulang', [AttendanceController::class, 'clockOut'])->middleware('face.enrolled')->name('absen.pulang');

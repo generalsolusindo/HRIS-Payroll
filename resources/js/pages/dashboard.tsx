@@ -5,14 +5,19 @@ import {
     Camera,
     CheckCircle2,
     ChevronRight,
+    ClipboardList,
     MapPin,
+    Users,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/AttendanceDashboardController';
+import UserManagementController from '@/actions/App/Http/Controllers/Hrd/UserManagementController';
 import { AttendanceCaptureScreen } from '@/components/attendance-capture-screen';
 import { AttendanceStatCard } from '@/components/attendance-stat-card';
 import { AttendanceSuccessScreen } from '@/components/attendance-success-screen';
 import { type AttendanceStatus } from '@/components/attendance-status-badge';
+import { SummaryStat } from '@/components/attendance-summary-stat';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
     buildAttendanceFormData,
@@ -42,12 +47,22 @@ type WorkSchedule = {
     jam_pulang: string;
 } | null;
 
+type HrdSummary = {
+    tanggal: string;
+    total_karyawan: number;
+    sudah_absen: number;
+    belum_absen: number;
+    telat: number;
+    pending_users: number;
+} | null;
+
 type Props = {
     user: { name: string };
-    isTeknisi: boolean;
-    todayAttendance: TodayAttendance;
-    officeLocations: OfficeLocation[];
-    workSchedule: WorkSchedule;
+    hrdSummary: HrdSummary;
+    isTeknisi?: boolean;
+    todayAttendance?: TodayAttendance;
+    officeLocations?: OfficeLocation[];
+    workSchedule?: WorkSchedule;
 };
 
 type SuccessData = {
@@ -129,12 +144,138 @@ function formatClock(): string {
     });
 }
 
+function formatSummaryDate(value: string): string {
+    return new Date(`${value}T00:00:00`).toLocaleDateString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
+}
+
+/**
+ * HRD is a monitoring/management role — it never clocks in itself, so the
+ * usual clock widget / Absen Masuk button make no sense here. This is a
+ * company-wide snapshot of today's attendance plus shortcuts to the two
+ * things HRD actually does from this app.
+ */
+function HrdDashboard({
+    userName,
+    summary,
+}: {
+    userName: string;
+    summary: NonNullable<HrdSummary>;
+}) {
+    return (
+        <>
+            <Head title="Dashboard" />
+            <div className="flex flex-1 flex-col gap-4 p-4">
+                <div className="mx-auto flex w-full max-w-xl flex-col gap-4 lg:max-w-5xl">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Avatar className="size-11">
+                                <AvatarFallback className="bg-brand-navy/8 font-semibold text-brand-navy dark:bg-brand-navy/35 dark:text-foreground">
+                                    {initialsOf(userName)}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <div className="text-sm text-muted-foreground">
+                                    {greeting()},
+                                </div>
+                                <div className="font-semibold">{userName}</div>
+                            </div>
+                        </div>
+                        <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                            <Bell className="size-4" />
+                        </span>
+                    </div>
+
+                    <div>
+                        <h1 className="text-xl font-bold tracking-tight">
+                            Ringkasan Kehadiran
+                        </h1>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            {formatSummaryDate(summary.tanggal)}
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <SummaryStat
+                            label="Total Karyawan"
+                            value={summary.total_karyawan}
+                            tone="navy"
+                        />
+                        <SummaryStat
+                            label="Sudah Absen"
+                            value={summary.sudah_absen}
+                            tone="yellow"
+                        />
+                        <SummaryStat
+                            label="Telat"
+                            value={summary.telat}
+                            tone="red"
+                            emphasize
+                        />
+                        <SummaryStat
+                            label="Belum Absen"
+                            value={summary.belum_absen}
+                            tone="muted"
+                        />
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <Link
+                            href={UserManagementController.index()}
+                            className="flex items-center gap-4 rounded-3xl border p-4 text-left transition hover:bg-muted/40"
+                        >
+                            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted">
+                                <Users className="size-5 text-muted-foreground" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold">
+                                    Manajemen User
+                                </span>
+                                <span className="block text-xs text-muted-foreground">
+                                    {summary.pending_users > 0
+                                        ? `${summary.pending_users} user menunggu persetujuan`
+                                        : 'Tambah, ubah, atau hapus akun'}
+                                </span>
+                            </span>
+                            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                        </Link>
+
+                        <Link
+                            href={AttendanceDashboardController.index()}
+                            className="flex items-center gap-4 rounded-3xl border p-4 text-left transition hover:bg-muted/40"
+                        >
+                            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted">
+                                <ClipboardList className="size-5 text-muted-foreground" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold">
+                                    Rekap Absensi
+                                </span>
+                                <span className="block text-xs text-muted-foreground">
+                                    Lihat kehadiran seluruh karyawan
+                                </span>
+                            </span>
+                            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+}
+
 export default function Dashboard({
     user,
-    isTeknisi,
-    todayAttendance,
-    officeLocations,
-    workSchedule,
+    hrdSummary,
+    isTeknisi = false,
+    todayAttendance = null,
+    officeLocations = [],
+    workSchedule = null,
 }: Props) {
     const { faceVerificationEnabled } = usePage<{
         faceVerificationEnabled: boolean;
@@ -164,7 +305,9 @@ export default function Dashboard({
     }, [todayAttendance]);
 
     useEffect(() => {
-        if (screen !== 'home') {
+        // HRD never clocks in, so there's nothing for this chip to show —
+        // skip asking for a location permission it has no use for.
+        if (hrdSummary || screen !== 'home') {
             return;
         }
 
@@ -188,6 +331,10 @@ export default function Dashboard({
         );
         return () => window.clearInterval(interval);
     }, []);
+
+    if (hrdSummary) {
+        return <HrdDashboard userName={user.name} summary={hrdSummary} />;
+    }
 
     function handleStart(type: 'masuk' | 'pulang') {
         setActiveType(type);

@@ -8,7 +8,9 @@ use App\Http\Controllers\Hrd\AttendanceDashboardController;
 use App\Http\Controllers\Hrd\DivisionController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
 use App\Http\Controllers\Hrd\PayrollComponentController;
+use App\Http\Controllers\Hrd\PayrollPeriodController;
 use App\Http\Controllers\Hrd\PayrollProfileController;
+use App\Http\Controllers\Hrd\PayrollRunController;
 use App\Http\Controllers\Hrd\UserManagementController;
 use App\Http\Controllers\LeaveRequestAttachmentController;
 use App\Http\Controllers\LeaveRequestController;
@@ -80,6 +82,12 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::get('profil-gaji', [PayrollProfileController::class, 'index'])->name('profil-gaji.index');
     Route::get('profil-gaji/{user}/edit', [PayrollProfileController::class, 'edit'])->name('profil-gaji.edit');
     Route::put('profil-gaji/{user}', [PayrollProfileController::class, 'update'])->name('profil-gaji.update');
+
+    Route::get('periode-gaji', [PayrollPeriodController::class, 'index'])->name('periode-gaji.index');
+    Route::post('periode-gaji', [PayrollPeriodController::class, 'store'])->name('periode-gaji.store');
+    Route::post('periode-gaji/{period}/hitung', [PayrollRunController::class, 'store'])->name('periode-gaji.hitung');
+
+    Route::get('hasil-payroll/{run}', [PayrollRunController::class, 'show'])->name('hasil-payroll.show');
 });
 
 Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('manager.')->group(function () {

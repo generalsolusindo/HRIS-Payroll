@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     Building2,
+    Calculator,
     CalendarClock,
     CalendarOff,
     ClipboardList,
@@ -14,6 +15,7 @@ import AttendanceHistoryController from '@/actions/App/Http/Controllers/Attendan
 import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/AttendanceDashboardController';
 import DivisionController from '@/actions/App/Http/Controllers/Hrd/DivisionController';
 import PayrollComponentController from '@/actions/App/Http/Controllers/Hrd/PayrollComponentController';
+import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 import PayrollProfileController from '@/actions/App/Http/Controllers/Hrd/PayrollProfileController';
 import UserManagementController from '@/actions/App/Http/Controllers/Hrd/UserManagementController';
 import AppLogo from '@/components/app-logo';
@@ -88,6 +90,11 @@ const hrdNavItems: NavItem[] = [
         title: 'Profil Gaji',
         href: PayrollProfileController.index(),
         icon: UserCog,
+    },
+    {
+        title: 'Periode Payroll',
+        href: PayrollPeriodController.index(),
+        icon: Calculator,
     },
 ];
 

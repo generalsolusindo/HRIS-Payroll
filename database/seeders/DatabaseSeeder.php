@@ -19,5 +19,6 @@ class DatabaseSeeder extends Seeder
         $this->call(ManagerAccountSeeder::class);
         $this->call(FinanceAccountSeeder::class);
         $this->call(PayrollComponentSeeder::class);
+        $this->call(PayrollPolicySeeder::class);
     }
 }

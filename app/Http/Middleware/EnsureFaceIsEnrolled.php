@@ -10,6 +10,10 @@ class EnsureFaceIsEnrolled
 {
     public function handle(Request $request, Closure $next): Response
     {
+        if (! config('face.verification_enabled')) {
+            return $next($request);
+        }
+
         if (! $request->user()?->hasFaceEnrolled()) {
             if ($request->expectsJson()) {
                 return response()->json([

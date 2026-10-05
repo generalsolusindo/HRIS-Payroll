@@ -4,6 +4,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Kill switch
+    |--------------------------------------------------------------------------
+    |
+    | Set FACE_VERIFICATION_ENABLED=false in .env to turn the entire face
+    | recognition feature off without a code change: enrollment stops being
+    | required to reach the dashboard/attendance, and clock-in/out no longer
+    | checks or blocks on a face at all. Everything else in this file (the
+    | worker, threshold, etc.) is simply unused while this is false.
+    |
+    */
+
+    'verification_enabled' => env('FACE_VERIFICATION_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Face Descriptor Extraction
     |--------------------------------------------------------------------------
     |

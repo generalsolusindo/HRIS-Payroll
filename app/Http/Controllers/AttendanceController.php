@@ -284,6 +284,10 @@ class AttendanceController extends Controller
      */
     private function assertEnrollmentUnchanged(User $user, ?CarbonInterface $enrolledAtSnapshot): void
     {
+        if (! config('face.verification_enabled')) {
+            return;
+        }
+
         $current = $user->fresh();
 
         if (! $current || ! $current->isActive() || ! $current->hasFaceEnrolled()) {
@@ -313,6 +317,10 @@ class AttendanceController extends Controller
      */
     private function assertFaceMatches(User $user, string $disk, string $photoPath): array
     {
+        if (! config('face.verification_enabled')) {
+            return ['match' => null, 'distance' => null];
+        }
+
         if (! $user->hasFaceEnrolled()) {
             throw ValidationException::withMessages([
                 'photo' => 'Daftarkan wajah Anda terlebih dahulu sebelum melakukan absensi.',

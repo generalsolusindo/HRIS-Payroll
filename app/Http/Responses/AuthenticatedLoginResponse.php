@@ -21,7 +21,7 @@ class AuthenticatedLoginResponse implements LoginResponse, PasskeyLoginResponse,
                 : redirect()->route('pending-approval');
         }
 
-        if (! $user->hasFaceEnrolled()) {
+        if (config('face.verification_enabled') && ! $user->hasFaceEnrolled()) {
             // Enrollment takes precedence over an arbitrary intended URL.
             $request->session()->forget('url.intended');
             $redirect = redirect()->route('face.edit');

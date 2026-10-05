@@ -21,6 +21,7 @@ type Props = {
     type: 'masuk' | 'pulang';
     officeLocations: OfficeLocation[];
     submitting: boolean;
+    faceVerificationEnabled: boolean;
     onCancel: () => void;
     onSubmit: (
         photo: File,
@@ -41,6 +42,7 @@ export function AttendanceCaptureScreen({
     type,
     officeLocations,
     submitting,
+    faceVerificationEnabled,
     onCancel,
     onSubmit,
 }: Props) {
@@ -54,7 +56,7 @@ export function AttendanceCaptureScreen({
     const [clock, setClock] = useState(formatClock());
 
     const faceCheck = useLiveFaceCheck({
-        enabled: cameraReady && !cameraError,
+        enabled: faceVerificationEnabled && cameraReady && !cameraError,
         videoRef,
         action: type,
     });
@@ -107,7 +109,7 @@ export function AttendanceCaptureScreen({
         if (
             !videoRef.current ||
             !position ||
-            !faceCheck.isStable ||
+            (faceVerificationEnabled && !faceCheck.isStable) ||
             submitting
         ) {
             return;
@@ -132,9 +134,15 @@ export function AttendanceCaptureScreen({
     const withinRadius =
         nearest !== null && nearest.distance <= nearest.office.radius_meter;
     const canSubmit =
-        cameraReady && accuracyReady && faceCheck.isStable && !submitting;
+        cameraReady &&
+        accuracyReady &&
+        (!faceVerificationEnabled || faceCheck.isStable) &&
+        !submitting;
 
     const frameBorderClass = (() => {
+        if (!faceVerificationEnabled) {
+            return 'border-white/70';
+        }
         switch (faceCheck.status) {
             case 'matched':
                 return faceCheck.isStable
@@ -153,6 +161,9 @@ export function AttendanceCaptureScreen({
     })();
 
     const frameHint = (() => {
+        if (!faceVerificationEnabled) {
+            return 'Posisikan wajah di dalam bingkai';
+        }
         switch (faceCheck.status) {
             case 'idle':
                 return 'Posisikan wajah di dalam bingkai';

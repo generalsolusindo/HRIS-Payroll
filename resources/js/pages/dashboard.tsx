@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Bell,
     Briefcase,
@@ -136,6 +136,9 @@ export default function Dashboard({
     officeLocations,
     workSchedule,
 }: Props) {
+    const { faceVerificationEnabled } = usePage<{
+        faceVerificationEnabled: boolean;
+    }>().props;
     const [screen, setScreen] = useState<'home' | 'capture' | 'success'>(
         'home',
     );
@@ -267,6 +270,7 @@ export default function Dashboard({
                 type={activeType}
                 officeLocations={officeLocations}
                 submitting={submitting}
+                faceVerificationEnabled={faceVerificationEnabled}
                 onCancel={() => setScreen('home')}
                 onSubmit={handleCaptured}
             />

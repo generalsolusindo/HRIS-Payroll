@@ -73,6 +73,13 @@ const hrdNavItems: NavItem[] = [
 
 export function AppSidebar() {
     const { auth } = usePage<{ auth: Auth }>().props;
+    const isHrd = auth.user.role === 'hrd';
+
+    // An HRD account is for monitoring/management only — it never clocks
+    // in itself, so its own attendance history is never meaningful.
+    const visibleMainNavItems = isHrd
+        ? mainNavItems.filter((item) => item.title !== 'Riwayat Absensi')
+        : mainNavItems;
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -89,11 +96,9 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={visibleMainNavItems} />
                 <NavMain items={moduleNavItems} groupLabel="Modul Lain" />
-                {auth.user.role === 'hrd' && (
-                    <NavMain items={hrdNavItems} groupLabel="HRD" />
-                )}
+                {isHrd && <NavMain items={hrdNavItems} groupLabel="HRD" />}
             </SidebarContent>
 
             <SidebarFooter>

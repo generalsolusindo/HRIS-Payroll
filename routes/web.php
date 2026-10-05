@@ -5,6 +5,9 @@ use App\Http\Controllers\AttendanceHistoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FaceVerificationController;
 use App\Http\Controllers\Hrd\AttendanceDashboardController;
+use App\Http\Controllers\Hrd\AttendanceReviewController;
+use App\Http\Controllers\Hrd\AttendanceReviewEvidenceController;
+use App\Http\Controllers\Hrd\CompanyCalendarDayController;
 use App\Http\Controllers\Hrd\DivisionController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
 use App\Http\Controllers\Hrd\PayrollComponentController;
@@ -88,6 +91,14 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::post('periode-gaji/{period}/hitung', [PayrollRunController::class, 'store'])->name('periode-gaji.hitung');
 
     Route::get('hasil-payroll/{run}', [PayrollRunController::class, 'show'])->name('hasil-payroll.show');
+
+    Route::get('kalender-kerja', [CompanyCalendarDayController::class, 'index'])->name('kalender-kerja.index');
+    Route::post('kalender-kerja', [CompanyCalendarDayController::class, 'store'])->name('kalender-kerja.store');
+    Route::delete('kalender-kerja/{day}', [CompanyCalendarDayController::class, 'destroy'])->name('kalender-kerja.destroy');
+
+    Route::get('koreksi-absensi', [AttendanceReviewController::class, 'index'])->name('koreksi-absensi.index');
+    Route::put('koreksi-absensi/{review}', [AttendanceReviewController::class, 'update'])->name('koreksi-absensi.update');
+    Route::get('koreksi-absensi/{review}/bukti', [AttendanceReviewEvidenceController::class, 'show'])->name('koreksi-absensi.bukti');
 });
 
 Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('manager.')->group(function () {

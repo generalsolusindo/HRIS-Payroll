@@ -43,7 +43,7 @@ class AttendanceReview extends Model
     protected function casts(): array
     {
         return [
-            'date' => 'date',
+            'date' => 'date:Y-m-d',
             'clock_in_at' => 'datetime',
             'clock_out_at' => 'datetime',
             'source_snapshot' => 'array',

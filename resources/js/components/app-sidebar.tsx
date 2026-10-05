@@ -3,7 +3,9 @@ import {
     Building2,
     Calculator,
     CalendarClock,
+    CalendarDays,
     CalendarOff,
+    ClipboardCheck,
     ClipboardList,
     LayoutGrid,
     NotebookPen,
@@ -13,6 +15,8 @@ import {
 } from 'lucide-react';
 import AttendanceHistoryController from '@/actions/App/Http/Controllers/AttendanceHistoryController';
 import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/AttendanceDashboardController';
+import AttendanceReviewController from '@/actions/App/Http/Controllers/Hrd/AttendanceReviewController';
+import CompanyCalendarDayController from '@/actions/App/Http/Controllers/Hrd/CompanyCalendarDayController';
 import DivisionController from '@/actions/App/Http/Controllers/Hrd/DivisionController';
 import PayrollComponentController from '@/actions/App/Http/Controllers/Hrd/PayrollComponentController';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
@@ -95,6 +99,16 @@ const hrdNavItems: NavItem[] = [
         title: 'Periode Payroll',
         href: PayrollPeriodController.index(),
         icon: Calculator,
+    },
+    {
+        title: 'Kalender Kerja',
+        href: CompanyCalendarDayController.index(),
+        icon: CalendarDays,
+    },
+    {
+        title: 'Koreksi Absensi',
+        href: AttendanceReviewController.index(),
+        icon: ClipboardCheck,
     },
 ];
 

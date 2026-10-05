@@ -59,6 +59,16 @@ return [
             'report' => false,
         ],
 
+        // Same reasoning as leave_attachments — never a direct/signed URL,
+        // only ever served through AttendanceReviewEvidenceController after
+        // an HRD-role check.
+        'attendance_evidence' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/attendance-evidence'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

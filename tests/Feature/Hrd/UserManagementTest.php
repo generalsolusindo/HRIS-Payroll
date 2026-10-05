@@ -67,15 +67,19 @@ class UserManagementTest extends TestCase
 
     public function test_search_filters_by_name_email_or_employee_number(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
+        // Explicit, non-random name/email on every user here — the id_ID
+        // Faker locale can plausibly generate "Budi" on its own for an
+        // unconstrained factory user, which would flakily match the
+        // search term below and break the exact-count assertion.
+        $hrd = User::factory()->create(['role' => 'hrd', 'name' => 'Test Hrd Account', 'email' => 'test-hrd-account@example.com']);
         [$company, $position] = $this->makeCompanyWithPosition();
         $match = User::factory()->create([
             'company_id' => $company->id, 'position_id' => $position->id,
-            'name' => 'Budi Santoso', 'employee_number' => 'EMP-001',
+            'name' => 'Budi Santoso', 'email' => 'budi-santoso@example.com', 'employee_number' => 'EMP-001',
         ]);
         $noMatch = User::factory()->create([
             'company_id' => $company->id, 'position_id' => $position->id,
-            'name' => 'Siti Aminah', 'employee_number' => 'EMP-002',
+            'name' => 'Rahmat Hidayat', 'email' => 'rahmat-hidayat@example.com', 'employee_number' => 'EMP-002',
         ]);
 
         $this->actingAs($hrd)

@@ -5,12 +5,12 @@ import {
     ClipboardList,
     LayoutGrid,
     NotebookPen,
-    UserCheck,
+    Users,
     Wallet,
 } from 'lucide-react';
 import AttendanceHistoryController from '@/actions/App/Http/Controllers/AttendanceHistoryController';
 import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/AttendanceDashboardController';
-import EmployeeApprovalController from '@/actions/App/Http/Controllers/Hrd/EmployeeApprovalController';
+import UserManagementController from '@/actions/App/Http/Controllers/Hrd/UserManagementController';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavThemeToggle } from '@/components/nav-theme-toggle';
@@ -60,9 +60,9 @@ const moduleNavItems: NavItem[] = [
 
 const hrdNavItems: NavItem[] = [
     {
-        title: 'Persetujuan Karyawan',
-        href: EmployeeApprovalController.index(),
-        icon: UserCheck,
+        title: 'Manajemen User',
+        href: UserManagementController.index(),
+        icon: Users,
     },
     {
         title: 'Rekap Absensi',

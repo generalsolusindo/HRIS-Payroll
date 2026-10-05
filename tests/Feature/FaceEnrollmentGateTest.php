@@ -66,7 +66,7 @@ class FaceEnrollmentGateTest extends TestCase
     public function test_hrd_has_no_attendance_bypass_but_can_still_manage_employees(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'hrd']));
-        $this->get(route('hrd.karyawan.index'))->assertOk();
+        $this->get(route('hrd.users.index'))->assertOk();
         $this->postJson(route('absen.masuk'))->assertForbidden();
     }
 

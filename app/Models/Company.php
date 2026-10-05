@@ -46,4 +46,44 @@ class Company extends Model
     {
         return $this->belongsToMany(Position::class);
     }
+
+    /**
+     * @return HasMany<Division, $this>
+     */
+    public function divisions(): HasMany
+    {
+        return $this->hasMany(Division::class);
+    }
+
+    /**
+     * @return HasMany<PayrollComponent, $this>
+     */
+    public function payrollComponents(): HasMany
+    {
+        return $this->hasMany(PayrollComponent::class);
+    }
+
+    /**
+     * @return HasMany<PayrollPolicy, $this>
+     */
+    public function payrollPolicies(): HasMany
+    {
+        return $this->hasMany(PayrollPolicy::class);
+    }
+
+    /**
+     * @return HasMany<PayrollPeriod, $this>
+     */
+    public function payrollPeriods(): HasMany
+    {
+        return $this->hasMany(PayrollPeriod::class);
+    }
+
+    /**
+     * @return HasMany<CompanyCalendarDay, $this>
+     */
+    public function calendarDays(): HasMany
+    {
+        return $this->hasMany(CompanyCalendarDay::class);
+    }
 }

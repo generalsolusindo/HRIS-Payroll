@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 
 type Line = {
@@ -17,7 +17,9 @@ type Entry = {
     position_name: string;
     gross_amount: string;
     deduction_amount: string;
+    reward_amount: string;
     net_amount: string;
+    unresolved_days: number;
     lines: Line[];
 };
 
@@ -27,6 +29,8 @@ type Run = {
     status: string;
     employee_count: number;
     gross_total: string;
+    deduction_total: string;
+    reward_total: string;
     net_total: string;
     period: {
         name: string;
@@ -99,6 +103,11 @@ export default function PayrollRunShow({ run, entries }: Props) {
         ? entries.filter((entry) => entry.division_name === expandedDivision)
         : entries;
 
+    const unresolvedDaysTotal = useMemo(
+        () => entries.reduce((sum, entry) => sum + entry.unresolved_days, 0),
+        [entries],
+    );
+
     return (
         <>
             <Head title={`Hasil Payroll — ${run.period.name}`} />
@@ -144,7 +153,31 @@ export default function PayrollRunShow({ run, entries }: Props) {
                             {formatRupiah(run.net_total)}
                         </div>
                     </div>
+                    <div className="rounded-3xl bg-red-500/10 p-5">
+                        <div className="text-sm text-muted-foreground">
+                            Total Potongan Absensi
+                        </div>
+                        <div className="mt-1 text-xl font-bold tracking-tight text-red-600 sm:text-2xl dark:text-red-400">
+                            {formatRupiah(run.deduction_total)}
+                        </div>
+                    </div>
+                    <div className="rounded-3xl bg-emerald-500/10 p-5">
+                        <div className="text-sm text-muted-foreground">
+                            Total Reward Absensi
+                        </div>
+                        <div className="mt-1 text-xl font-bold tracking-tight text-emerald-600 sm:text-2xl dark:text-emerald-400">
+                            {formatRupiah(run.reward_total)}
+                        </div>
+                    </div>
                 </div>
+
+                {unresolvedDaysTotal > 0 && (
+                    <div className="rounded-2xl border border-amber-400/50 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                        {unresolvedDaysTotal} hari absensi di periode ini masih
+                        "Perlu Konfirmasi" di Koreksi Absensi — belum dihitung
+                        sebagai potongan maupun reward.
+                    </div>
+                )}
 
                 {/* Level 2 — per divisi */}
                 <div className="rounded-2xl border p-4">
@@ -208,9 +241,8 @@ export default function PayrollRunShow({ run, entries }: Props) {
                         </thead>
                         <tbody className="divide-y">
                             {visibleEntries.map((entry) => (
-                                <>
+                                <Fragment key={entry.id}>
                                     <tr
-                                        key={entry.id}
                                         className="cursor-pointer hover:bg-muted/30"
                                         onClick={() =>
                                             setExpandedEntry((current) =>
@@ -282,11 +314,21 @@ export default function PayrollRunShow({ run, entries }: Props) {
                                                             </div>
                                                         ),
                                                     )}
+                                                    {entry.unresolved_days >
+                                                        0 && (
+                                                        <div className="mt-1 text-amber-600 dark:text-amber-400">
+                                                            {
+                                                                entry.unresolved_days
+                                                            }{' '}
+                                                            hari belum ditinjau
+                                                            di Koreksi Absensi.
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
                                     )}
-                                </>
+                                </Fragment>
                             ))}
                         </tbody>
                     </table>

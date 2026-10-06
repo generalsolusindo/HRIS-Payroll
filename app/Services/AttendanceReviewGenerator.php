@@ -25,10 +25,11 @@ use Carbon\CarbonInterface;
  */
 class AttendanceReviewGenerator
 {
-    public function generateForDate(CarbonInterface $date): void
+    public function generateForDate(CarbonInterface $date, ?int $companyId = null): void
     {
         $users = User::where('role', 'karyawan')
             ->where('status', 'active')
+            ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
             ->with('company')
             ->get();
 

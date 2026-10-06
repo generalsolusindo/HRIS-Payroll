@@ -3,14 +3,18 @@
 namespace App\Http\Controllers\Hrd;
 
 use App\Http\Controllers\Controller;
+use App\Models\AttendanceReview;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\PayrollComponent;
 use App\Models\PayrollEntry;
 use App\Models\PayrollEntryLine;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollPolicy;
 use App\Models\PayrollRun;
 use App\Models\User;
+use App\Services\AttendanceReviewGenerator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,13 +25,14 @@ use Inertia\Response;
 class PayrollRunController extends Controller
 {
     /**
-     * First calculator slice: base salary + allowance only (whatever
-     * earning components are on each employee's profile) — net is just
-     * gross for now. No deductions, reward, overtime, or attendance
-     * integration yet; no approval workflow either, every run is created
-     * straight into 'draft'.
+     * Calculator: base salary + allowance (whatever earning components are
+     * on each employee's profile) plus attendance-derived lines read from
+     * attendance_reviews — late-minute and confirmed-absence deductions, and
+     * a perfect-attendance reward, all rated by the company's PayrollPolicy
+     * (see PayrollPolicyController). Still no overtime, approval workflow,
+     * or revision — every run is created straight into 'draft'.
      */
-    public function store(Request $request, PayrollPeriod $period): RedirectResponse
+    public function store(Request $request, PayrollPeriod $period, AttendanceReviewGenerator $generator): RedirectResponse
     {
         if ($period->runs()->exists()) {
             throw ValidationException::withMessages([
@@ -40,7 +45,27 @@ class PayrollRunController extends Controller
             ['effective_from' => $period->starts_on, 'rules' => []],
         );
 
-        $run = DB::transaction(function () use ($period, $policy, $request) {
+        // Refresh attendance_reviews for every date in the period's own
+        // attendance window before reading from it, so the calculation
+        // always reflects the latest clock-in/out and leave data — not
+        // whatever happened to already exist from someone visiting the
+        // Koreksi Absensi page. Dates in the future are skipped (nothing to
+        // generate yet); a window that isn't fully elapsed will then simply
+        // never qualify for the perfect-attendance reward below.
+        $generationEnd = $period->attendance_ends_on->isFuture() ? today() : $period->attendance_ends_on;
+        for ($date = $period->attendance_starts_on; $date->lte($generationEnd); $date = $date->addDay()) {
+            $generator->generateForDate($date, $period->company_id);
+        }
+
+        $rules = $policy->rules['attendance'] ?? [];
+        $lateRate = (float) ($rules['late_deduction_per_minute'] ?? 0);
+        $absenceRate = (float) ($rules['absence_deduction_per_day'] ?? 0);
+        $rewardRate = (float) ($rules['perfect_attendance_reward'] ?? 0);
+        $expectedAttendanceDays = (int) $period->attendance_starts_on->diffInDays($period->attendance_ends_on) + 1;
+
+        $attendanceComponents = $this->attendanceComponents($period->company_id);
+
+        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $expectedAttendanceDays, $attendanceComponents) {
             $run = PayrollRun::create([
                 'payroll_period_id' => $period->id,
                 'version' => 1,
@@ -58,6 +83,9 @@ class PayrollRunController extends Controller
 
             $employeeCount = 0;
             $grossTotal = '0';
+            $deductionTotal = '0';
+            $rewardTotal = '0';
+            $totalUnresolvedDays = 0;
 
             foreach ($profiles as $profile) {
                 if ($profile->salaryComponents->isEmpty()) {
@@ -66,7 +94,19 @@ class PayrollRunController extends Controller
                     continue;
                 }
 
-                $gross = number_format((float) $profile->salaryComponents->sum('amount'), 2, '.', '');
+                $salaryGross = number_format((float) $profile->salaryComponents->sum('amount'), 2, '.', '');
+
+                $reviews = AttendanceReview::where('user_id', $profile->user_id)
+                    ->whereBetween('date', [$period->attendance_starts_on->toDateString(), $period->attendance_ends_on->toDateString()])
+                    ->orderBy('date')
+                    ->get();
+
+                $attendance = $this->summarizeAttendance($reviews, $expectedAttendanceDays, $lateRate, $absenceRate, $rewardRate);
+                $totalUnresolvedDays += $attendance['unresolved_days'];
+
+                $gross = bcadd($salaryGross, $this->decimal($attendance['reward_amount']), 2);
+                $deduction = bcadd($this->decimal($attendance['late_deduction_amount']), $this->decimal($attendance['absence_deduction_amount']), 2);
+                $net = bcsub($gross, $deduction, 2);
 
                 $entry = PayrollEntry::create([
                     'payroll_run_id' => $run->id,
@@ -76,7 +116,14 @@ class PayrollRunController extends Controller
                     'employee_snapshot' => ['name' => $profile->user->name, 'email' => $profile->user->email],
                     'division_name' => $profile->division->name,
                     'position_name' => $profile->user->position->name,
-                    'attendance_snapshot' => [],
+                    'attendance_snapshot' => [
+                        'window' => ['starts_on' => $period->attendance_starts_on->toDateString(), 'ends_on' => $period->attendance_ends_on->toDateString()],
+                        'late_minutes_total' => $attendance['late_minutes_total'],
+                        'absent_days' => $attendance['absent_days'],
+                        'unresolved_days' => $attendance['unresolved_days'],
+                        'perfect_attendance' => $attendance['perfect_attendance'],
+                        'days' => $attendance['days'],
+                    ],
                     'compensation_snapshot' => $profile->salaryComponents->map(fn (EmployeeSalaryComponent $component) => [
                         'component_code' => $component->payrollComponent->code,
                         'amount' => (string) $component->amount,
@@ -88,10 +135,10 @@ class PayrollRunController extends Controller
                         'account_holder' => $profile->bank_account_holder,
                     ] : null,
                     'gross_amount' => $gross,
-                    'deduction_amount' => '0',
-                    'reward_amount' => '0',
+                    'deduction_amount' => $deduction,
+                    'reward_amount' => $attendance['reward_amount'] ?? '0',
                     'employer_contribution_amount' => '0',
-                    'net_amount' => $gross,
+                    'net_amount' => $net,
                 ]);
 
                 foreach ($profile->salaryComponents as $component) {
@@ -111,18 +158,90 @@ class PayrollRunController extends Controller
                     ]);
                 }
 
+                if ($attendance['late_deduction_amount'] !== null) {
+                    PayrollEntryLine::create([
+                        'payroll_entry_id' => $entry->id,
+                        'payroll_component_id' => $attendanceComponents['late']->id,
+                        'line_key' => 'attendance-late',
+                        'component_code' => $attendanceComponents['late']->code,
+                        'component_name' => $attendanceComponents['late']->name,
+                        'type' => 'deduction',
+                        'category' => 'attendance_deduction',
+                        'quantity' => $attendance['late_minutes_total'],
+                        'rate' => number_format($lateRate, 4, '.', ''),
+                        'amount' => $attendance['late_deduction_amount'],
+                        'source' => 'attendance',
+                        'calculation_snapshot' => [
+                            'late_minutes_total' => $attendance['late_minutes_total'],
+                            'rate_per_minute' => $lateRate,
+                            'policy_id' => $policy->id,
+                            'policy_version' => $policy->version,
+                        ],
+                    ]);
+                }
+
+                if ($attendance['absence_deduction_amount'] !== null) {
+                    PayrollEntryLine::create([
+                        'payroll_entry_id' => $entry->id,
+                        'payroll_component_id' => $attendanceComponents['absence']->id,
+                        'line_key' => 'attendance-absence',
+                        'component_code' => $attendanceComponents['absence']->code,
+                        'component_name' => $attendanceComponents['absence']->name,
+                        'type' => 'deduction',
+                        'category' => 'attendance_deduction',
+                        'quantity' => $attendance['absent_days'],
+                        'rate' => number_format($absenceRate, 4, '.', ''),
+                        'amount' => $attendance['absence_deduction_amount'],
+                        'source' => 'attendance',
+                        'calculation_snapshot' => [
+                            'absent_days' => $attendance['absent_days'],
+                            'rate_per_day' => $absenceRate,
+                            'policy_id' => $policy->id,
+                            'policy_version' => $policy->version,
+                        ],
+                    ]);
+                }
+
+                if ($attendance['reward_amount'] !== null) {
+                    PayrollEntryLine::create([
+                        'payroll_entry_id' => $entry->id,
+                        'payroll_component_id' => $attendanceComponents['reward']->id,
+                        'line_key' => 'attendance-perfect-reward',
+                        'component_code' => $attendanceComponents['reward']->code,
+                        'component_name' => $attendanceComponents['reward']->name,
+                        'type' => 'earning',
+                        'category' => 'attendance_reward',
+                        'quantity' => 1,
+                        'rate' => number_format($rewardRate, 4, '.', ''),
+                        'amount' => $attendance['reward_amount'],
+                        'source' => 'reward',
+                        'calculation_snapshot' => [
+                            'expected_attendance_days' => $expectedAttendanceDays,
+                            'policy_id' => $policy->id,
+                            'policy_version' => $policy->version,
+                        ],
+                    ]);
+                }
+
                 $employeeCount++;
                 $grossTotal = bcadd($grossTotal, $gross, 2);
+                $deductionTotal = bcadd($deductionTotal, $deduction, 2);
+                $rewardTotal = bcadd($rewardTotal, $this->decimal($attendance['reward_amount']), 2);
             }
 
             $run->update([
                 'employee_count' => $employeeCount,
                 'gross_total' => $grossTotal,
-                'net_total' => $grossTotal,
+                'deduction_total' => $deductionTotal,
+                'reward_total' => $rewardTotal,
+                'net_total' => bcsub($grossTotal, $deductionTotal, 2),
             ]);
 
-            return $run;
+            return ['run' => $run, 'unresolved_days_total' => $totalUnresolvedDays];
         });
+
+        $run = $result['run'];
+        $unresolvedDaysTotal = $result['unresolved_days_total'];
 
         $skipped = EmployeePayrollProfile::where('company_id', $period->company_id)
             ->whereHas('user', fn ($query) => $query->where('role', 'karyawan')->where('status', 'active'))
@@ -134,12 +253,15 @@ class PayrollRunController extends Controller
             ->count();
         $totalSkipped = $skipped + $withoutProfile;
 
-        Inertia::flash('toast', [
-            'type' => 'success',
-            'message' => $totalSkipped > 0
-                ? "Payroll dihitung untuk {$run->employee_count} karyawan. {$totalSkipped} karyawan dilewati karena belum punya profil gaji."
-                : "Payroll dihitung untuk {$run->employee_count} karyawan.",
-        ]);
+        $message = "Payroll dihitung untuk {$run->employee_count} karyawan.";
+        if ($totalSkipped > 0) {
+            $message .= " {$totalSkipped} karyawan dilewati karena belum punya profil gaji.";
+        }
+        if ($unresolvedDaysTotal > 0) {
+            $message .= " {$unresolvedDaysTotal} hari absensi masih perlu ditinjau di Koreksi Absensi — belum dihitung sebagai potongan maupun reward.";
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $message]);
 
         return redirect()->route('hrd.hasil-payroll.show', $run);
     }
@@ -155,6 +277,8 @@ class PayrollRunController extends Controller
                 'status' => $run->status,
                 'employee_count' => $run->employee_count,
                 'gross_total' => (string) $run->gross_total,
+                'deduction_total' => (string) $run->deduction_total,
+                'reward_total' => (string) $run->reward_total,
                 'net_total' => (string) $run->net_total,
                 'period' => [
                     'name' => $run->period->name,
@@ -171,7 +295,9 @@ class PayrollRunController extends Controller
                 'position_name' => $entry->position_name,
                 'gross_amount' => (string) $entry->gross_amount,
                 'deduction_amount' => (string) $entry->deduction_amount,
+                'reward_amount' => (string) $entry->reward_amount,
                 'net_amount' => (string) $entry->net_amount,
+                'unresolved_days' => $entry->attendance_snapshot['unresolved_days'] ?? 0,
                 'lines' => $entry->lines->map(fn (PayrollEntryLine $line) => [
                     'component_name' => $line->component_name,
                     'type' => $line->type,
@@ -179,5 +305,98 @@ class PayrollRunController extends Controller
                 ]),
             ]),
         ]);
+    }
+
+    /**
+     * @return array{late: PayrollComponent, absence: PayrollComponent, reward: PayrollComponent}
+     */
+    private function attendanceComponents(int $companyId): array
+    {
+        return [
+            'late' => PayrollComponent::firstOrCreate(
+                ['company_id' => $companyId, 'code' => 'ATTENDANCE_LATE'],
+                ['name' => 'Potongan Keterlambatan', 'type' => 'deduction', 'category' => 'attendance_deduction', 'is_active' => true],
+            ),
+            'absence' => PayrollComponent::firstOrCreate(
+                ['company_id' => $companyId, 'code' => 'ATTENDANCE_ABSENCE'],
+                ['name' => 'Potongan Alpha', 'type' => 'deduction', 'category' => 'attendance_deduction', 'is_active' => true],
+            ),
+            'reward' => PayrollComponent::firstOrCreate(
+                ['company_id' => $companyId, 'code' => 'ATTENDANCE_PERFECT'],
+                ['name' => 'Reward Kehadiran Sempurna', 'type' => 'earning', 'category' => 'attendance_reward', 'is_active' => true],
+            ),
+        ];
+    }
+
+    /**
+     * Aggregates a period's attendance_reviews into deduction/reward
+     * amounts. "unresolved" rows (and any date with no row at all, e.g. a
+     * window not yet fully elapsed) never contribute a deduction — only an
+     * explicit "present" row's late_minutes or an explicit "absent"
+     * correction counts. The perfect-attendance reward additionally
+     * requires every single day in the window to have been reviewed, so it
+     * can never be paid on incomplete data.
+     *
+     * @param  Collection<int, AttendanceReview>  $reviews
+     * @return array{
+     *     late_minutes_total: int, absent_days: int, unresolved_days: int,
+     *     perfect_attendance: bool, late_deduction_amount: string|null,
+     *     absence_deduction_amount: string|null, reward_amount: string|null,
+     *     days: array<int, array<string, mixed>>,
+     * }
+     */
+    private function summarizeAttendance(Collection $reviews, int $expectedAttendanceDays, float $lateRate, float $absenceRate, float $rewardRate): array
+    {
+        $lateMinutesTotal = 0;
+        $absentDays = 0;
+        $unresolvedDays = 0;
+        $days = [];
+
+        foreach ($reviews as $review) {
+            if ($review->classification === 'present') {
+                $lateMinutesTotal += $review->late_minutes;
+            } elseif ($review->classification === 'absent') {
+                $absentDays++;
+            } elseif ($review->classification === 'unresolved') {
+                $unresolvedDays++;
+            }
+
+            $days[] = [
+                'date' => $review->date->toDateString(),
+                'attendance_review_id' => $review->id,
+                'attendance_review_version' => $review->version,
+                'classification' => $review->classification,
+                'late_minutes' => $review->late_minutes,
+                'worked_minutes' => $review->worked_minutes,
+                'scheduled_minutes' => $review->scheduled_minutes,
+                'schedule_snapshot' => $review->schedule_snapshot,
+                'leave_snapshot' => $review->leave_snapshot,
+            ];
+        }
+
+        $perfectAttendance = $reviews->count() === $expectedAttendanceDays
+            && $lateMinutesTotal === 0 && $absentDays === 0 && $unresolvedDays === 0;
+
+        return [
+            'late_minutes_total' => $lateMinutesTotal,
+            'absent_days' => $absentDays,
+            'unresolved_days' => $unresolvedDays,
+            'perfect_attendance' => $perfectAttendance,
+            'late_deduction_amount' => ($lateMinutesTotal > 0 && $lateRate > 0)
+                ? number_format($lateMinutesTotal * $lateRate, 2, '.', '') : null,
+            'absence_deduction_amount' => ($absentDays > 0 && $absenceRate > 0)
+                ? number_format($absentDays * $absenceRate, 2, '.', '') : null,
+            'reward_amount' => ($perfectAttendance && $rewardRate > 0)
+                ? number_format($rewardRate, 2, '.', '') : null,
+            'days' => $days,
+        ];
+    }
+
+    /**
+     * @return numeric-string
+     */
+    private function decimal(?string $value): string
+    {
+        return number_format((float) ($value ?? '0'), 2, '.', '');
     }
 }

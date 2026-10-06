@@ -12,6 +12,7 @@ use App\Http\Controllers\Hrd\DivisionController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
 use App\Http\Controllers\Hrd\PayrollComponentController;
 use App\Http\Controllers\Hrd\PayrollPeriodController;
+use App\Http\Controllers\Hrd\PayrollPolicyController;
 use App\Http\Controllers\Hrd\PayrollProfileController;
 use App\Http\Controllers\Hrd\PayrollRunController;
 use App\Http\Controllers\Hrd\UserManagementController;
@@ -91,6 +92,9 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::post('periode-gaji/{period}/hitung', [PayrollRunController::class, 'store'])->name('periode-gaji.hitung');
 
     Route::get('hasil-payroll/{run}', [PayrollRunController::class, 'show'])->name('hasil-payroll.show');
+
+    Route::get('kebijakan-absensi', [PayrollPolicyController::class, 'index'])->name('kebijakan-absensi.index');
+    Route::put('kebijakan-absensi/{policy}', [PayrollPolicyController::class, 'update'])->name('kebijakan-absensi.update');
 
     Route::get('kalender-kerja', [CompanyCalendarDayController::class, 'index'])->name('kalender-kerja.index');
     Route::post('kalender-kerja', [CompanyCalendarDayController::class, 'store'])->name('kalender-kerja.store');

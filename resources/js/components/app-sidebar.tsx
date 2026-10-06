@@ -9,6 +9,7 @@ import {
     ClipboardList,
     LayoutGrid,
     NotebookPen,
+    ShieldCheck,
     UserCog,
     Users,
     Wallet,
@@ -20,6 +21,7 @@ import CompanyCalendarDayController from '@/actions/App/Http/Controllers/Hrd/Com
 import DivisionController from '@/actions/App/Http/Controllers/Hrd/DivisionController';
 import PayrollComponentController from '@/actions/App/Http/Controllers/Hrd/PayrollComponentController';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
+import PayrollPolicyController from '@/actions/App/Http/Controllers/Hrd/PayrollPolicyController';
 import PayrollProfileController from '@/actions/App/Http/Controllers/Hrd/PayrollProfileController';
 import UserManagementController from '@/actions/App/Http/Controllers/Hrd/UserManagementController';
 import AppLogo from '@/components/app-logo';
@@ -109,6 +111,11 @@ const hrdNavItems: NavItem[] = [
         title: 'Koreksi Absensi',
         href: AttendanceReviewController.index(),
         icon: ClipboardCheck,
+    },
+    {
+        title: 'Kebijakan Absensi',
+        href: PayrollPolicyController.index(),
+        icon: ShieldCheck,
     },
 ];
 

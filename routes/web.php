@@ -19,6 +19,7 @@ use App\Http\Controllers\Hrd\UserManagementController;
 use App\Http\Controllers\LeaveRequestAttachmentController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\Manager\LeaveRequestApprovalController as ManagerLeaveRequestApprovalController;
+use App\Http\Controllers\Manager\PayrollRunApprovalController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -92,6 +93,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::post('periode-gaji/{period}/hitung', [PayrollRunController::class, 'store'])->name('periode-gaji.hitung');
 
     Route::get('hasil-payroll/{run}', [PayrollRunController::class, 'show'])->name('hasil-payroll.show');
+    Route::patch('hasil-payroll/{run}/ajukan', [PayrollRunController::class, 'submit'])->name('hasil-payroll.ajukan');
 
     Route::get('kebijakan-absensi', [PayrollPolicyController::class, 'index'])->name('kebijakan-absensi.index');
     Route::put('kebijakan-absensi/{policy}', [PayrollPolicyController::class, 'update'])->name('kebijakan-absensi.update');
@@ -109,6 +111,11 @@ Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('ma
     Route::get('izin', [ManagerLeaveRequestApprovalController::class, 'index'])->name('izin.index');
     Route::patch('izin/{leaveRequest}/approve', [ManagerLeaveRequestApprovalController::class, 'approve'])->name('izin.approve');
     Route::patch('izin/{leaveRequest}/reject', [ManagerLeaveRequestApprovalController::class, 'reject'])->name('izin.reject');
+
+    Route::get('payroll', [PayrollRunApprovalController::class, 'index'])->name('payroll.index');
+    Route::get('payroll/{run}', [PayrollRunController::class, 'show'])->name('payroll.show');
+    Route::patch('payroll/{run}/approve', [PayrollRunApprovalController::class, 'approve'])->name('payroll.approve');
+    Route::patch('payroll/{run}/revisi', [PayrollRunApprovalController::class, 'requestRevision'])->name('payroll.revisi');
 });
 
 require __DIR__.'/settings.php';

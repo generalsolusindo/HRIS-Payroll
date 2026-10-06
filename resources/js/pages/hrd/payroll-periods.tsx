@@ -4,6 +4,7 @@ import { useState } from 'react';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 import PayrollRunController from '@/actions/App/Http/Controllers/Hrd/PayrollRunController';
 import InputError from '@/components/input-error';
+import { show as showPayrollRun } from '@/routes/hrd/hasil-payroll';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -337,35 +338,43 @@ export default function PayrollPeriods({ periods, companies }: Props) {
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            {period.latest_run ? (
-                                                <Link
-                                                    href={PayrollRunController.show(
-                                                        period.latest_run.id,
-                                                    )}
-                                                >
+                                            <div className="flex justify-end gap-2">
+                                                {period.latest_run && (
+                                                    <Link
+                                                        href={showPayrollRun(
+                                                            period.latest_run
+                                                                .id,
+                                                        )}
+                                                    >
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="rounded-full"
+                                                        >
+                                                            <Eye className="size-3.5" />
+                                                            Lihat Hasil
+                                                        </Button>
+                                                    </Link>
+                                                )}
+                                                {(!period.latest_run ||
+                                                    period.latest_run.status ===
+                                                        'revision_requested') && (
                                                     <Button
                                                         type="button"
                                                         size="sm"
-                                                        variant="outline"
                                                         className="rounded-full"
+                                                        onClick={() =>
+                                                            calculate(period.id)
+                                                        }
                                                     >
-                                                        <Eye className="size-3.5" />
-                                                        Lihat Hasil
+                                                        <Calculator className="size-3.5" />
+                                                        {period.latest_run
+                                                            ? 'Hitung Ulang'
+                                                            : 'Hitung Payroll'}
                                                     </Button>
-                                                </Link>
-                                            ) : (
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    className="rounded-full"
-                                                    onClick={() =>
-                                                        calculate(period.id)
-                                                    }
-                                                >
-                                                    <Calculator className="size-3.5" />
-                                                    Hitung Payroll
-                                                </Button>
-                                            )}
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

@@ -24,6 +24,8 @@ import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollP
 import PayrollPolicyController from '@/actions/App/Http/Controllers/Hrd/PayrollPolicyController';
 import PayrollProfileController from '@/actions/App/Http/Controllers/Hrd/PayrollProfileController';
 import UserManagementController from '@/actions/App/Http/Controllers/Hrd/UserManagementController';
+import LeaveRequestApprovalController from '@/actions/App/Http/Controllers/Manager/LeaveRequestApprovalController';
+import PayrollRunApprovalController from '@/actions/App/Http/Controllers/Manager/PayrollRunApprovalController';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavThemeToggle } from '@/components/nav-theme-toggle';
@@ -119,9 +121,23 @@ const hrdNavItems: NavItem[] = [
     },
 ];
 
+const managerNavItems: NavItem[] = [
+    {
+        title: 'Persetujuan Izin',
+        href: LeaveRequestApprovalController.index(),
+        icon: CalendarOff,
+    },
+    {
+        title: 'Persetujuan Payroll',
+        href: PayrollRunApprovalController.index(),
+        icon: Wallet,
+    },
+];
+
 export function AppSidebar() {
     const { auth } = usePage<{ auth: Auth }>().props;
     const isHrd = auth.user.role === 'hrd';
+    const isManager = auth.user.role === 'admin';
 
     // An HRD account is for monitoring/management only — it never clocks
     // in itself, so its own attendance history is never meaningful.
@@ -147,6 +163,9 @@ export function AppSidebar() {
                 <NavMain items={visibleMainNavItems} />
                 <NavMain items={moduleNavItems} groupLabel="Modul Lain" />
                 {isHrd && <NavMain items={hrdNavItems} groupLabel="HRD" />}
+                {isManager && (
+                    <NavMain items={managerNavItems} groupLabel="Manager" />
+                )}
             </SidebarContent>
 
             <SidebarFooter>

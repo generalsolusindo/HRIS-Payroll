@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendanceReview;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\PayrollApproval;
 use App\Models\PayrollComponent;
 use App\Models\PayrollEntry;
 use App\Models\PayrollEntryLine;
@@ -29,14 +30,22 @@ class PayrollRunController extends Controller
      * on each employee's profile) plus attendance-derived lines read from
      * attendance_reviews — late-minute and confirmed-absence deductions, and
      * a perfect-attendance reward, all rated by the company's PayrollPolicy
-     * (see PayrollPolicyController). Still no overtime, approval workflow,
-     * or revision — every run is created straight into 'draft'.
+     * (see PayrollPolicyController). Still no overtime integration.
+     *
+     * A period can be (re)calculated when it has no run yet, or when its
+     * latest version was sent back by a Manager ("revision_requested") —
+     * that creates the next version (supersedes_run_id) and immediately
+     * supersedes the old one, so exactly one version is ever active for a
+     * period at a time. Any other status (submitted/approved/etc.) blocks
+     * a silent recalculation.
      */
     public function store(Request $request, PayrollPeriod $period, AttendanceReviewGenerator $generator): RedirectResponse
     {
-        if ($period->runs()->exists()) {
+        $latestRun = $period->runs()->latest('version')->first();
+
+        if ($latestRun && $latestRun->status !== 'revision_requested') {
             throw ValidationException::withMessages([
-                'period' => 'Periode ini sudah punya hasil perhitungan. Revisi belum didukung di tahap ini.',
+                'period' => 'Periode ini sudah punya hasil perhitungan. Hanya bisa dihitung ulang setelah Manager meminta revisi.',
             ]);
         }
 
@@ -65,16 +74,30 @@ class PayrollRunController extends Controller
 
         $attendanceComponents = $this->attendanceComponents($period->company_id);
 
-        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $expectedAttendanceDays, $attendanceComponents) {
+        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $expectedAttendanceDays, $attendanceComponents, $latestRun) {
             $run = PayrollRun::create([
                 'payroll_period_id' => $period->id,
-                'version' => 1,
+                'version' => $latestRun ? $latestRun->version + 1 : 1,
+                'supersedes_run_id' => $latestRun?->id,
                 'payroll_policy_id' => $policy->id,
                 'policy_snapshot' => ['code' => $policy->code, 'version' => $policy->version, 'rules' => $policy->rules],
                 'company_snapshot' => ['id' => $period->company_id, 'name' => $period->company->name],
                 'status' => 'draft',
                 'created_by' => $request->user()->id,
             ]);
+
+            if ($latestRun) {
+                $latestRun->update(['status' => 'superseded']);
+                PayrollApproval::create([
+                    'payroll_run_id' => $latestRun->id,
+                    'action' => 'superseded',
+                    'from_status' => 'revision_requested',
+                    'to_status' => 'superseded',
+                    'actor_id' => $request->user()->id,
+                    'actor_snapshot' => ['name' => $request->user()->name],
+                    'note' => "Dihitung ulang sebagai versi {$run->version}.",
+                ]);
+            }
 
             $profiles = EmployeePayrollProfile::where('company_id', $period->company_id)
                 ->whereHas('user', fn ($query) => $query->where('role', 'karyawan')->where('status', 'active'))
@@ -266,9 +289,42 @@ class PayrollRunController extends Controller
         return redirect()->route('hrd.hasil-payroll.show', $run);
     }
 
+    /**
+     * Sends a draft run to the Manager for approval — the only transition
+     * HRD itself can make without a Manager decision.
+     */
+    public function submit(Request $request, PayrollRun $run): RedirectResponse
+    {
+        DB::transaction(function () use ($request, $run) {
+            $locked = PayrollRun::whereKey($run->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== 'draft') {
+                throw ValidationException::withMessages([
+                    'status' => 'Hanya hasil perhitungan berstatus draft yang bisa diajukan.',
+                ]);
+            }
+
+            $locked->fill(['status' => 'submitted', 'submitted_at' => now()])->save();
+
+            PayrollApproval::create([
+                'payroll_run_id' => $locked->id,
+                'action' => 'submitted',
+                'from_status' => 'draft',
+                'to_status' => 'submitted',
+                'actor_id' => $request->user()->id,
+                'actor_snapshot' => ['name' => $request->user()->name],
+                'note' => null,
+            ]);
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Hasil payroll diajukan untuk persetujuan Manager.']);
+
+        return back();
+    }
+
     public function show(PayrollRun $run): Response
     {
-        $run->load('period.company', 'entries.division', 'entries.lines');
+        $run->load('period.company', 'entries.division', 'entries.lines', 'approvals.actor');
 
         return Inertia::render('hrd/payroll-run-show', [
             'run' => [
@@ -280,13 +336,22 @@ class PayrollRunController extends Controller
                 'deduction_total' => (string) $run->deduction_total,
                 'reward_total' => (string) $run->reward_total,
                 'net_total' => (string) $run->net_total,
+                'revision_reason' => $run->revision_reason,
                 'period' => [
+                    'id' => $run->period->id,
                     'name' => $run->period->name,
                     'company_name' => $run->period->company->name,
                     'starts_on' => $run->period->starts_on->toDateString(),
                     'ends_on' => $run->period->ends_on->toDateString(),
                 ],
             ],
+            'approvals' => $run->approvals->sortBy('created_at')->values()->map(fn (PayrollApproval $approval) => [
+                'id' => $approval->id,
+                'action' => $approval->action,
+                'actor_name' => $approval->actor !== null ? $approval->actor->name : ($approval->actor_snapshot['name'] ?? 'Sistem'),
+                'note' => $approval->note,
+                'created_at' => $approval->created_at->toIso8601String(),
+            ]),
             'entries' => $run->entries->map(fn (PayrollEntry $entry) => [
                 'id' => $entry->id,
                 'user_id' => $entry->user_id,

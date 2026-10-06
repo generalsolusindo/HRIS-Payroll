@@ -23,7 +23,7 @@ class StorePayrollPaymentRequest extends FormRequest
             'amount' => ['required', 'numeric', 'min:0.01'],
             'method' => ['required', Rule::in(['bank_transfer', 'cash', 'other'])],
             'reference' => ['nullable', 'string', 'max:255'],
-            'proof' => ['nullable', 'file', 'max:5120'],
+            'proof' => ['nullable', 'file', 'mimes:jpeg,png,webp,pdf', 'max:5120'],
             'note' => ['nullable', 'string', 'max:2000'],
         ];
     }

@@ -25,7 +25,7 @@ class UpdateAttendanceReviewRequest extends FormRequest
                 'business_trip', 'absent', 'rest_day', 'holiday',
             ])],
             'correction_reason' => ['required', 'string', 'max:2000'],
-            'evidence' => ['nullable', 'file', 'max:5120'],
+            'evidence' => ['nullable', 'file', 'mimes:jpeg,png,webp,pdf', 'max:5120'],
         ];
     }
 }

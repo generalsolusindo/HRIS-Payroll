@@ -9,6 +9,7 @@ use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollComponent;
 use App\Models\User;
+use App\Services\PayrollAuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -90,13 +91,30 @@ class PayrollProfileController extends Controller
         ]);
     }
 
-    public function update(UpdatePayrollProfileRequest $request, User $user): RedirectResponse
+    public function update(UpdatePayrollProfileRequest $request, User $user, PayrollAuditLogger $auditLogger): RedirectResponse
     {
         abort_unless($user->role === 'karyawan', 404);
 
         $validated = $request->validated();
 
-        DB::transaction(function () use ($validated, $user) {
+        $existingProfile = EmployeePayrollProfile::where('user_id', $user->id)->with('salaryComponents')->first();
+        // Deliberately excludes bank_account_number/bank_account_holder —
+        // those are encrypted at rest specifically to protect them, and
+        // the audit log's before/after columns are plain JSON, not
+        // encrypted. The salary amounts below are the part that actually
+        // matters for this trail.
+        $before = $existingProfile ? [
+            'division_id' => $existingProfile->division_id,
+            'employment_type' => $existingProfile->employment_type,
+            'effective_from' => $existingProfile->effective_from->toDateString(),
+            'bank_name' => $existingProfile->bank_name,
+            'components' => $existingProfile->salaryComponents->map(fn (EmployeeSalaryComponent $component) => [
+                'payroll_component_id' => $component->payroll_component_id,
+                'amount' => (string) $component->amount,
+            ])->all(),
+        ] : null;
+
+        $profile = DB::transaction(function () use ($validated, $user) {
             // One current profile per employee for now — history-aware
             // versioning (multiple effective-dated profiles) lands once the
             // payroll run calculator actually needs to snapshot changes
@@ -127,7 +145,25 @@ class PayrollProfileController extends Controller
                     ['amount' => $component['amount'], 'basis' => 'monthly'],
                 );
             }
+
+            return $profile;
         });
+
+        $auditLogger->log(
+            companyId: $user->company_id,
+            entityType: 'EmployeePayrollProfile',
+            entityId: $profile->id,
+            action: $existingProfile ? 'updated' : 'created',
+            before: $before,
+            after: [
+                'division_id' => $profile->division_id,
+                'employment_type' => $profile->employment_type,
+                'effective_from' => $profile->effective_from->toDateString(),
+                'bank_name' => $profile->bank_name,
+                'components' => $validated['components'],
+            ],
+            reason: $validated['reason'] ?? "Profil gaji {$user->name} diperbarui oleh HRD.",
+        );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Profil gaji {$user->name} berhasil disimpan."]);
 

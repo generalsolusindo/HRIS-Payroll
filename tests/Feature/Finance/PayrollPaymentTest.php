@@ -165,6 +165,24 @@ class PayrollPaymentTest extends TestCase
         $this->assertSame('paid', $run->fresh()->status);
     }
 
+    public function test_proof_must_be_an_image_or_pdf(): void
+    {
+        $finance = User::factory()->create(['role' => 'finance']);
+        $run = $this->makeApprovedRun();
+        $run->update(['status' => 'locked']);
+        $entry = PayrollEntry::where('payroll_run_id', $run->id)->firstOrFail();
+
+        $proof = UploadedFile::fake()->create('script.exe', 100, 'application/x-msdownload');
+
+        $this->actingAs($finance)
+            ->post(route('finance.entri.bayar', $entry), [
+                'amount' => '3000000', 'method' => 'cash', 'proof' => $proof,
+            ])
+            ->assertSessionHasErrors('proof');
+
+        $this->assertSame(0, PayrollPayment::count());
+    }
+
     public function test_partial_payments_accumulate_until_the_entry_is_fully_paid(): void
     {
         $finance = User::factory()->create(['role' => 'finance']);

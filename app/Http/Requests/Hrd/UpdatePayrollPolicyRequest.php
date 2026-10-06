@@ -23,6 +23,7 @@ class UpdatePayrollPolicyRequest extends FormRequest
             'absence_deduction_per_day' => ['required', 'numeric', 'min:0'],
             'perfect_attendance_reward' => ['required', 'numeric', 'min:0'],
             'overtime_rate_per_hour' => ['required', 'numeric', 'min:0'],
+            'reason' => ['nullable', 'string', 'max:2000'],
         ];
     }
 }

@@ -33,6 +33,7 @@ class UpdatePayrollProfileRequest extends FormRequest
             'components' => ['required', 'array', 'min:1'],
             'components.*.payroll_component_id' => ['required', 'integer'],
             'components.*.amount' => ['required', 'numeric', 'min:0'],
+            'reason' => ['nullable', 'string', 'max:2000'],
         ];
     }
 

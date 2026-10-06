@@ -13,6 +13,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 type Division = { id: number; name: string };
 type AvailableComponent = { id: number; name: string; category: string };
@@ -379,6 +380,18 @@ export default function PayrollProfileEdit({
                                         }).format(monthlyTotal)}
                                     </span>
                                 </div>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="reason">
+                                    Alasan Perubahan (opsional)
+                                </Label>
+                                <Textarea
+                                    id="reason"
+                                    name="reason"
+                                    placeholder="Dicatat di riwayat audit — kosongkan jika tidak perlu dijelaskan"
+                                />
+                                <InputError message={errors.reason} />
                             </div>
 
                             <div>

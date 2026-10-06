@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\UpdateAttendanceReviewRequest;
 use App\Models\AttendanceReview;
 use App\Services\AttendanceReviewGenerator;
+use App\Services\PayrollAuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -51,7 +52,7 @@ class AttendanceReviewController extends Controller
         ]);
     }
 
-    public function update(UpdateAttendanceReviewRequest $request, AttendanceReview $review): RedirectResponse
+    public function update(UpdateAttendanceReviewRequest $request, AttendanceReview $review, PayrollAuditLogger $auditLogger): RedirectResponse
     {
         if ($review->status === 'validated' && $review->correction_reason !== null) {
             // Already hand-corrected once — further changes go through the
@@ -66,6 +67,8 @@ class AttendanceReviewController extends Controller
         }
 
         $validated = $request->validated();
+
+        $before = ['classification' => $review->classification, 'correction_reason' => $review->correction_reason];
 
         $evidencePath = $review->evidence_path;
         if ($request->hasFile('evidence')) {
@@ -84,6 +87,17 @@ class AttendanceReviewController extends Controller
             'validated_at' => now(),
             'version' => $review->version + 1,
         ])->save();
+
+        $auditLogger->log(
+            companyId: $review->company_id,
+            entityType: 'AttendanceReview',
+            entityId: $review->id,
+            action: 'corrected',
+            before: $before,
+            after: ['classification' => $review->classification, 'correction_reason' => $review->correction_reason],
+            reason: $validated['correction_reason'],
+            attendanceReviewId: $review->id,
+        );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Koreksi absensi disimpan.']);
 

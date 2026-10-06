@@ -8,6 +8,7 @@ import {
     ClipboardCheck,
     ClipboardList,
     Clock,
+    History,
     LayoutGrid,
     NotebookPen,
     ShieldCheck,
@@ -22,6 +23,7 @@ import AttendanceReviewController from '@/actions/App/Http/Controllers/Hrd/Atten
 import CompanyCalendarDayController from '@/actions/App/Http/Controllers/Hrd/CompanyCalendarDayController';
 import DivisionController from '@/actions/App/Http/Controllers/Hrd/DivisionController';
 import OvertimeApprovalController from '@/actions/App/Http/Controllers/Hrd/OvertimeApprovalController';
+import PayrollAuditLogController from '@/actions/App/Http/Controllers/Hrd/PayrollAuditLogController';
 import PayrollComponentController from '@/actions/App/Http/Controllers/Hrd/PayrollComponentController';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 import PayrollPolicyController from '@/actions/App/Http/Controllers/Hrd/PayrollPolicyController';
@@ -132,6 +134,11 @@ const hrdNavItems: NavItem[] = [
         title: 'Persetujuan Lembur',
         href: OvertimeApprovalController.index(),
         icon: Clock,
+    },
+    {
+        title: 'Audit Log',
+        href: PayrollAuditLogController.index(),
+        icon: History,
     },
 ];
 

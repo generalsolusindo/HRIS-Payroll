@@ -82,6 +82,29 @@ class AttendanceReviewManagementTest extends TestCase
         Storage::disk('attendance_evidence')->assertExists($review->evidence_path);
     }
 
+    public function test_evidence_must_be_an_image_or_pdf(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $karyawan = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
+        $review = AttendanceReview::create([
+            'user_id' => $karyawan->id, 'company_id' => $karyawan->company_id, 'date' => '2026-10-05',
+            'status' => 'draft', 'classification' => 'unresolved',
+            'source_snapshot' => [], 'schedule_snapshot' => [], 'version' => 0,
+        ]);
+
+        $file = UploadedFile::fake()->create('script.exe', 100, 'application/x-msdownload');
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.koreksi-absensi.update', $review), [
+                'classification' => 'sick',
+                'correction_reason' => 'Mencoba unggah berkas tidak valid.',
+                'evidence' => $file,
+            ])
+            ->assertSessionHasErrors('evidence');
+
+        $this->assertNull($review->fresh()->evidence_path);
+    }
+
     public function test_correction_reason_is_required(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);

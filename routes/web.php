@@ -13,6 +13,7 @@ use App\Http\Controllers\Hrd\CompanyCalendarDayController;
 use App\Http\Controllers\Hrd\DivisionController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
 use App\Http\Controllers\Hrd\OvertimeApprovalController;
+use App\Http\Controllers\Hrd\PayrollAuditLogController;
 use App\Http\Controllers\Hrd\PayrollComponentController;
 use App\Http\Controllers\Hrd\PayrollPayslipController;
 use App\Http\Controllers\Hrd\PayrollPeriodController;
@@ -122,6 +123,8 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::get('persetujuan-lembur', [OvertimeApprovalController::class, 'index'])->name('persetujuan-lembur.index');
     Route::patch('persetujuan-lembur/{overtimeRequest}/approve', [OvertimeApprovalController::class, 'approve'])->name('persetujuan-lembur.approve');
     Route::patch('persetujuan-lembur/{overtimeRequest}/reject', [OvertimeApprovalController::class, 'reject'])->name('persetujuan-lembur.reject');
+
+    Route::get('audit-log', [PayrollAuditLogController::class, 'index'])->name('audit-log.index');
 });
 
 Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('manager.')->group(function () {

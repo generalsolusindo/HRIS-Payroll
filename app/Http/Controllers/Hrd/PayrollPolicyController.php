@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\UpdatePayrollPolicyRequest;
 use App\Models\Company;
 use App\Models\PayrollPolicy;
+use App\Services\PayrollAuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -49,22 +50,34 @@ class PayrollPolicyController extends Controller
      * Past runs are unaffected: payroll_runs.policy_snapshot already
      * freezes the rules a run was calculated with at creation time.
      */
-    public function update(UpdatePayrollPolicyRequest $request, PayrollPolicy $policy): RedirectResponse
+    public function update(UpdatePayrollPolicyRequest $request, PayrollPolicy $policy, PayrollAuditLogger $auditLogger): RedirectResponse
     {
         $validated = $request->validated();
 
-        $policy->update([
-            'rules' => array_merge($policy->rules, [
-                'attendance' => [
-                    'late_deduction_per_minute' => number_format((float) $validated['late_deduction_per_minute'], 2, '.', ''),
-                    'absence_deduction_per_day' => number_format((float) $validated['absence_deduction_per_day'], 2, '.', ''),
-                    'perfect_attendance_reward' => number_format((float) $validated['perfect_attendance_reward'], 2, '.', ''),
-                ],
-                'overtime' => [
-                    'rate_per_hour' => number_format((float) $validated['overtime_rate_per_hour'], 2, '.', ''),
-                ],
-            ]),
-        ]);
+        $before = $policy->rules;
+
+        $after = [
+            'attendance' => [
+                'late_deduction_per_minute' => number_format((float) $validated['late_deduction_per_minute'], 2, '.', ''),
+                'absence_deduction_per_day' => number_format((float) $validated['absence_deduction_per_day'], 2, '.', ''),
+                'perfect_attendance_reward' => number_format((float) $validated['perfect_attendance_reward'], 2, '.', ''),
+            ],
+            'overtime' => [
+                'rate_per_hour' => number_format((float) $validated['overtime_rate_per_hour'], 2, '.', ''),
+            ],
+        ];
+
+        $policy->update(['rules' => array_merge($policy->rules, $after)]);
+
+        $auditLogger->log(
+            companyId: $policy->company_id,
+            entityType: 'PayrollPolicy',
+            entityId: $policy->id,
+            action: 'updated',
+            before: $before,
+            after: $after,
+            reason: $validated['reason'] ?? 'Tarif kebijakan absensi/lembur diperbarui oleh HRD.',
+        );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Kebijakan absensi berhasil disimpan.']);
 

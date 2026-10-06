@@ -26,14 +26,16 @@ class PayrollPolicyController extends Controller
                 ['effective_from' => Carbon::today(), 'rules' => [], 'description' => 'Kebijakan awal — belum ada aturan potongan/reward.'],
             );
 
-            $rules = $policy->rules['attendance'] ?? [];
+            $attendanceRules = $policy->rules['attendance'] ?? [];
+            $overtimeRules = $policy->rules['overtime'] ?? [];
 
             return [
                 'id' => $policy->id,
                 'company' => ['id' => $company->id, 'name' => $company->name],
-                'late_deduction_per_minute' => (string) ($rules['late_deduction_per_minute'] ?? '0'),
-                'absence_deduction_per_day' => (string) ($rules['absence_deduction_per_day'] ?? '0'),
-                'perfect_attendance_reward' => (string) ($rules['perfect_attendance_reward'] ?? '0'),
+                'late_deduction_per_minute' => (string) ($attendanceRules['late_deduction_per_minute'] ?? '0'),
+                'absence_deduction_per_day' => (string) ($attendanceRules['absence_deduction_per_day'] ?? '0'),
+                'perfect_attendance_reward' => (string) ($attendanceRules['perfect_attendance_reward'] ?? '0'),
+                'overtime_rate_per_hour' => (string) ($overtimeRules['rate_per_hour'] ?? '0'),
             ];
         });
 
@@ -52,11 +54,16 @@ class PayrollPolicyController extends Controller
         $validated = $request->validated();
 
         $policy->update([
-            'rules' => array_merge($policy->rules, ['attendance' => [
-                'late_deduction_per_minute' => number_format((float) $validated['late_deduction_per_minute'], 2, '.', ''),
-                'absence_deduction_per_day' => number_format((float) $validated['absence_deduction_per_day'], 2, '.', ''),
-                'perfect_attendance_reward' => number_format((float) $validated['perfect_attendance_reward'], 2, '.', ''),
-            ]]),
+            'rules' => array_merge($policy->rules, [
+                'attendance' => [
+                    'late_deduction_per_minute' => number_format((float) $validated['late_deduction_per_minute'], 2, '.', ''),
+                    'absence_deduction_per_day' => number_format((float) $validated['absence_deduction_per_day'], 2, '.', ''),
+                    'perfect_attendance_reward' => number_format((float) $validated['perfect_attendance_reward'], 2, '.', ''),
+                ],
+                'overtime' => [
+                    'rate_per_hour' => number_format((float) $validated['overtime_rate_per_hour'], 2, '.', ''),
+                ],
+            ]),
         ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Kebijakan absensi berhasil disimpan.']);

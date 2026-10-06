@@ -12,6 +12,7 @@ use App\Http\Controllers\Hrd\AttendanceReviewEvidenceController;
 use App\Http\Controllers\Hrd\CompanyCalendarDayController;
 use App\Http\Controllers\Hrd\DivisionController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
+use App\Http\Controllers\Hrd\OvertimeApprovalController;
 use App\Http\Controllers\Hrd\PayrollComponentController;
 use App\Http\Controllers\Hrd\PayrollPayslipController;
 use App\Http\Controllers\Hrd\PayrollPeriodController;
@@ -23,6 +24,7 @@ use App\Http\Controllers\LeaveRequestAttachmentController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\Manager\LeaveRequestApprovalController as ManagerLeaveRequestApprovalController;
 use App\Http\Controllers\Manager\PayrollRunApprovalController;
+use App\Http\Controllers\OvertimeRequestController;
 use App\Http\Controllers\PenggajianController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -65,6 +67,11 @@ Route::middleware(['auth', 'active'])->group(function () {
     // swallowed as a {leaveRequest} parameter.
     Route::get('izin/attachments/{attachment}', [LeaveRequestAttachmentController::class, 'show'])->name('izin.attachments.show');
     Route::get('izin/{leaveRequest}', [LeaveRequestController::class, 'show'])->name('izin.show');
+
+    Route::get('lembur', [OvertimeRequestController::class, 'index'])->name('lembur.index');
+    Route::post('lembur', [OvertimeRequestController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('lembur.store');
 });
 
 Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->group(function () {
@@ -111,6 +118,10 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::get('koreksi-absensi', [AttendanceReviewController::class, 'index'])->name('koreksi-absensi.index');
     Route::put('koreksi-absensi/{review}', [AttendanceReviewController::class, 'update'])->name('koreksi-absensi.update');
     Route::get('koreksi-absensi/{review}/bukti', [AttendanceReviewEvidenceController::class, 'show'])->name('koreksi-absensi.bukti');
+
+    Route::get('persetujuan-lembur', [OvertimeApprovalController::class, 'index'])->name('persetujuan-lembur.index');
+    Route::patch('persetujuan-lembur/{overtimeRequest}/approve', [OvertimeApprovalController::class, 'approve'])->name('persetujuan-lembur.approve');
+    Route::patch('persetujuan-lembur/{overtimeRequest}/reject', [OvertimeApprovalController::class, 'reject'])->name('persetujuan-lembur.reject');
 });
 
 Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('manager.')->group(function () {

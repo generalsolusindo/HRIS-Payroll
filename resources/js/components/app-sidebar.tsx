@@ -7,6 +7,7 @@ import {
     CalendarOff,
     ClipboardCheck,
     ClipboardList,
+    Clock,
     LayoutGrid,
     NotebookPen,
     ShieldCheck,
@@ -20,11 +21,13 @@ import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/At
 import AttendanceReviewController from '@/actions/App/Http/Controllers/Hrd/AttendanceReviewController';
 import CompanyCalendarDayController from '@/actions/App/Http/Controllers/Hrd/CompanyCalendarDayController';
 import DivisionController from '@/actions/App/Http/Controllers/Hrd/DivisionController';
+import OvertimeApprovalController from '@/actions/App/Http/Controllers/Hrd/OvertimeApprovalController';
 import PayrollComponentController from '@/actions/App/Http/Controllers/Hrd/PayrollComponentController';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 import PayrollPolicyController from '@/actions/App/Http/Controllers/Hrd/PayrollPolicyController';
 import PayrollProfileController from '@/actions/App/Http/Controllers/Hrd/PayrollProfileController';
 import UserManagementController from '@/actions/App/Http/Controllers/Hrd/UserManagementController';
+import OvertimeRequestController from '@/actions/App/Http/Controllers/OvertimeRequestController';
 import LeaveRequestApprovalController from '@/actions/App/Http/Controllers/Manager/LeaveRequestApprovalController';
 import PayrollRunApprovalController from '@/actions/App/Http/Controllers/Manager/PayrollRunApprovalController';
 import AppLogo from '@/components/app-logo';
@@ -71,6 +74,11 @@ const moduleNavItems: NavItem[] = [
         title: 'Izin',
         href: izin(),
         icon: CalendarOff,
+    },
+    {
+        title: 'Lembur',
+        href: OvertimeRequestController.index(),
+        icon: Clock,
     },
 ];
 
@@ -119,6 +127,11 @@ const hrdNavItems: NavItem[] = [
         title: 'Kebijakan Absensi',
         href: PayrollPolicyController.index(),
         icon: ShieldCheck,
+    },
+    {
+        title: 'Persetujuan Lembur',
+        href: OvertimeApprovalController.index(),
+        icon: Clock,
     },
 ];
 

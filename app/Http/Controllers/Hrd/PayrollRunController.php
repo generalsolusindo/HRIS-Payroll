@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendanceReview;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\OvertimeRequest;
 use App\Models\PayrollApproval;
 use App\Models\PayrollComponent;
 use App\Models\PayrollEntry;
@@ -29,8 +30,9 @@ class PayrollRunController extends Controller
      * Calculator: base salary + allowance (whatever earning components are
      * on each employee's profile) plus attendance-derived lines read from
      * attendance_reviews — late-minute and confirmed-absence deductions, and
-     * a perfect-attendance reward, all rated by the company's PayrollPolicy
-     * (see PayrollPolicyController). Still no overtime integration.
+     * a perfect-attendance reward — plus an overtime earning line from
+     * approved overtime_requests, all rated by the company's PayrollPolicy
+     * (see PayrollPolicyController).
      *
      * A period can be (re)calculated when it has no run yet, or when its
      * latest version was sent back by a Manager ("revision_requested") —
@@ -70,11 +72,13 @@ class PayrollRunController extends Controller
         $lateRate = (float) ($rules['late_deduction_per_minute'] ?? 0);
         $absenceRate = (float) ($rules['absence_deduction_per_day'] ?? 0);
         $rewardRate = (float) ($rules['perfect_attendance_reward'] ?? 0);
+        $overtimeRate = (float) ($policy->rules['overtime']['rate_per_hour'] ?? 0);
         $expectedAttendanceDays = (int) $period->attendance_starts_on->diffInDays($period->attendance_ends_on) + 1;
 
         $attendanceComponents = $this->attendanceComponents($period->company_id);
+        $overtimeComponent = $this->overtimeComponent($period->company_id);
 
-        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $expectedAttendanceDays, $attendanceComponents, $latestRun) {
+        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $overtimeRate, $expectedAttendanceDays, $attendanceComponents, $overtimeComponent, $latestRun) {
             $run = PayrollRun::create([
                 'payroll_period_id' => $period->id,
                 'version' => $latestRun ? $latestRun->version + 1 : 1,
@@ -127,7 +131,15 @@ class PayrollRunController extends Controller
                 $attendance = $this->summarizeAttendance($reviews, $expectedAttendanceDays, $lateRate, $absenceRate, $rewardRate);
                 $totalUnresolvedDays += $attendance['unresolved_days'];
 
+                $overtimeMinutes = (int) OvertimeRequest::where('user_id', $profile->user_id)
+                    ->where('status', 'approved')
+                    ->whereBetween('starts_at', [$period->attendance_starts_on->startOfDay(), $period->attendance_ends_on->endOfDay()])
+                    ->sum('approved_minutes');
+                $overtimeAmount = ($overtimeMinutes > 0 && $overtimeRate > 0)
+                    ? number_format(($overtimeMinutes / 60) * $overtimeRate, 2, '.', '') : null;
+
                 $gross = bcadd($salaryGross, $this->decimal($attendance['reward_amount']), 2);
+                $gross = bcadd($gross, $this->decimal($overtimeAmount), 2);
                 $deduction = bcadd($this->decimal($attendance['late_deduction_amount']), $this->decimal($attendance['absence_deduction_amount']), 2);
                 $net = bcsub($gross, $deduction, 2);
 
@@ -240,6 +252,28 @@ class PayrollRunController extends Controller
                         'source' => 'reward',
                         'calculation_snapshot' => [
                             'expected_attendance_days' => $expectedAttendanceDays,
+                            'policy_id' => $policy->id,
+                            'policy_version' => $policy->version,
+                        ],
+                    ]);
+                }
+
+                if ($overtimeAmount !== null) {
+                    PayrollEntryLine::create([
+                        'payroll_entry_id' => $entry->id,
+                        'payroll_component_id' => $overtimeComponent->id,
+                        'line_key' => 'overtime',
+                        'component_code' => $overtimeComponent->code,
+                        'component_name' => $overtimeComponent->name,
+                        'type' => 'earning',
+                        'category' => 'overtime',
+                        'quantity' => number_format($overtimeMinutes / 60, 4, '.', ''),
+                        'rate' => number_format($overtimeRate, 4, '.', ''),
+                        'amount' => $overtimeAmount,
+                        'source' => 'overtime',
+                        'calculation_snapshot' => [
+                            'approved_minutes' => $overtimeMinutes,
+                            'rate_per_hour' => $overtimeRate,
                             'policy_id' => $policy->id,
                             'policy_version' => $policy->version,
                         ],
@@ -414,6 +448,14 @@ class PayrollRunController extends Controller
                 ['name' => 'Reward Kehadiran Sempurna', 'type' => 'earning', 'category' => 'attendance_reward', 'is_active' => true],
             ),
         ];
+    }
+
+    private function overtimeComponent(int $companyId): PayrollComponent
+    {
+        return PayrollComponent::firstOrCreate(
+            ['company_id' => $companyId, 'code' => 'OVERTIME'],
+            ['name' => 'Lembur', 'type' => 'earning', 'category' => 'overtime', 'is_active' => true],
+        );
     }
 
     /**

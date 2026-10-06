@@ -22,6 +22,7 @@ class UpdatePayrollPolicyRequest extends FormRequest
             'late_deduction_per_minute' => ['required', 'numeric', 'min:0'],
             'absence_deduction_per_day' => ['required', 'numeric', 'min:0'],
             'perfect_attendance_reward' => ['required', 'numeric', 'min:0'],
+            'overtime_rate_per_hour' => ['required', 'numeric', 'min:0'],
         ];
     }
 }

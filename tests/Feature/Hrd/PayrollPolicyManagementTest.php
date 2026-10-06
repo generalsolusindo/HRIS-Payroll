@@ -28,7 +28,7 @@ class PayrollPolicyManagementTest extends TestCase
         ]);
     }
 
-    public function test_hrd_can_set_attendance_rates(): void
+    public function test_hrd_can_set_attendance_and_overtime_rates(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $policy = PayrollPolicy::create([
@@ -41,6 +41,7 @@ class PayrollPolicyManagementTest extends TestCase
                 'late_deduction_per_minute' => '2000',
                 'absence_deduction_per_day' => '150000',
                 'perfect_attendance_reward' => '100000',
+                'overtime_rate_per_hour' => '25000',
             ])
             ->assertSessionDoesntHaveErrors()
             ->assertRedirect();
@@ -49,6 +50,7 @@ class PayrollPolicyManagementTest extends TestCase
         $this->assertSame('2000.00', $rules['late_deduction_per_minute']);
         $this->assertSame('150000.00', $rules['absence_deduction_per_day']);
         $this->assertSame('100000.00', $rules['perfect_attendance_reward']);
+        $this->assertSame('25000.00', $policy->fresh()->rules['overtime']['rate_per_hour']);
     }
 
     public function test_rates_must_be_non_negative_numbers(): void

@@ -12,6 +12,7 @@ type PolicyRow = {
     late_deduction_per_minute: string;
     absence_deduction_per_day: string;
     perfect_attendance_reward: string;
+    overtime_rate_per_hour: string;
 };
 
 type Props = {
@@ -30,10 +31,10 @@ export default function AttendancePolicy({ policies }: Props) {
                     </h1>
                     <p className="mt-1 text-sm text-muted-foreground">
                         Tarif ini dipakai kalkulator payroll untuk menghitung
-                        potongan keterlambatan/alpha dan reward kehadiran
-                        sempurna dari data Koreksi Absensi. Kosongkan (isi 0)
-                        untuk menonaktifkan salah satu — hasil payroll yang
-                        sudah dihitung sebelumnya tidak berubah.
+                        potongan keterlambatan/alpha, reward kehadiran sempurna,
+                        dan lembur. Kosongkan (isi 0) untuk menonaktifkan salah
+                        satu — hasil payroll yang sudah dihitung sebelumnya
+                        tidak berubah.
                     </p>
                 </div>
 
@@ -119,6 +120,30 @@ export default function AttendancePolicy({ policies }: Props) {
                                         <InputError
                                             message={
                                                 errors.perfect_attendance_reward
+                                            }
+                                        />
+                                    </div>
+
+                                    <div className="grid gap-1.5">
+                                        <Label
+                                            htmlFor={`overtime-${policy.id}`}
+                                            className="text-xs"
+                                        >
+                                            Tarif lembur (Rp/jam)
+                                        </Label>
+                                        <Input
+                                            id={`overtime-${policy.id}`}
+                                            name="overtime_rate_per_hour"
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            defaultValue={
+                                                policy.overtime_rate_per_hour
+                                            }
+                                        />
+                                        <InputError
+                                            message={
+                                                errors.overtime_rate_per_hour
                                             }
                                         />
                                     </div>

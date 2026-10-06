@@ -2,31 +2,35 @@
 
 namespace App\Http\Controllers\Finance;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Finance\StorePayrollPaymentRequest;
 use App\Models\PayrollApproval;
 use App\Models\PayrollEntry;
 use App\Models\PayrollPayment;
 use App\Models\PayrollRun;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PayrollPaymentController extends Controller
 {
+    use ScopesToOwnCompany;
+
     /**
      * Runs Finance can act on or needs to keep an eye on — anything from
      * "approved" (ready to lock) through "paid" (done, kept for history).
      * Draft/submitted/revision_requested runs never appear here: there is
      * nothing for Finance to do until a Manager has approved a version.
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $runs = PayrollRun::whereIn('status', ['approved', 'locked', 'partially_paid', 'paid'])
+            ->whereHas('period', fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->with('period.company')
             ->latest('approved_at')
             ->get()
@@ -48,9 +52,10 @@ class PayrollPaymentController extends Controller
         return Inertia::render('finance/payroll-payments', ['runs' => $runs]);
     }
 
-    public function show(PayrollRun $run): Response
+    public function show(Request $request, PayrollRun $run): Response
     {
         abort_unless(in_array($run->status, ['approved', 'locked', 'partially_paid', 'paid'], true), 404);
+        $this->assertOwnCompany($request, $run->period->company_id);
 
         $run->load('period.company', 'entries.division', 'entries.payments');
 
@@ -96,6 +101,8 @@ class PayrollPaymentController extends Controller
 
     public function lock(Request $request, PayrollRun $run): RedirectResponse
     {
+        $this->assertOwnCompany($request, $run->period->company_id);
+
         DB::transaction(function () use ($request, $run) {
             $locked = PayrollRun::whereKey($run->id)->lockForUpdate()->firstOrFail();
 
@@ -125,42 +132,66 @@ class PayrollPaymentController extends Controller
 
     public function storePayment(StorePayrollPaymentRequest $request, PayrollEntry $entry): RedirectResponse
     {
-        $run = $entry->run;
-        abort_unless(in_array($run->status, ['locked', 'partially_paid'], true), 422, 'Kunci hasil payroll ini sebelum mencatat pembayaran.');
+        $this->assertOwnCompany($request, $entry->run->period->company_id);
 
         $validated = $request->validated();
-        $remaining = (float) $entry->net_amount - $this->confirmedTotal($entry);
 
-        if ((float) $validated['amount'] > $remaining + 0.004) {
-            throw ValidationException::withMessages([
-                'amount' => 'Nominal melebihi sisa yang belum dibayar ('.number_format($remaining, 0, ',', '.').').',
-            ]);
+        // Uploading before the transaction so a slow disk write never holds
+        // the row lock below open — the path is only ever persisted if the
+        // transaction commits.
+        $proofPath = null;
+        if ($request->hasFile('proof')) {
+            $proofPath = $request->file('proof')->store((string) $entry->id, 'payment_proofs');
         }
 
-        DB::transaction(function () use ($request, $entry, $validated) {
-            $proofPath = null;
-            if ($request->hasFile('proof')) {
-                $proofPath = $request->file('proof')->store((string) $entry->id, 'payment_proofs');
-            }
+        try {
+            DB::transaction(function () use ($request, $entry, $validated, $proofPath) {
+                // Locking the entry (not just the run) serializes every
+                // concurrent payment attempt against THIS entry specifically:
+                // a second request blocks here until the first commits, so
+                // the balance it reads next already reflects the first
+                // payment — closing the TOCTOU window that previously let
+                // two concurrent requests both read the same "remaining"
+                // amount and both insert, overpaying the entry.
+                $lockedEntry = PayrollEntry::whereKey($entry->id)->lockForUpdate()->firstOrFail();
+                $run = $lockedEntry->run()->lockForUpdate()->first();
 
-            PayrollPayment::create([
-                'payroll_entry_id' => $entry->id,
-                'idempotency_key' => (string) Str::uuid(),
-                'amount' => number_format((float) $validated['amount'], 2, '.', ''),
-                'method' => $validated['method'],
-                'status' => 'confirmed',
-                'reference' => $validated['reference'] ?? null,
-                'proof_path' => $proofPath,
-                'destination_snapshot' => $entry->payment_destination,
-                'paid_at' => now(),
-                'recorded_by' => $request->user()->id,
-                'confirmed_by' => $request->user()->id,
-                'confirmed_at' => now(),
-                'note' => $validated['note'] ?? null,
-            ]);
+                abort_unless(in_array($run->status, ['locked', 'partially_paid'], true), 422, 'Kunci hasil payroll ini sebelum mencatat pembayaran.');
 
-            $this->recomputeRunStatus($entry->run()->lockForUpdate()->first());
-        });
+                $remaining = (float) $lockedEntry->net_amount - $this->confirmedTotal($lockedEntry);
+                if ((float) $validated['amount'] > $remaining + 0.004) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'Nominal melebihi sisa yang belum dibayar ('.number_format($remaining, 0, ',', '.').').',
+                    ]);
+                }
+
+                PayrollPayment::create([
+                    'payroll_entry_id' => $lockedEntry->id,
+                    'idempotency_key' => $validated['idempotency_key'],
+                    'amount' => number_format((float) $validated['amount'], 2, '.', ''),
+                    'method' => $validated['method'],
+                    'status' => 'confirmed',
+                    'reference' => $validated['reference'] ?? null,
+                    'proof_path' => $proofPath,
+                    'destination_snapshot' => $lockedEntry->payment_destination,
+                    'paid_at' => now(),
+                    'recorded_by' => $request->user()->id,
+                    'confirmed_by' => $request->user()->id,
+                    'confirmed_at' => now(),
+                    'note' => $validated['note'] ?? null,
+                ]);
+
+                $this->recomputeRunStatus($run);
+            });
+        } catch (UniqueConstraintViolationException) {
+            // idempotency_key is unique — a client retrying an identical
+            // submission (e.g. after a dropped response) lands here instead
+            // of recording a second payment. Not an error from the user's
+            // point of view: the payment was already recorded.
+            Inertia::flash('toast', ['type' => 'success', 'message' => 'Pembayaran sudah tercatat sebelumnya.']);
+
+            return back();
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Pembayaran dicatat.']);
 
@@ -169,18 +200,25 @@ class PayrollPaymentController extends Controller
 
     public function voidPayment(Request $request, PayrollPayment $payment): RedirectResponse
     {
+        $this->assertOwnCompany($request, $payment->entry->run->period->company_id);
+
         $validated = $request->validate(['note' => ['required', 'string', 'max:2000']]);
 
         DB::transaction(function () use ($payment, $validated) {
-            if ($payment->status !== 'confirmed') {
+            // Same reasoning as storePayment: lock the entry first so a
+            // void can't race a concurrent payment attempt on it.
+            $lockedPayment = PayrollPayment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
+            PayrollEntry::whereKey($lockedPayment->payroll_entry_id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedPayment->status !== 'confirmed') {
                 throw ValidationException::withMessages([
                     'status' => 'Hanya pembayaran terkonfirmasi yang bisa dibatalkan.',
                 ]);
             }
 
-            $payment->update(['status' => 'voided', 'note' => $validated['note']]);
+            $lockedPayment->update(['status' => 'voided', 'note' => $validated['note']]);
 
-            $this->recomputeRunStatus($payment->entry->run()->lockForUpdate()->first());
+            $this->recomputeRunStatus($lockedPayment->entry->run()->lockForUpdate()->first());
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Pembayaran dibatalkan.']);

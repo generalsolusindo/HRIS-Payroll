@@ -25,6 +25,11 @@ class StorePayrollPaymentRequest extends FormRequest
             'reference' => ['nullable', 'string', 'max:255'],
             'proof' => ['nullable', 'file', 'mimes:jpeg,png,webp,pdf', 'max:5120'],
             'note' => ['nullable', 'string', 'max:2000'],
+            // Client-generated once per dialog session (not per click) and
+            // resubmitted unchanged on retry, so a dropped-response retry
+            // reuses the same key instead of minting a new one — see
+            // PayrollPaymentController::storePayment's duplicate-key catch.
+            'idempotency_key' => ['required', 'uuid'],
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Manager;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Models\PayrollApproval;
 use App\Models\PayrollRun;
@@ -14,9 +15,12 @@ use Inertia\Response;
 
 class PayrollRunApprovalController extends Controller
 {
-    public function index(): Response
+    use ScopesToOwnCompany;
+
+    public function index(Request $request): Response
     {
         $runs = PayrollRun::where('status', 'submitted')
+            ->whereHas('period', fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->with('period.company')
             ->oldest('submitted_at')
             ->get()
@@ -42,6 +46,8 @@ class PayrollRunApprovalController extends Controller
 
     public function approve(Request $request, PayrollRun $run): RedirectResponse
     {
+        $this->assertOwnCompany($request, $run->period->company_id);
+
         $validated = $request->validate(['note' => ['nullable', 'string', 'max:2000']]);
 
         $this->transition($request, $run, 'submitted', 'approved', 'approved', $validated['note'] ?? null, ['approved_at' => now()]);
@@ -53,6 +59,8 @@ class PayrollRunApprovalController extends Controller
 
     public function requestRevision(Request $request, PayrollRun $run): RedirectResponse
     {
+        $this->assertOwnCompany($request, $run->period->company_id);
+
         $validated = $request->validate(['note' => ['required', 'string', 'max:2000']]);
 
         $this->transition($request, $run, 'submitted', 'revision_requested', 'revision_requested', $validated['note'], ['revision_reason' => $validated['note']]);

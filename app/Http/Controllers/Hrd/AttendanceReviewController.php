@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\UpdateAttendanceReviewRequest;
 use App\Models\AttendanceReview;
@@ -16,6 +17,8 @@ use Inertia\Response;
 
 class AttendanceReviewController extends Controller
 {
+    use ScopesToOwnCompany;
+
     public function index(Request $request, AttendanceReviewGenerator $generator): Response
     {
         $date = $request->filled('tanggal')
@@ -24,9 +27,10 @@ class AttendanceReviewController extends Controller
 
         abort_if($date->isFuture(), 422, 'Tidak bisa meninjau tanggal yang belum terjadi.');
 
-        $generator->generateForDate($date);
+        $generator->generateForDate($date, $request->user()->company_id);
 
         $reviews = AttendanceReview::whereDate('date', $date)
+            ->where('company_id', $request->user()->company_id)
             ->with(['user:id,name,company_id,position_id', 'user.company:id,name', 'user.position:id,name'])
             ->get()
             ->sortBy('user.name')
@@ -54,6 +58,8 @@ class AttendanceReviewController extends Controller
 
     public function update(UpdateAttendanceReviewRequest $request, AttendanceReview $review, PayrollAuditLogger $auditLogger): RedirectResponse
     {
+        $this->assertOwnCompany($request, $review->company_id);
+
         if ($review->status === 'validated' && $review->correction_reason !== null) {
             // Already hand-corrected once — further changes go through the
             // same form again, but this guard exists so a stale tab can't

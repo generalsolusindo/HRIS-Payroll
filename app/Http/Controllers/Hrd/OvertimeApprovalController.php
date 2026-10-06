@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Models\OvertimeRequest;
 use Illuminate\Http\RedirectResponse;
@@ -12,9 +13,12 @@ use Inertia\Response;
 
 class OvertimeApprovalController extends Controller
 {
-    public function index(): Response
+    use ScopesToOwnCompany;
+
+    public function index(Request $request): Response
     {
         $overtimeRequests = OvertimeRequest::where('status', 'submitted')
+            ->where('company_id', $request->user()->company_id)
             ->with(['user:id,name,company_id,position_id', 'user.company:id,name', 'user.position:id,name'])
             ->oldest('starts_at')
             ->get()
@@ -35,6 +39,7 @@ class OvertimeApprovalController extends Controller
 
     public function approve(Request $request, OvertimeRequest $overtimeRequest): RedirectResponse
     {
+        $this->assertOwnCompany($request, $overtimeRequest->company_id);
         $this->assertAwaitingDecision($overtimeRequest);
 
         $validated = $request->validate([
@@ -57,6 +62,7 @@ class OvertimeApprovalController extends Controller
 
     public function reject(Request $request, OvertimeRequest $overtimeRequest): RedirectResponse
     {
+        $this->assertOwnCompany($request, $overtimeRequest->company_id);
         $this->assertAwaitingDecision($overtimeRequest);
 
         $validated = $request->validate(['note' => ['required', 'string', 'max:2000']]);

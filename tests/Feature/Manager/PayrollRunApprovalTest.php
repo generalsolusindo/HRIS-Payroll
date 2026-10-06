@@ -16,9 +16,8 @@ class PayrollRunApprovalTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function makeSubmittedRun(?User $hrd = null): PayrollRun
+    private function makeSubmittedRun(User $hrd): PayrollRun
     {
-        $hrd ??= User::factory()->create(['role' => 'hrd']);
         $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
@@ -49,6 +48,17 @@ class PayrollRunApprovalTest extends TestCase
         return $run->fresh();
     }
 
+    /**
+     * @return array{0: User, 1: PayrollRun}
+     */
+    private function makeManagerAndSubmittedRun(): array
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $manager = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'admin']);
+
+        return [$manager, $this->makeSubmittedRun($hrd)];
+    }
+
     public function test_hrd_and_karyawan_cannot_access_manager_payroll_approval(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
@@ -58,11 +68,10 @@ class PayrollRunApprovalTest extends TestCase
         $this->actingAs($karyawan)->get(route('manager.payroll.index'))->assertForbidden();
     }
 
-    public function test_manager_sees_only_submitted_runs(): void
+    public function test_manager_sees_only_submitted_runs_in_their_own_company(): void
     {
-        $manager = User::factory()->create(['role' => 'admin']);
-        $submitted = $this->makeSubmittedRun();
-        $draft = $this->makeSubmittedRun();
+        [$manager, $submitted] = $this->makeManagerAndSubmittedRun();
+        [, $draft] = $this->makeManagerAndSubmittedRun();
         $draft->update(['status' => 'draft']);
 
         $response = $this->actingAs($manager)
@@ -75,10 +84,20 @@ class PayrollRunApprovalTest extends TestCase
         $this->assertFalse($ids->contains($draft->id));
     }
 
+    public function test_manager_cannot_see_another_companys_submitted_run_in_the_list(): void
+    {
+        [$manager] = $this->makeManagerAndSubmittedRun();
+        [, $otherCompanysRun] = $this->makeManagerAndSubmittedRun();
+
+        $response = $this->actingAs($manager)->get(route('manager.payroll.index'))->assertOk();
+
+        $ids = collect($response->viewData('page')['props']['runs'])->pluck('id');
+        $this->assertFalse($ids->contains($otherCompanysRun->id));
+    }
+
     public function test_manager_can_approve_a_submitted_run(): void
     {
-        $manager = User::factory()->create(['role' => 'admin']);
-        $run = $this->makeSubmittedRun();
+        [$manager, $run] = $this->makeManagerAndSubmittedRun();
 
         $this->actingAs($manager)
             ->patch(route('manager.payroll.approve', $run), ['note' => 'Sudah dicek, OK.'])
@@ -96,10 +115,21 @@ class PayrollRunApprovalTest extends TestCase
         ]);
     }
 
+    public function test_manager_cannot_approve_another_companys_run(): void
+    {
+        [$manager] = $this->makeManagerAndSubmittedRun();
+        [, $otherCompanysRun] = $this->makeManagerAndSubmittedRun();
+
+        $this->actingAs($manager)
+            ->patch(route('manager.payroll.approve', $otherCompanysRun), ['note' => null])
+            ->assertForbidden();
+
+        $this->assertSame('submitted', $otherCompanysRun->fresh()->status);
+    }
+
     public function test_manager_can_request_revision_with_a_note(): void
     {
-        $manager = User::factory()->create(['role' => 'admin']);
-        $run = $this->makeSubmittedRun();
+        [$manager, $run] = $this->makeManagerAndSubmittedRun();
 
         $this->actingAs($manager)
             ->patch(route('manager.payroll.revisi', $run), ['note' => 'Potongan telat belum sesuai.'])
@@ -116,10 +146,19 @@ class PayrollRunApprovalTest extends TestCase
         ]);
     }
 
+    public function test_manager_cannot_request_revision_on_another_companys_run(): void
+    {
+        [$manager] = $this->makeManagerAndSubmittedRun();
+        [, $otherCompanysRun] = $this->makeManagerAndSubmittedRun();
+
+        $this->actingAs($manager)
+            ->patch(route('manager.payroll.revisi', $otherCompanysRun), ['note' => 'x'])
+            ->assertForbidden();
+    }
+
     public function test_revision_request_requires_a_note(): void
     {
-        $manager = User::factory()->create(['role' => 'admin']);
-        $run = $this->makeSubmittedRun();
+        [$manager, $run] = $this->makeManagerAndSubmittedRun();
 
         $this->actingAs($manager)
             ->patch(route('manager.payroll.revisi', $run), ['note' => ''])
@@ -130,8 +169,7 @@ class PayrollRunApprovalTest extends TestCase
 
     public function test_manager_cannot_act_on_a_run_that_is_not_submitted(): void
     {
-        $manager = User::factory()->create(['role' => 'admin']);
-        $run = $this->makeSubmittedRun();
+        [$manager, $run] = $this->makeManagerAndSubmittedRun();
         $run->update(['status' => 'draft']);
 
         $this->actingAs($manager)
@@ -152,8 +190,7 @@ class PayrollRunApprovalTest extends TestCase
 
     public function test_manager_can_view_the_run_detail_through_their_own_route(): void
     {
-        $manager = User::factory()->create(['role' => 'admin']);
-        $run = $this->makeSubmittedRun();
+        [$manager, $run] = $this->makeManagerAndSubmittedRun();
 
         $this->actingAs($manager)
             ->get(route('manager.payroll.show', $run))
@@ -162,5 +199,15 @@ class PayrollRunApprovalTest extends TestCase
                 ->component('hrd/payroll-run-show')
                 ->where('run.id', $run->id)
             );
+    }
+
+    public function test_manager_cannot_view_another_companys_run_detail(): void
+    {
+        [$manager] = $this->makeManagerAndSubmittedRun();
+        [, $otherCompanysRun] = $this->makeManagerAndSubmittedRun();
+
+        $this->actingAs($manager)
+            ->get(route('manager.payroll.show', $otherCompanysRun))
+            ->assertForbidden();
     }
 }

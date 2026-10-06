@@ -46,7 +46,7 @@ class PenggajianTest extends TestCase
 
         $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
         $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.ajukan', $run));
-        $manager = User::factory()->create(['role' => 'admin']);
+        $manager = User::factory()->create(['role' => 'admin', 'company_id' => $employee->company_id]);
         $this->actingAs($manager)->patch(route('manager.payroll.approve', $run), ['note' => null]);
 
         $entry = PayrollEntry::where('payroll_run_id', $run->id)->firstOrFail();

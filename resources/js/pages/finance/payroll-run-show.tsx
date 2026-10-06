@@ -128,6 +128,11 @@ function PaymentDialog({
     const [proofFile, setProofFile] = useState<File | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
+    // Generated once per dialog open (not per click) and reused on every
+    // submit attempt within this session, so a dropped-response retry
+    // resubmits the same key instead of minting a new one — the server
+    // recognizes a repeat and reports success without double-recording.
+    const [idempotencyKey] = useState(() => crypto.randomUUID());
 
     function submit(event: React.FormEvent) {
         event.preventDefault();
@@ -135,6 +140,7 @@ function PaymentDialog({
         const formData = new FormData();
         formData.append('amount', amount);
         formData.append('method', method);
+        formData.append('idempotency_key', idempotencyKey);
         if (reference) {
             formData.append('reference', reference);
         }

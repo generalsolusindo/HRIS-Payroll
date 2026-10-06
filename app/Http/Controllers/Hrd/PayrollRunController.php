@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceReview;
 use App\Models\EmployeePayrollProfile;
@@ -26,6 +27,8 @@ use Inertia\Response;
 
 class PayrollRunController extends Controller
 {
+    use ScopesToOwnCompany;
+
     /**
      * Calculator: base salary + allowance (whatever earning components are
      * on each employee's profile) plus attendance-derived lines read from
@@ -43,6 +46,8 @@ class PayrollRunController extends Controller
      */
     public function store(Request $request, PayrollPeriod $period, AttendanceReviewGenerator $generator): RedirectResponse
     {
+        $this->assertOwnCompany($request, $period->company_id);
+
         $latestRun = $period->runs()->latest('version')->first();
 
         if ($latestRun && $latestRun->status !== 'revision_requested') {
@@ -329,6 +334,8 @@ class PayrollRunController extends Controller
      */
     public function submit(Request $request, PayrollRun $run): RedirectResponse
     {
+        $this->assertOwnCompany($request, $run->period->company_id);
+
         DB::transaction(function () use ($request, $run) {
             $locked = PayrollRun::whereKey($run->id)->lockForUpdate()->firstOrFail();
 
@@ -356,9 +363,11 @@ class PayrollRunController extends Controller
         return back();
     }
 
-    public function show(PayrollRun $run): Response
+    public function show(Request $request, PayrollRun $run): Response
     {
         $run->load('period.company', 'entries.division', 'entries.lines', 'entries.payslips', 'approvals.actor');
+
+        $this->assertOwnCompany($request, $run->period->company_id);
 
         $canPublishSlips = in_array($run->status, ['approved', 'locked', 'partially_paid', 'paid'], true);
 

@@ -11,9 +11,9 @@ class OvertimeApprovalTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function makeSubmittedOvertime(): OvertimeRequest
+    private function makeSubmittedOvertime(User $hrd): OvertimeRequest
     {
-        $karyawan = User::factory()->create(['role' => 'karyawan']);
+        $karyawan = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan']);
 
         return OvertimeRequest::create([
             'user_id' => $karyawan->id, 'company_id' => $karyawan->company_id,
@@ -22,10 +22,19 @@ class OvertimeApprovalTest extends TestCase
         ]);
     }
 
-    public function test_hrd_sees_submitted_overtime_requests_with_raw_minutes(): void
+    /**
+     * @return array{0: User, 1: OvertimeRequest}
+     */
+    private function makeHrdAndSubmittedOvertime(): array
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $overtimeRequest = $this->makeSubmittedOvertime();
+
+        return [$hrd, $this->makeSubmittedOvertime($hrd)];
+    }
+
+    public function test_hrd_sees_submitted_overtime_requests_with_raw_minutes(): void
+    {
+        [$hrd, $overtimeRequest] = $this->makeHrdAndSubmittedOvertime();
 
         $response = $this->actingAs($hrd)
             ->get(route('hrd.persetujuan-lembur.index'))
@@ -37,10 +46,20 @@ class OvertimeApprovalTest extends TestCase
         $this->assertSame(150, $row['requested_minutes']);
     }
 
+    public function test_hrd_cannot_see_another_companys_overtime_request_in_the_list(): void
+    {
+        [$hrd] = $this->makeHrdAndSubmittedOvertime();
+        [, $otherCompanysRequest] = $this->makeHrdAndSubmittedOvertime();
+
+        $response = $this->actingAs($hrd)->get(route('hrd.persetujuan-lembur.index'))->assertOk();
+
+        $ids = collect($response->viewData('page')['props']['overtimeRequests'])->pluck('id');
+        $this->assertFalse($ids->contains($otherCompanysRequest->id));
+    }
+
     public function test_hrd_can_approve_the_full_requested_minutes(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
-        $overtimeRequest = $this->makeSubmittedOvertime();
+        [$hrd, $overtimeRequest] = $this->makeHrdAndSubmittedOvertime();
 
         $this->actingAs($hrd)
             ->patch(route('hrd.persetujuan-lembur.approve', $overtimeRequest), [
@@ -55,10 +74,21 @@ class OvertimeApprovalTest extends TestCase
         $this->assertSame($hrd->id, $overtimeRequest->processed_by);
     }
 
+    public function test_hrd_cannot_approve_another_companys_overtime_request(): void
+    {
+        [$hrd] = $this->makeHrdAndSubmittedOvertime();
+        [, $otherCompanysRequest] = $this->makeHrdAndSubmittedOvertime();
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.persetujuan-lembur.approve', $otherCompanysRequest), ['approved_minutes' => 150])
+            ->assertForbidden();
+
+        $this->assertSame('submitted', $otherCompanysRequest->fresh()->status);
+    }
+
     public function test_hrd_can_approve_fewer_minutes_than_requested(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
-        $overtimeRequest = $this->makeSubmittedOvertime();
+        [$hrd, $overtimeRequest] = $this->makeHrdAndSubmittedOvertime();
 
         $this->actingAs($hrd)
             ->patch(route('hrd.persetujuan-lembur.approve', $overtimeRequest), [
@@ -71,8 +101,7 @@ class OvertimeApprovalTest extends TestCase
 
     public function test_approved_minutes_cannot_exceed_the_requested_amount(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
-        $overtimeRequest = $this->makeSubmittedOvertime();
+        [$hrd, $overtimeRequest] = $this->makeHrdAndSubmittedOvertime();
 
         $this->actingAs($hrd)
             ->patch(route('hrd.persetujuan-lembur.approve', $overtimeRequest), [
@@ -85,8 +114,7 @@ class OvertimeApprovalTest extends TestCase
 
     public function test_hrd_can_reject_with_a_required_note(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
-        $overtimeRequest = $this->makeSubmittedOvertime();
+        [$hrd, $overtimeRequest] = $this->makeHrdAndSubmittedOvertime();
 
         $this->actingAs($hrd)
             ->patch(route('hrd.persetujuan-lembur.reject', $overtimeRequest), ['note' => ''])
@@ -103,10 +131,21 @@ class OvertimeApprovalTest extends TestCase
         $this->assertSame('Tidak ada bukti pekerjaan tambahan.', $overtimeRequest->decision_note);
     }
 
+    public function test_hrd_cannot_reject_another_companys_overtime_request(): void
+    {
+        [$hrd] = $this->makeHrdAndSubmittedOvertime();
+        [, $otherCompanysRequest] = $this->makeHrdAndSubmittedOvertime();
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.persetujuan-lembur.reject', $otherCompanysRequest), ['note' => 'x'])
+            ->assertForbidden();
+
+        $this->assertSame('submitted', $otherCompanysRequest->fresh()->status);
+    }
+
     public function test_an_already_processed_request_cannot_be_decided_again(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
-        $overtimeRequest = $this->makeSubmittedOvertime();
+        [$hrd, $overtimeRequest] = $this->makeHrdAndSubmittedOvertime();
         $overtimeRequest->update(['status' => 'approved', 'approved_minutes' => 150]);
 
         $this->actingAs($hrd)
@@ -116,12 +155,12 @@ class OvertimeApprovalTest extends TestCase
 
     public function test_karyawan_and_manager_cannot_access_overtime_approval(): void
     {
-        $overtimeRequest = $this->makeSubmittedOvertime();
+        [$hrd, $overtimeRequest] = $this->makeHrdAndSubmittedOvertime();
 
         $karyawan = User::factory()->create(['role' => 'karyawan']);
         $this->actingAs($karyawan)->get(route('hrd.persetujuan-lembur.index'))->assertForbidden();
 
-        $manager = User::factory()->create(['role' => 'admin']);
+        $manager = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'admin']);
         $this->actingAs($manager)
             ->patch(route('hrd.persetujuan-lembur.approve', $overtimeRequest), ['approved_minutes' => 10])
             ->assertForbidden();

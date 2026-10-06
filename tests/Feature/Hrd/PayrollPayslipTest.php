@@ -56,7 +56,7 @@ class PayrollPayslipTest extends TestCase
         $hrd = User::find($run->created_by);
         $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.ajukan', $run));
 
-        $manager = User::factory()->create(['role' => 'admin']);
+        $manager = User::factory()->create(['company_id' => $run->period->company_id, 'role' => 'admin']);
         $this->actingAs($manager)->patch(route('manager.payroll.approve', $run), ['note' => null]);
     }
 
@@ -122,5 +122,18 @@ class PayrollPayslipTest extends TestCase
 
         $manager = User::factory()->create(['role' => 'admin']);
         $this->actingAs($manager)->post(route('hrd.hasil-payroll.entri.slip', $entry))->assertForbidden();
+    }
+
+    public function test_hrd_cannot_publish_a_payslip_for_another_companys_entry(): void
+    {
+        $entry = $this->makeDraftEntry();
+        $this->approveEntryRun($entry);
+
+        $otherHrd = User::factory()->create(['role' => 'hrd']);
+        $this->actingAs($otherHrd)
+            ->post(route('hrd.hasil-payroll.entri.slip', $entry))
+            ->assertForbidden();
+
+        $this->assertSame(0, PayrollPayslip::count());
     }
 }

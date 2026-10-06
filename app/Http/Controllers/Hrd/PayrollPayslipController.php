@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Models\PayrollEntry;
 use App\Models\PayrollEntryLine;
@@ -13,6 +14,8 @@ use Inertia\Inertia;
 
 class PayrollPayslipController extends Controller
 {
+    use ScopesToOwnCompany;
+
     /**
      * Publishes a new payslip version for one employee's entry, snapshotting
      * the numbers as they stand right now. Only possible once a Manager has
@@ -23,6 +26,8 @@ class PayrollPayslipController extends Controller
     public function store(Request $request, PayrollEntry $entry): RedirectResponse
     {
         $entry->loadMissing('run.period', 'lines');
+
+        $this->assertOwnCompany($request, $entry->run->period->company_id);
 
         abort_unless(
             in_array($entry->run->status, ['approved', 'locked', 'partially_paid', 'paid'], true),

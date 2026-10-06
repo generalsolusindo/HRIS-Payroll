@@ -15,6 +15,7 @@ import {
     Wallet,
 } from 'lucide-react';
 import AttendanceHistoryController from '@/actions/App/Http/Controllers/AttendanceHistoryController';
+import PayrollPaymentController from '@/actions/App/Http/Controllers/Finance/PayrollPaymentController';
 import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/AttendanceDashboardController';
 import AttendanceReviewController from '@/actions/App/Http/Controllers/Hrd/AttendanceReviewController';
 import CompanyCalendarDayController from '@/actions/App/Http/Controllers/Hrd/CompanyCalendarDayController';
@@ -134,10 +135,19 @@ const managerNavItems: NavItem[] = [
     },
 ];
 
+const financeNavItems: NavItem[] = [
+    {
+        title: 'Pembayaran Payroll',
+        href: PayrollPaymentController.index(),
+        icon: Wallet,
+    },
+];
+
 export function AppSidebar() {
     const { auth } = usePage<{ auth: Auth }>().props;
     const isHrd = auth.user.role === 'hrd';
     const isManager = auth.user.role === 'admin';
+    const isFinance = auth.user.role === 'finance';
 
     // An HRD account is for monitoring/management only — it never clocks
     // in itself, so its own attendance history is never meaningful.
@@ -165,6 +175,9 @@ export function AppSidebar() {
                 {isHrd && <NavMain items={hrdNavItems} groupLabel="HRD" />}
                 {isManager && (
                     <NavMain items={managerNavItems} groupLabel="Manager" />
+                )}
+                {isFinance && (
+                    <NavMain items={financeNavItems} groupLabel="Finance" />
                 )}
             </SidebarContent>
 

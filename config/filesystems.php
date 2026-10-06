@@ -69,6 +69,16 @@ return [
             'report' => false,
         ],
 
+        // Same reasoning as leave_attachments/attendance_evidence — only
+        // ever served through PaymentProofController after a Finance-role
+        // check, never a direct/signed URL.
+        'payment_proofs' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/payment-proofs'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

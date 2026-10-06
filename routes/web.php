@@ -4,6 +4,8 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AttendanceHistoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FaceVerificationController;
+use App\Http\Controllers\Finance\PaymentProofController;
+use App\Http\Controllers\Finance\PayrollPaymentController;
 use App\Http\Controllers\Hrd\AttendanceDashboardController;
 use App\Http\Controllers\Hrd\AttendanceReviewController;
 use App\Http\Controllers\Hrd\AttendanceReviewEvidenceController;
@@ -116,6 +118,15 @@ Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('ma
     Route::get('payroll/{run}', [PayrollRunController::class, 'show'])->name('payroll.show');
     Route::patch('payroll/{run}/approve', [PayrollRunApprovalController::class, 'approve'])->name('payroll.approve');
     Route::patch('payroll/{run}/revisi', [PayrollRunApprovalController::class, 'requestRevision'])->name('payroll.revisi');
+});
+
+Route::middleware(['auth', 'active', 'role:finance'])->prefix('finance')->name('finance.')->group(function () {
+    Route::get('payroll', [PayrollPaymentController::class, 'index'])->name('payroll.index');
+    Route::get('payroll/{run}', [PayrollPaymentController::class, 'show'])->name('payroll.show');
+    Route::patch('payroll/{run}/kunci', [PayrollPaymentController::class, 'lock'])->name('payroll.kunci');
+    Route::post('entri/{entry}/bayar', [PayrollPaymentController::class, 'storePayment'])->name('entri.bayar');
+    Route::patch('pembayaran/{payment}/batalkan', [PayrollPaymentController::class, 'voidPayment'])->name('pembayaran.batalkan');
+    Route::get('pembayaran/{payment}/bukti', [PaymentProofController::class, 'show'])->name('pembayaran.bukti');
 });
 
 require __DIR__.'/settings.php';

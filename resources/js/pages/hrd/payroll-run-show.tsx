@@ -1,7 +1,8 @@
 import { Form, Head, router, usePage } from '@inertiajs/react';
-import { ChevronDown, ChevronRight, History } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, History } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import PayrollPayslipController from '@/actions/App/Http/Controllers/Hrd/PayrollPayslipController';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 import PayrollRunController from '@/actions/App/Http/Controllers/Hrd/PayrollRunController';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,13 @@ type Line = {
     component_name: string;
     type: string;
     amount: string;
+};
+
+type LatestPayslip = {
+    id: number;
+    number: string;
+    version: number;
+    published_at: string | null;
 };
 
 type Entry = {
@@ -25,6 +33,8 @@ type Entry = {
     net_amount: string;
     unresolved_days: number;
     lines: Line[];
+    can_publish_slip: boolean;
+    latest_payslip: LatestPayslip | null;
 };
 
 type Run = {
@@ -428,6 +438,65 @@ export default function PayrollRunShow({ run, entries, approvals }: Props) {
                                                             di Koreksi Absensi.
                                                         </div>
                                                     )}
+                                                    {isHrd &&
+                                                        entry.can_publish_slip && (
+                                                            <div className="mt-2 flex items-center justify-between border-t pt-2">
+                                                                <div className="text-muted-foreground">
+                                                                    {entry.latest_payslip ? (
+                                                                        <span className="flex items-center gap-1">
+                                                                            <FileText className="size-3" />
+                                                                            {
+                                                                                entry
+                                                                                    .latest_payslip
+                                                                                    .number
+                                                                            }{' '}
+                                                                            (v
+                                                                            {
+                                                                                entry
+                                                                                    .latest_payslip
+                                                                                    .version
+                                                                            }
+                                                                            )
+                                                                            {entry
+                                                                                .latest_payslip
+                                                                                .published_at &&
+                                                                                ` · ${formatDateTime(entry.latest_payslip.published_at)}`}
+                                                                        </span>
+                                                                    ) : (
+                                                                        'Belum ada slip gaji.'
+                                                                    )}
+                                                                </div>
+                                                                <Form
+                                                                    {...PayrollPayslipController.store.form(
+                                                                        entry.id,
+                                                                    )}
+                                                                    disableWhileProcessing
+                                                                    onSuccess={() =>
+                                                                        toast.success(
+                                                                            'Slip gaji diterbitkan.',
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {({
+                                                                        processing,
+                                                                    }) => (
+                                                                        <Button
+                                                                            type="submit"
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            className="rounded-full"
+                                                                            disabled={
+                                                                                processing
+                                                                            }
+                                                                        >
+                                                                            {entry.latest_payslip
+                                                                                ? 'Terbitkan Ulang'
+                                                                                : 'Terbitkan Slip'}
+                                                                        </Button>
+                                                                    )}
+                                                                </Form>
+                                                            </div>
+                                                        )}
                                                 </div>
                                             </td>
                                         </tr>

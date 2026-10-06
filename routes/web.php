@@ -13,6 +13,7 @@ use App\Http\Controllers\Hrd\CompanyCalendarDayController;
 use App\Http\Controllers\Hrd\DivisionController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
 use App\Http\Controllers\Hrd\PayrollComponentController;
+use App\Http\Controllers\Hrd\PayrollPayslipController;
 use App\Http\Controllers\Hrd\PayrollPeriodController;
 use App\Http\Controllers\Hrd\PayrollPolicyController;
 use App\Http\Controllers\Hrd\PayrollProfileController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\LeaveRequestAttachmentController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\Manager\LeaveRequestApprovalController as ManagerLeaveRequestApprovalController;
 use App\Http\Controllers\Manager\PayrollRunApprovalController;
+use App\Http\Controllers\PenggajianController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -52,7 +54,8 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('riwayat-absen', [AttendanceHistoryController::class, 'index'])->name('riwayat-absen.index');
 
-    Route::get('penggajian', fn () => Inertia::render('penggajian'))->name('penggajian');
+    Route::get('penggajian', [PenggajianController::class, 'index'])->name('penggajian');
+    Route::get('penggajian/{payslip}', [PenggajianController::class, 'show'])->name('penggajian.show');
     Route::get('daily-report', fn () => Inertia::render('daily-report'))->name('daily-report');
     Route::get('izin', [LeaveRequestController::class, 'index'])->name('izin');
     Route::post('izin', [LeaveRequestController::class, 'store'])
@@ -96,6 +99,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
 
     Route::get('hasil-payroll/{run}', [PayrollRunController::class, 'show'])->name('hasil-payroll.show');
     Route::patch('hasil-payroll/{run}/ajukan', [PayrollRunController::class, 'submit'])->name('hasil-payroll.ajukan');
+    Route::post('hasil-payroll/entri/{entry}/slip', [PayrollPayslipController::class, 'store'])->name('hasil-payroll.entri.slip');
 
     Route::get('kebijakan-absensi', [PayrollPolicyController::class, 'index'])->name('kebijakan-absensi.index');
     Route::put('kebijakan-absensi/{policy}', [PayrollPolicyController::class, 'update'])->name('kebijakan-absensi.update');

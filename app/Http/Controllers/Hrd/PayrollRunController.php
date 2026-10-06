@@ -324,7 +324,9 @@ class PayrollRunController extends Controller
 
     public function show(PayrollRun $run): Response
     {
-        $run->load('period.company', 'entries.division', 'entries.lines', 'approvals.actor');
+        $run->load('period.company', 'entries.division', 'entries.lines', 'entries.payslips', 'approvals.actor');
+
+        $canPublishSlips = in_array($run->status, ['approved', 'locked', 'partially_paid', 'paid'], true);
 
         return Inertia::render('hrd/payroll-run-show', [
             'run' => [
@@ -368,8 +370,29 @@ class PayrollRunController extends Controller
                     'type' => $line->type,
                     'amount' => (string) $line->amount,
                 ]),
+                'can_publish_slip' => $canPublishSlips,
+                'latest_payslip' => $this->latestPayslip($entry),
             ]),
         ]);
+    }
+
+    /**
+     * @return array{id: int, number: string, version: int, published_at: string|null}|null
+     */
+    private function latestPayslip(PayrollEntry $entry): ?array
+    {
+        $payslip = $entry->payslips->where('status', 'published')->sortByDesc('version')->first();
+
+        if (! $payslip) {
+            return null;
+        }
+
+        return [
+            'id' => $payslip->id,
+            'number' => $payslip->number,
+            'version' => $payslip->version,
+            'published_at' => $payslip->published_at?->toIso8601String(),
+        ];
     }
 
     /**

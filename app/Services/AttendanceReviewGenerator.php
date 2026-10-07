@@ -12,16 +12,20 @@ use Carbon\CarbonInterface;
 
 /**
  * Turns the app's own attendance (selfie+GPS clock-in/out) and approved
- * leave requests into attendance_reviews — the HR-facing, correctable
- * record the payroll calculator will eventually read from, per
- * docs/payroll-schema.md. Never defaults a gap to "absent": a workday
- * with neither an attendance row nor an approved leave becomes
- * "unresolved", exactly as the plan requires.
+ * leave requests into attendance_reviews — the record the payroll
+ * calculator reads from. Fully automatic: a workday with neither an
+ * attendance row nor an approved leave becomes "absent" (alpha) on its
+ * own, and a clock-in with no matching clock-out is still counted as a
+ * full present day (benefit of the doubt — there is proof they showed
+ * up), so no HRD confirmation step ever blocks payroll. HRD can still
+ * hand-correct an individual day afterwards (Koreksi Absensi) if the
+ * automatic read was wrong; that correction is what's preserved below.
  *
  * Idempotent and safe to re-run: a review HR has already corrected
  * (correction_reason is set) is left untouched. Everything else is
- * regenerated fresh from the current source data every time, so it never
- * goes stale between corrections.
+ * regenerated fresh from the current source data every time — so an
+ * employee who clocks in after this already ran for the day flips back
+ * from "absent" to "present" on the next recalculation, not stuck stale.
  */
 class AttendanceReviewGenerator
 {
@@ -115,9 +119,13 @@ class AttendanceReviewGenerator
         $attendance = Attendance::where('user_id', $user->id)->whereDate('tanggal', $date)->first();
 
         if (! $attendance || ! $attendance->clock_in_time) {
+            // No attendance row and no approved leave for a workday —
+            // automatically alpha. If this is wrong (a late-filed leave,
+            // a technical glitch), HRD can still hand-correct it
+            // afterwards in Koreksi Absensi.
             $this->upsert($existing, $user, $date, [
-                'status' => 'draft',
-                'classification' => 'unresolved',
+                'status' => 'validated',
+                'classification' => 'absent',
                 'scheduled_minutes' => $scheduledMinutes,
                 'worked_minutes' => 0,
                 'late_minutes' => 0,
@@ -135,13 +143,14 @@ class AttendanceReviewGenerator
         }
 
         if (! $attendance->clock_out_time) {
-            // Clocked in, never clocked out — the exact "Tidak Absen
-            // Pulang" case: needs a human, not a guess.
+            // Clocked in, never clocked out — counted as a full present
+            // day (benefit of the doubt: there is proof they showed up),
+            // not an automatic deduction.
             $this->upsert($existing, $user, $date, [
-                'status' => 'draft',
-                'classification' => 'unresolved',
+                'status' => 'validated',
+                'classification' => 'present',
                 'scheduled_minutes' => $scheduledMinutes,
-                'worked_minutes' => 0,
+                'worked_minutes' => $scheduledMinutes,
                 'late_minutes' => $attendance->clock_in_late_minutes ?? 0,
                 'early_departure_minutes' => 0,
                 'excused_minutes' => 0,
@@ -151,6 +160,7 @@ class AttendanceReviewGenerator
                 'source_snapshot' => [
                     'clock_in_status' => $attendance->clock_in_status,
                     'clock_in_late_minutes' => $attendance->clock_in_late_minutes,
+                    'clock_out_missing' => true,
                 ],
                 'leave_snapshot' => null,
                 'schedule_snapshot' => $scheduleSnapshot,

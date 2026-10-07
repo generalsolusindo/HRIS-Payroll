@@ -3,7 +3,6 @@
 namespace Tests\Feature\Hrd;
 
 use App\Models\Attendance;
-use App\Models\AttendanceReview;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -106,29 +105,19 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '3000000']]);
 
-        // Only a human correction can ever mark a day "absent" — the
-        // generator itself never infers it, so this simulates HR having
-        // reviewed and confirmed the no-show via Koreksi Absensi.
-        AttendanceReview::create([
-            'user_id' => $employee->id, 'company_id' => $hrd->company_id, 'date' => '2026-09-28',
-            'status' => 'validated', 'classification' => 'absent',
-            'correction_reason' => 'Tidak ada kabar, dikonfirmasi alpha oleh HRD.',
-            'source_snapshot' => [], 'schedule_snapshot' => [], 'version' => 1,
-        ]);
-
+        // No attendance and no approved leave on a workday — the generator
+        // now marks this absent on its own, no HRD correction required.
         $period = PayrollPeriod::create([
             'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
-            'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-29',
+            'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);
 
         $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
 
         $entry = PayrollEntry::where('user_id', $employee->id)->firstOrFail();
         $this->assertEqualsWithDelta(150_000.0, (float) $entry->deduction_amount, 0.001);
-        // 2026-09-29 has no attendance/leave/correction — unresolved, not
-        // absent, and must not itself add to the deduction.
-        $this->assertSame(1, $entry->attendance_snapshot['unresolved_days']);
+        $this->assertSame(0, $entry->attendance_snapshot['unresolved_days']);
 
         $line = $entry->lines()->where('line_key', 'attendance-absence')->firstOrFail();
         $this->assertEqualsWithDelta(150_000.0, (float) $line->amount, 0.001);
@@ -172,7 +161,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $this->assertSame('earning', $line->type);
     }
 
-    public function test_an_incomplete_window_never_pays_the_reward_even_without_any_late_or_absent_day(): void
+    public function test_a_no_show_day_never_pays_the_reward_even_with_a_zero_absence_rate(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $this->setAttendanceRates($hrd->company_id, '0', '0', '100000');
@@ -184,8 +173,10 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '3000000']]);
 
-        // 2026-09-28 is a full on-time day; 2026-09-29 has no attendance at
-        // all, so it is "unresolved" — the window is not fully confirmed.
+        // 2026-09-28 is a full on-time day; 2026-09-29 has no attendance and
+        // no approved leave, so the generator marks it absent on its own —
+        // the absence rate here is 0, so it costs nothing, but it still
+        // breaks perfect attendance.
         Attendance::create([
             'user_id' => $employee->id, 'tanggal' => '2026-09-28',
             'clock_in_time' => '2026-09-28 08:00:00', 'clock_in_status' => 'tepat_waktu', 'clock_in_late_minutes' => 0,
@@ -204,7 +195,8 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $this->assertSame('0.00', $entry->reward_amount);
         $this->assertSame('0.00', $entry->deduction_amount);
         $this->assertFalse($entry->attendance_snapshot['perfect_attendance']);
-        $this->assertSame(1, $entry->attendance_snapshot['unresolved_days']);
+        $this->assertSame(0, $entry->attendance_snapshot['unresolved_days']);
+        $this->assertSame(1, $entry->attendance_snapshot['absent_days']);
         $this->assertNull($entry->lines()->where('line_key', 'attendance-perfect-reward')->first());
     }
 

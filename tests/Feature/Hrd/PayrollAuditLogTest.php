@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Hrd;
 
-use App\Models\AttendanceReview;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\PayrollAuditLog;
@@ -15,30 +14,6 @@ use Tests\TestCase;
 class PayrollAuditLogTest extends TestCase
 {
     use RefreshDatabase;
-
-    public function test_correcting_an_attendance_review_writes_an_audit_log_entry(): void
-    {
-        $hrd = User::factory()->create(['role' => 'hrd']);
-        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan']);
-        $review = AttendanceReview::create([
-            'user_id' => $employee->id, 'company_id' => $hrd->company_id, 'date' => '2026-09-28',
-            'status' => 'draft', 'classification' => 'unresolved',
-            'source_snapshot' => [], 'schedule_snapshot' => [], 'version' => 0,
-        ]);
-
-        $this->actingAs($hrd)->put(route('hrd.koreksi-absensi.update', $review), [
-            'classification' => 'sick',
-            'correction_reason' => 'Surat dokter dikirim via WhatsApp.',
-        ]);
-
-        $log = PayrollAuditLog::where('entity_type', 'AttendanceReview')->where('entity_id', $review->id)->firstOrFail();
-        $this->assertSame('corrected', $log->action);
-        $this->assertSame($hrd->id, $log->actor_id);
-        $this->assertSame('unresolved', $log->before_values['classification']);
-        $this->assertSame('sick', $log->after_values['classification']);
-        $this->assertSame('Surat dokter dikirim via WhatsApp.', $log->reason);
-        $this->assertSame($review->id, $log->attendance_review_id);
-    }
 
     public function test_updating_a_payroll_profile_writes_an_audit_log_entry_without_bank_details(): void
     {

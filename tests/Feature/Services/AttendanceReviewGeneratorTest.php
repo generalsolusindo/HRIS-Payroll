@@ -65,7 +65,7 @@ class AttendanceReviewGeneratorTest extends TestCase
         $this->assertSame('validated', $review->status);
     }
 
-    public function test_a_workday_with_no_attendance_and_no_leave_is_unresolved_not_absent(): void
+    public function test_a_workday_with_no_attendance_and_no_leave_is_automatically_absent(): void
     {
         $user = User::factory()->create(['role' => 'karyawan', 'status' => 'active']);
         $date = Carbon::parse('2026-10-05'); // A Monday.
@@ -73,13 +73,17 @@ class AttendanceReviewGeneratorTest extends TestCase
         $this->generator()->generateForDate($date);
 
         $review = AttendanceReview::where('user_id', $user->id)->whereDate('date', $date)->firstOrFail();
-        $this->assertSame('unresolved', $review->classification);
-        $this->assertSame('draft', $review->status);
+        $this->assertSame('absent', $review->classification);
+        $this->assertSame('validated', $review->status);
     }
 
-    public function test_clocking_in_without_clocking_out_is_unresolved(): void
+    public function test_clocking_in_without_clocking_out_is_automatically_a_full_present_day(): void
     {
         $user = User::factory()->create(['role' => 'karyawan', 'status' => 'active']);
+        WorkSchedule::create([
+            'company_id' => $user->company_id, 'name' => 'Reguler',
+            'jam_masuk' => '08:00:00', 'jam_pulang' => '17:00:00', 'toleransi_telat_menit' => 0,
+        ]);
         $date = Carbon::parse('2026-10-05');
         Attendance::create([
             'user_id' => $user->id, 'tanggal' => $date,
@@ -89,9 +93,11 @@ class AttendanceReviewGeneratorTest extends TestCase
         $this->generator()->generateForDate($date);
 
         $review = AttendanceReview::where('user_id', $user->id)->whereDate('date', $date)->firstOrFail();
-        $this->assertSame('unresolved', $review->classification);
-        $this->assertSame('draft', $review->status);
+        $this->assertSame('present', $review->classification);
+        $this->assertSame('validated', $review->status);
         $this->assertSame(5, $review->late_minutes);
+        $this->assertSame(540, $review->worked_minutes);
+        $this->assertSame(0, $review->early_departure_minutes);
     }
 
     public function test_a_full_attendance_record_becomes_present_with_computed_minutes(): void
@@ -126,7 +132,7 @@ class AttendanceReviewGeneratorTest extends TestCase
 
         $this->generator()->generateForDate($date);
         $review = AttendanceReview::where('user_id', $user->id)->whereDate('date', $date)->firstOrFail();
-        $this->assertSame('unresolved', $review->classification);
+        $this->assertSame('absent', $review->classification);
 
         $review->fill([
             'classification' => 'sick', 'correction_reason' => 'Surat dokter dikirim via WhatsApp.',

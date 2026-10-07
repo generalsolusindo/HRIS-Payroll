@@ -5,7 +5,7 @@ import {
     CalendarClock,
     CalendarDays,
     CalendarOff,
-    ClipboardCheck,
+    CalendarRange,
     ClipboardList,
     Clock,
     History,
@@ -19,7 +19,7 @@ import {
 import AttendanceHistoryController from '@/actions/App/Http/Controllers/AttendanceHistoryController';
 import PayrollPaymentController from '@/actions/App/Http/Controllers/Finance/PayrollPaymentController';
 import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/AttendanceDashboardController';
-import AttendanceReviewController from '@/actions/App/Http/Controllers/Hrd/AttendanceReviewController';
+import AttendanceRangeSummaryController from '@/actions/App/Http/Controllers/Hrd/AttendanceRangeSummaryController';
 import CompanyCalendarDayController from '@/actions/App/Http/Controllers/Hrd/CompanyCalendarDayController';
 import DivisionController from '@/actions/App/Http/Controllers/Hrd/DivisionController';
 import OvertimeApprovalController from '@/actions/App/Http/Controllers/Hrd/OvertimeApprovalController';
@@ -130,9 +130,9 @@ const hrdNavItems: NavItem[] = [
         icon: CalendarDays,
     },
     {
-        title: 'Koreksi Absensi',
-        href: AttendanceReviewController.index(),
-        icon: ClipboardCheck,
+        title: 'Rekap Periode',
+        href: AttendanceRangeSummaryController.index(),
+        icon: CalendarRange,
     },
     {
         title: 'Persetujuan Lembur',

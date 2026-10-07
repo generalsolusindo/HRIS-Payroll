@@ -7,8 +7,7 @@ use App\Http\Controllers\FaceVerificationController;
 use App\Http\Controllers\Finance\PaymentProofController;
 use App\Http\Controllers\Finance\PayrollPaymentController;
 use App\Http\Controllers\Hrd\AttendanceDashboardController;
-use App\Http\Controllers\Hrd\AttendanceReviewController;
-use App\Http\Controllers\Hrd\AttendanceReviewEvidenceController;
+use App\Http\Controllers\Hrd\AttendanceRangeSummaryController;
 use App\Http\Controllers\Hrd\CompanyCalendarDayController;
 use App\Http\Controllers\Hrd\DivisionController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
@@ -83,6 +82,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::delete('users/{user}', [UserManagementController::class, 'destroy'])->name('users.destroy');
 
     Route::get('absensi', [AttendanceDashboardController::class, 'index'])->name('absensi.index');
+    Route::get('rekap-periode', [AttendanceRangeSummaryController::class, 'index'])->name('rekap-periode.index');
 
     Route::get('izin', [LeaveRequestApprovalController::class, 'index'])->name('izin.index');
     Route::patch('izin/{leaveRequest}/approve', [LeaveRequestApprovalController::class, 'approve'])->name('izin.approve');
@@ -120,10 +120,6 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::get('kalender-kerja', [CompanyCalendarDayController::class, 'index'])->name('kalender-kerja.index');
     Route::post('kalender-kerja', [CompanyCalendarDayController::class, 'store'])->name('kalender-kerja.store');
     Route::delete('kalender-kerja/{day}', [CompanyCalendarDayController::class, 'destroy'])->name('kalender-kerja.destroy');
-
-    Route::get('koreksi-absensi', [AttendanceReviewController::class, 'index'])->name('koreksi-absensi.index');
-    Route::put('koreksi-absensi/{review}', [AttendanceReviewController::class, 'update'])->name('koreksi-absensi.update');
-    Route::get('koreksi-absensi/{review}/bukti', [AttendanceReviewEvidenceController::class, 'show'])->name('koreksi-absensi.bukti');
 
     Route::get('persetujuan-lembur', [OvertimeApprovalController::class, 'index'])->name('persetujuan-lembur.index');
     Route::patch('persetujuan-lembur/{overtimeRequest}/approve', [OvertimeApprovalController::class, 'approve'])->name('persetujuan-lembur.approve');

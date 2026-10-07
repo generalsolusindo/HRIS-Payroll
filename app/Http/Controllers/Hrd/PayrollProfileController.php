@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\UpdatePayrollProfileRequest;
 use App\Models\Division;
@@ -11,23 +12,26 @@ use App\Models\PayrollComponent;
 use App\Models\User;
 use App\Services\PayrollAuditLogger;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PayrollProfileController extends Controller
 {
-    public function index(): Response
+    use ScopesToOwnCompany;
+
+    public function index(Request $request): Response
     {
-        $employees = User::where('role', 'karyawan')
+        $employees = User::where('company_id', $request->user()->company_id)
+            ->where('role', 'karyawan')
             ->where('status', 'active')
             ->with([
-                'company:id,name',
                 'position:id,name',
                 'payrollProfiles' => fn ($query) => $query->latest('effective_from')->limit(1)->with('division:id,name', 'salaryComponents.payrollComponent:id,name'),
             ])
             ->orderBy('name')
-            ->get(['id', 'company_id', 'position_id', 'name', 'email'])
+            ->get(['id', 'position_id', 'name', 'email'])
             ->map(function (User $user) {
                 $profile = $user->payrollProfiles->first();
 
@@ -35,7 +39,6 @@ class PayrollProfileController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'company' => ['id' => $user->company->id, 'name' => $user->company->name],
                     'position' => ['id' => $user->position->id, 'name' => $user->position->name],
                     'has_profile' => $profile !== null,
                     'division_name' => $profile?->division?->name,
@@ -43,19 +46,13 @@ class PayrollProfileController extends Controller
                 ];
             });
 
-        return Inertia::render('hrd/payroll-profiles', [
-            'employees' => $employees,
-            'divisions' => Division::where('is_active', true)->orderBy('name')->get(['id', 'company_id', 'name']),
-            'components' => PayrollComponent::where('is_active', true)
-                ->where('type', 'earning')
-                ->orderBy('name')
-                ->get(['id', 'company_id', 'name', 'category']),
-        ]);
+        return Inertia::render('hrd/payroll-profiles', ['employees' => $employees]);
     }
 
-    public function edit(User $user): Response
+    public function edit(Request $request, User $user): Response
     {
         abort_unless($user->role === 'karyawan', 404);
+        $this->assertOwnCompany($request, $user->company_id);
 
         $profile = EmployeePayrollProfile::where('user_id', $user->id)
             ->latest('effective_from')
@@ -94,6 +91,7 @@ class PayrollProfileController extends Controller
     public function update(UpdatePayrollProfileRequest $request, User $user, PayrollAuditLogger $auditLogger): RedirectResponse
     {
         abort_unless($user->role === 'karyawan', 404);
+        $this->assertOwnCompany($request, $user->company_id);
 
         $validated = $request->validated();
 

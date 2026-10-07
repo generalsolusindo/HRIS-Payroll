@@ -5,9 +5,10 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/hooks/use-current-url';
-import { cn } from '@/lib/utils';
+import { cn, toUrl } from '@/lib/utils';
 import type { NavItem } from '@/types';
 
 export function NavMain({
@@ -17,14 +18,22 @@ export function NavMain({
     items: NavItem[];
     groupLabel?: string;
 }) {
-    const { isCurrentUrl } = useCurrentUrl();
+    const { currentUrl } = useCurrentUrl();
+    const { isMobile, setOpenMobile } = useSidebar();
 
     return (
         <SidebarGroup className="px-2 py-0">
             <SidebarGroupLabel>{groupLabel}</SidebarGroupLabel>
             <SidebarMenu>
                 {items.map((item) => {
-                    const isActive = isCurrentUrl(item.href);
+                    const paths = item.activePaths ?? [toUrl(item.href)];
+                    const isActive =
+                        item.isActive ??
+                        paths.some(
+                            (path) =>
+                                currentUrl === path ||
+                                currentUrl.startsWith(`${path}/`),
+                        );
 
                     return (
                         <SidebarMenuItem key={item.title}>
@@ -32,9 +41,16 @@ export function NavMain({
                                 asChild
                                 isActive={isActive}
                                 tooltip={{ children: item.title }}
-                                className="group-data-[collapsible=icon]:p-1!"
+                                className="h-10 rounded-lg group-data-[collapsible=icon]:p-1!"
                             >
-                                <Link href={item.href} prefetch>
+                                <Link
+                                    href={item.href}
+                                    prefetch
+                                    aria-current={isActive ? 'page' : undefined}
+                                    onClick={() => {
+                                        if (isMobile) setOpenMobile(false);
+                                    }}
+                                >
                                     {item.icon && (
                                         <span
                                             className={cn(

@@ -13,6 +13,7 @@ use App\Http\Controllers\Hrd\CompanyCalendarDayController;
 use App\Http\Controllers\Hrd\DivisionController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
 use App\Http\Controllers\Hrd\OvertimeApprovalController;
+use App\Http\Controllers\Hrd\PayrollAdjustmentController;
 use App\Http\Controllers\Hrd\PayrollAuditLogController;
 use App\Http\Controllers\Hrd\PayrollComponentController;
 use App\Http\Controllers\Hrd\PayrollPayslipController;
@@ -103,10 +104,14 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
 
     Route::get('periode-gaji', [PayrollPeriodController::class, 'index'])->name('periode-gaji.index');
     Route::post('periode-gaji', [PayrollPeriodController::class, 'store'])->name('periode-gaji.store');
+    Route::post('periode-gaji/{period}/perbarui-draft', [PayrollRunController::class, 'refresh'])->name('periode-gaji.perbarui-draft');
     Route::post('periode-gaji/{period}/hitung', [PayrollRunController::class, 'store'])->name('periode-gaji.hitung');
 
     Route::get('hasil-payroll/{run}', [PayrollRunController::class, 'show'])->name('hasil-payroll.show');
     Route::patch('hasil-payroll/{run}/ajukan', [PayrollRunController::class, 'submit'])->name('hasil-payroll.ajukan');
+    Route::post('hasil-payroll/entri/{entry}/penyesuaian', [PayrollAdjustmentController::class, 'store'])->name('hasil-payroll.penyesuaian.store');
+    Route::delete('hasil-payroll/penyesuaian/{line}', [PayrollAdjustmentController::class, 'destroy'])->name('hasil-payroll.penyesuaian.destroy');
+
     Route::post('hasil-payroll/entri/{entry}/slip', [PayrollPayslipController::class, 'store'])->name('hasil-payroll.entri.slip');
 
     Route::get('kebijakan-absensi', [PayrollPolicyController::class, 'index'])->name('kebijakan-absensi.index');

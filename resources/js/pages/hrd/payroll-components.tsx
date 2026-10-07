@@ -22,8 +22,6 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 
-type Company = { id: number; name: string };
-
 type ComponentRow = {
     id: number;
     code: string;
@@ -31,12 +29,10 @@ type ComponentRow = {
     type: string;
     category: string;
     is_active: boolean;
-    company: Company;
 };
 
 type Props = {
     components: ComponentRow[];
-    companies: Company[];
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -58,17 +54,12 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 function ComponentFormFields({
-    companies,
     defaultValues,
     errors,
 }: {
-    companies: Company[];
     defaultValues?: ComponentRow;
     errors: Record<string, string | undefined>;
 }) {
-    const [companyId, setCompanyId] = useState(
-        defaultValues ? String(defaultValues.company.id) : '',
-    );
     const [type, setType] = useState(defaultValues?.type ?? 'earning');
     const [category, setCategory] = useState(
         defaultValues?.category ?? 'base_salary',
@@ -79,27 +70,6 @@ function ComponentFormFields({
 
     return (
         <div className="grid gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor="company_id">Instansi</Label>
-                <input type="hidden" name="company_id" value={companyId} />
-                <Select value={companyId} onValueChange={setCompanyId}>
-                    <SelectTrigger id="company_id" className="w-full">
-                        <SelectValue placeholder="-- Pilih Instansi --" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {companies.map((company) => (
-                            <SelectItem
-                                key={company.id}
-                                value={String(company.id)}
-                            >
-                                {company.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <InputError message={errors.company_id} />
-            </div>
-
             <div className="grid gap-2">
                 <Label htmlFor="code">Kode</Label>
                 <Input
@@ -180,7 +150,7 @@ function ComponentFormFields({
     );
 }
 
-export default function PayrollComponents({ components, companies }: Props) {
+export default function PayrollComponents({ components }: Props) {
     const [createOpen, setCreateOpen] = useState(false);
     const [editingComponent, setEditingComponent] =
         useState<ComponentRow | null>(null);
@@ -230,7 +200,6 @@ export default function PayrollComponents({ components, companies }: Props) {
                                         </DialogHeader>
                                         <div className="py-2">
                                             <ComponentFormFields
-                                                companies={companies}
                                                 errors={errors}
                                             />
                                         </div>
@@ -265,9 +234,6 @@ export default function PayrollComponents({ components, companies }: Props) {
                                         Nama
                                     </th>
                                     <th className="px-4 py-3 font-medium">
-                                        Instansi
-                                    </th>
-                                    <th className="px-4 py-3 font-medium">
                                         Jenis
                                     </th>
                                     <th className="px-4 py-3 font-medium">
@@ -291,9 +257,6 @@ export default function PayrollComponents({ components, companies }: Props) {
                                             <div className="font-mono text-xs text-muted-foreground">
                                                 {component.code}
                                             </div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {component.company.name}
                                         </td>
                                         <td className="px-4 py-3">
                                             {TYPE_LABELS[component.type] ??
@@ -396,7 +359,6 @@ export default function PayrollComponents({ components, companies }: Props) {
                                     </DialogHeader>
                                     <div className="py-2">
                                         <ComponentFormFields
-                                            companies={companies}
                                             defaultValues={editingComponent}
                                             errors={errors}
                                         />

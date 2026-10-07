@@ -17,6 +17,9 @@ use App\Models\PayrollPolicy;
 use App\Models\PayrollRun;
 use App\Models\User;
 use App\Services\AttendanceReviewGenerator;
+use App\Services\PayrollMoney;
+use App\Services\PayrollReadiness;
+use App\Services\PayrollTotals;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,13 +47,13 @@ class PayrollRunController extends Controller
      * period at a time. Any other status (submitted/approved/etc.) blocks
      * a silent recalculation.
      */
-    public function store(Request $request, PayrollPeriod $period, AttendanceReviewGenerator $generator): RedirectResponse
+    public function store(Request $request, PayrollPeriod $period, AttendanceReviewGenerator $generator, bool $refreshDraft = false): RedirectResponse
     {
         $this->assertOwnCompany($request, $period->company_id);
 
         $latestRun = $period->runs()->latest('version')->first();
 
-        if ($latestRun && $latestRun->status !== 'revision_requested') {
+        if (($refreshDraft && (! $latestRun || $latestRun->status !== 'draft')) || (! $refreshDraft && $latestRun && $latestRun->status !== 'revision_requested')) {
             throw ValidationException::withMessages([
                 'period' => 'Periode ini sudah punya hasil perhitungan. Hanya bisa dihitung ulang setelah Manager meminta revisi.',
             ]);
@@ -74,16 +77,27 @@ class PayrollRunController extends Controller
         }
 
         $rules = $policy->rules['attendance'] ?? [];
-        $lateRate = (float) ($rules['late_deduction_per_minute'] ?? 0);
-        $absenceRate = (float) ($rules['absence_deduction_per_day'] ?? 0);
-        $rewardRate = (float) ($rules['perfect_attendance_reward'] ?? 0);
-        $overtimeRate = (float) ($policy->rules['overtime']['rate_per_hour'] ?? 0);
+        $lateRate = PayrollMoney::decimal((string) ($rules['late_deduction_per_minute'] ?? '0'));
+        $absenceRate = PayrollMoney::decimal((string) ($rules['absence_deduction_per_day'] ?? '0'));
+        $rewardRate = PayrollMoney::decimal((string) ($rules['perfect_attendance_reward'] ?? '0'));
+        $overtimeRate = PayrollMoney::decimal((string) ($policy->rules['overtime']['rate_per_hour'] ?? '0'));
         $expectedAttendanceDays = (int) $period->attendance_starts_on->diffInDays($period->attendance_ends_on) + 1;
 
         $attendanceComponents = $this->attendanceComponents($period->company_id);
         $overtimeComponent = $this->overtimeComponent($period->company_id);
 
-        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $overtimeRate, $expectedAttendanceDays, $attendanceComponents, $overtimeComponent, $latestRun) {
+        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $overtimeRate, $expectedAttendanceDays, $attendanceComponents, $overtimeComponent, $latestRun, $refreshDraft) {
+            PayrollPeriod::whereKey($period->id)->lockForUpdate()->firstOrFail();
+            $currentLatest = $period->runs()->latest('version')->first();
+            if ($currentLatest?->id !== $latestRun?->id || ($currentLatest && $currentLatest->status !== ($refreshDraft ? 'draft' : 'revision_requested'))) {
+                throw ValidationException::withMessages(['period' => 'Periode telah diproses pengguna lain. Muat ulang halaman.']);
+            }
+            if ($latestRun) {
+                $latestRun = PayrollRun::whereKey($latestRun->id)->lockForUpdate()->firstOrFail();
+                if ($latestRun->status !== ($refreshDraft ? 'draft' : 'revision_requested')) {
+                    throw ValidationException::withMessages(['period' => 'Status payroll telah berubah. Muat ulang halaman.']);
+                }
+            }
             $run = PayrollRun::create([
                 'payroll_period_id' => $period->id,
                 'version' => $latestRun ? $latestRun->version + 1 : 1,
@@ -100,7 +114,7 @@ class PayrollRunController extends Controller
                 PayrollApproval::create([
                     'payroll_run_id' => $latestRun->id,
                     'action' => 'superseded',
-                    'from_status' => 'revision_requested',
+                    'from_status' => $refreshDraft ? 'draft' : 'revision_requested',
                     'to_status' => 'superseded',
                     'actor_id' => $request->user()->id,
                     'actor_snapshot' => ['name' => $request->user()->name],
@@ -126,7 +140,13 @@ class PayrollRunController extends Controller
                     continue;
                 }
 
-                $salaryGross = number_format((float) $profile->salaryComponents->sum('amount'), 2, '.', '');
+                foreach ($profile->salaryComponents as $component) {
+                    if ($component->payrollComponent->type !== 'earning' || $component->payrollComponent->company_id !== $period->company_id) {
+                        throw ValidationException::withMessages(['period' => 'Profil gaji mengandung komponen bukan pendapatan atau milik perusahaan lain. Perbaiki profil sebelum menghitung.']);
+                    }
+                }
+
+                $salaryGross = $profile->salaryComponents->reduce(fn (string $sum, EmployeeSalaryComponent $component) => bcadd($sum, PayrollMoney::decimal($component->amount), 2), '0.00');
 
                 $reviews = AttendanceReview::where('user_id', $profile->user_id)
                     ->whereBetween('date', [$period->attendance_starts_on->toDateString(), $period->attendance_ends_on->toDateString()])
@@ -141,7 +161,7 @@ class PayrollRunController extends Controller
                     ->whereBetween('starts_at', [$period->attendance_starts_on->startOfDay(), $period->attendance_ends_on->endOfDay()])
                     ->sum('approved_minutes');
                 $overtimeAmount = ($overtimeMinutes > 0 && $overtimeRate > 0)
-                    ? number_format(($overtimeMinutes / 60) * $overtimeRate, 2, '.', '') : null;
+                    ? PayrollMoney::multiply($overtimeRate, $overtimeMinutes, 60) : null;
 
                 $gross = bcadd($salaryGross, $this->decimal($attendance['reward_amount']), 2);
                 $gross = bcadd($gross, $this->decimal($overtimeAmount), 2);
@@ -208,7 +228,7 @@ class PayrollRunController extends Controller
                         'type' => 'deduction',
                         'category' => 'attendance_deduction',
                         'quantity' => $attendance['late_minutes_total'],
-                        'rate' => number_format($lateRate, 4, '.', ''),
+                        'rate' => PayrollMoney::decimal($lateRate, 4),
                         'amount' => $attendance['late_deduction_amount'],
                         'source' => 'attendance',
                         'calculation_snapshot' => [
@@ -230,7 +250,7 @@ class PayrollRunController extends Controller
                         'type' => 'deduction',
                         'category' => 'attendance_deduction',
                         'quantity' => $attendance['absent_days'],
-                        'rate' => number_format($absenceRate, 4, '.', ''),
+                        'rate' => PayrollMoney::decimal($absenceRate, 4),
                         'amount' => $attendance['absence_deduction_amount'],
                         'source' => 'attendance',
                         'calculation_snapshot' => [
@@ -252,7 +272,7 @@ class PayrollRunController extends Controller
                         'type' => 'earning',
                         'category' => 'attendance_reward',
                         'quantity' => 1,
-                        'rate' => number_format($rewardRate, 4, '.', ''),
+                        'rate' => PayrollMoney::decimal($rewardRate, 4),
                         'amount' => $attendance['reward_amount'],
                         'source' => 'reward',
                         'calculation_snapshot' => [
@@ -272,8 +292,8 @@ class PayrollRunController extends Controller
                         'component_name' => $overtimeComponent->name,
                         'type' => 'earning',
                         'category' => 'overtime',
-                        'quantity' => number_format($overtimeMinutes / 60, 4, '.', ''),
-                        'rate' => number_format($overtimeRate, 4, '.', ''),
+                        'quantity' => PayrollMoney::decimal(bcdiv((string) $overtimeMinutes, '60', 8), 4),
+                        'rate' => PayrollMoney::decimal($overtimeRate, 4),
                         'amount' => $overtimeAmount,
                         'source' => 'overtime',
                         'calculation_snapshot' => [
@@ -285,10 +305,34 @@ class PayrollRunController extends Controller
                     ]);
                 }
 
+                // Carry manual decisions into the revised run; never silently discard them.
+                if ($latestRun) {
+                    $priorEntry = $latestRun->entries()->where('user_id', $entry->user_id)->first();
+                    foreach ($priorEntry?->lines()->where('source', 'manual')->get() ?? [] as $priorLine) {
+                        $copy = $priorLine->replicate();
+                        $copy->payroll_entry_id = $entry->id;
+                        $copy->calculation_snapshot = [...$priorLine->calculation_snapshot, 'copied_from_line_id' => $priorLine->id];
+                        $copy->save();
+                    }
+                    (new PayrollTotals)->refreshEntry($entry);
+                    $gross = PayrollMoney::decimal($entry->gross_amount);
+                    $deduction = PayrollMoney::decimal($entry->deduction_amount);
+                    if (bccomp($entry->net_amount, '0', 2) < 0) {
+                        throw ValidationException::withMessages(['period' => 'Revisi menghasilkan gaji bersih negatif. Periksa profil, tarif, dan penyesuaian manual.']);
+                    }
+                }
+
                 $employeeCount++;
                 $grossTotal = bcadd($grossTotal, $gross, 2);
                 $deductionTotal = bcadd($deductionTotal, $deduction, 2);
                 $rewardTotal = bcadd($rewardTotal, $this->decimal($attendance['reward_amount']), 2);
+            }
+
+            if ($latestRun && $latestRun->entries()
+                ->whereNotIn('user_id', $run->entries()->select('user_id'))
+                ->whereHas('lines', fn ($query) => $query->where('source', 'manual')->where('amount', '>', 0))
+                ->exists()) {
+                throw ValidationException::withMessages(['period' => 'Karyawan dengan penyesuaian manual tidak masuk perhitungan baru. Periksa profil/status karyawan agar penyesuaian tidak hilang.']);
             }
 
             $run->update([
@@ -332,6 +376,11 @@ class PayrollRunController extends Controller
      * Sends a draft run to the Manager for approval — the only transition
      * HRD itself can make without a Manager decision.
      */
+    public function refresh(Request $request, PayrollPeriod $period, AttendanceReviewGenerator $generator): RedirectResponse
+    {
+        return $this->store($request, $period, $generator, true);
+    }
+
     public function submit(Request $request, PayrollRun $run): RedirectResponse
     {
         $this->assertOwnCompany($request, $run->period->company_id);
@@ -344,6 +393,8 @@ class PayrollRunController extends Controller
                     'status' => 'Hanya hasil perhitungan berstatus draft yang bisa diajukan.',
                 ]);
             }
+
+            (new PayrollReadiness)->assertReady($locked);
 
             $locked->fill(['status' => 'submitted', 'submitted_at' => now()])->save();
 
@@ -371,7 +422,22 @@ class PayrollRunController extends Controller
 
         $canPublishSlips = in_array($run->status, ['approved', 'locked', 'partially_paid', 'paid'], true);
 
+        $isHrd = $request->user()->role === 'hrd';
+
         return Inertia::render('hrd/payroll-run-show', [
+            'readiness_issues' => (new PayrollReadiness)->issues($run),
+            'capabilities' => [
+                'submit' => $isHrd && $run->status === 'draft',
+                'recalculate' => $isHrd && $run->status === 'revision_requested',
+                'adjust' => $isHrd && $run->status === 'draft',
+                'refresh' => $isHrd && $run->status === 'draft',
+            ],
+            'divisions' => $run->entries->groupBy('division_id')->map(fn ($entries) => [
+                'id' => $entries->first()->division_id,
+                'name' => $entries->first()->division_name,
+                'count' => $entries->count(),
+                'net_total' => $entries->reduce(fn (string $total, PayrollEntry $entry) => bcadd($total, (string) $entry->net_amount, 2), '0.00'),
+            ])->values(),
             'run' => [
                 'id' => $run->id,
                 'version' => $run->version,
@@ -388,6 +454,8 @@ class PayrollRunController extends Controller
                     'company_name' => $run->period->company->name,
                     'starts_on' => $run->period->starts_on->toDateString(),
                     'ends_on' => $run->period->ends_on->toDateString(),
+                    'attendance_starts_on' => $run->period->attendance_starts_on->toDateString(),
+                    'attendance_ends_on' => $run->period->attendance_ends_on->toDateString(),
                 ],
             ],
             'approvals' => $run->approvals->sortBy('created_at')->values()->map(fn (PayrollApproval $approval) => [
@@ -401,6 +469,7 @@ class PayrollRunController extends Controller
                 'id' => $entry->id,
                 'user_id' => $entry->user_id,
                 'name' => $entry->employee_snapshot['name'] ?? '—',
+                'division_id' => $entry->division_id,
                 'division_name' => $entry->division_name,
                 'position_name' => $entry->position_name,
                 'gross_amount' => (string) $entry->gross_amount,
@@ -409,11 +478,18 @@ class PayrollRunController extends Controller
                 'net_amount' => (string) $entry->net_amount,
                 'unresolved_days' => $entry->attendance_snapshot['unresolved_days'] ?? 0,
                 'lines' => $entry->lines->map(fn (PayrollEntryLine $line) => [
+                    'id' => $line->id,
+                    'source' => $line->source,
+                    'quantity' => (string) $line->quantity,
+                    'rate' => (string) $line->rate,
+                    'adjustment_reason' => $line->adjustment_reason,
+                    'cancelled' => isset($line->calculation_snapshot['cancelled_at']),
+                    'cancellation_reason' => $line->calculation_snapshot['cancellation_reason'] ?? null,
                     'component_name' => $line->component_name,
                     'type' => $line->type,
                     'amount' => (string) $line->amount,
                 ]),
-                'can_publish_slip' => $canPublishSlips,
+                'can_publish_slip' => $isHrd && $canPublishSlips,
                 'latest_payslip' => $this->latestPayslip($entry),
             ]),
         ]);
@@ -484,7 +560,7 @@ class PayrollRunController extends Controller
      *     days: array<int, array<string, mixed>>,
      * }
      */
-    private function summarizeAttendance(Collection $reviews, int $expectedAttendanceDays, float $lateRate, float $absenceRate, float $rewardRate): array
+    private function summarizeAttendance(Collection $reviews, int $expectedAttendanceDays, string $lateRate, string $absenceRate, string $rewardRate): array
     {
         $lateMinutesTotal = 0;
         $absentDays = 0;
@@ -522,11 +598,11 @@ class PayrollRunController extends Controller
             'unresolved_days' => $unresolvedDays,
             'perfect_attendance' => $perfectAttendance,
             'late_deduction_amount' => ($lateMinutesTotal > 0 && $lateRate > 0)
-                ? number_format($lateMinutesTotal * $lateRate, 2, '.', '') : null,
+                ? PayrollMoney::multiply($lateRate, $lateMinutesTotal) : null,
             'absence_deduction_amount' => ($absentDays > 0 && $absenceRate > 0)
-                ? number_format($absentDays * $absenceRate, 2, '.', '') : null,
+                ? PayrollMoney::multiply($absenceRate, $absentDays) : null,
             'reward_amount' => ($perfectAttendance && $rewardRate > 0)
-                ? number_format($rewardRate, 2, '.', '') : null,
+                ? PayrollMoney::decimal($rewardRate) : null,
             'days' => $days,
         ];
     }
@@ -536,6 +612,6 @@ class PayrollRunController extends Controller
      */
     private function decimal(?string $value): string
     {
-        return number_format((float) ($value ?? '0'), 2, '.', '');
+        return PayrollMoney::decimal($value ?? '0');
     }
 }

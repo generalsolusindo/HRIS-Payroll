@@ -1,11 +1,11 @@
-import { Form, Head, router, usePage } from '@inertiajs/react';
-import { Pencil, Plus, Trash2, Users as UsersIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import UserManagementController from '@/actions/App/Http/Controllers/Hrd/UserManagementController';
-import InputError from '@/components/input-error';
-import PasswordInput from '@/components/password-input';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
+import { Form, Head, router, usePage } from "@inertiajs/react";
+import { Pencil, Plus, Trash2, Users as UsersIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import UserManagementController from "@/actions/App/Http/Controllers/Hrd/UserManagementController";
+import InputError from "@/components/input-error";
+import PasswordInput from "@/components/password-input";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
@@ -13,17 +13,17 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select';
-import type { Auth } from '@/types';
+} from "@/components/ui/select";
+import type { Auth } from "@/types";
 
 type Position = { id: number; name: string };
 type Company = { id: number; name: string; positions: Position[] };
@@ -56,33 +56,33 @@ type Props = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-    karyawan: 'Karyawan',
-    hrd: 'HRD',
-    admin: 'Admin (Manager)',
-    finance: 'Finance',
+    karyawan: "Karyawan",
+    hrd: "HRD",
+    admin: "Admin (Manager)",
+    finance: "Finance",
 };
 
 const STATUS_LABELS: Record<string, string> = {
-    pending: 'Menunggu',
-    active: 'Aktif',
-    rejected: 'Nonaktif',
+    pending: "Menunggu",
+    active: "Aktif",
+    rejected: "Nonaktif",
 };
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
     pending:
-        'border-amber-400 text-amber-600 dark:border-amber-400/70 dark:text-amber-400',
-    active: 'border-emerald-400 text-emerald-600 dark:border-emerald-400/70 dark:text-emerald-400',
+        "border-amber-400 text-amber-600 dark:border-amber-400/70 dark:text-amber-400",
+    active: "border-emerald-400 text-emerald-600 dark:border-emerald-400/70 dark:text-emerald-400",
     rejected:
-        'border-red-400 text-red-600 dark:border-red-400/70 dark:text-red-400',
+        "border-red-400 text-red-600 dark:border-red-400/70 dark:text-red-400",
 };
 
 function initialsOf(name: string): string {
     return name
-        .split(' ')
+        .split(" ")
         .filter(Boolean)
         .slice(0, 2)
         .map((part) => part[0])
-        .join('')
+        .join("")
         .toUpperCase();
 }
 
@@ -100,13 +100,13 @@ function UserFormFields({
     disableRoleAndStatus: boolean;
 }) {
     const [companyId, setCompanyId] = useState(
-        defaultValues ? String(defaultValues.company.id) : '',
+        defaultValues ? String(defaultValues.company.id) : "",
     );
     const [positionId, setPositionId] = useState(
-        defaultValues ? String(defaultValues.position.id) : '',
+        defaultValues ? String(defaultValues.position.id) : "",
     );
-    const [role, setRole] = useState(defaultValues?.role ?? 'karyawan');
-    const [status, setStatus] = useState(defaultValues?.status ?? 'pending');
+    const [role, setRole] = useState(defaultValues?.role ?? "karyawan");
+    const [status, setStatus] = useState(defaultValues?.status ?? "pending");
 
     const positions = useMemo(
         () =>
@@ -148,7 +148,7 @@ function UserFormFields({
                     id="phone"
                     name="phone"
                     type="tel"
-                    defaultValue={defaultValues?.phone ?? ''}
+                    defaultValue={defaultValues?.phone ?? ""}
                     placeholder="0812xxxxxxxx"
                 />
                 <InputError message={errors.phone} />
@@ -161,7 +161,7 @@ function UserFormFields({
                 <Input
                     id="employee_number"
                     name="employee_number"
-                    defaultValue={defaultValues?.employee_number ?? ''}
+                    defaultValue={defaultValues?.employee_number ?? ""}
                 />
                 <InputError message={errors.employee_number} />
             </div>
@@ -173,7 +173,7 @@ function UserFormFields({
                     value={companyId}
                     onValueChange={(value) => {
                         setCompanyId(value);
-                        setPositionId('');
+                        setPositionId("");
                     }}
                 >
                     <SelectTrigger id="company_id" className="w-full">
@@ -194,7 +194,7 @@ function UserFormFields({
             </div>
 
             <div className="grid gap-2">
-                <Label htmlFor="position_id">Jabatan / Divisi</Label>
+                <Label htmlFor="position_id">Jabatan</Label>
                 <input type="hidden" name="position_id" value={positionId} />
                 <Select
                     value={positionId}
@@ -202,7 +202,7 @@ function UserFormFields({
                     disabled={!companyId}
                 >
                     <SelectTrigger id="position_id" className="w-full">
-                        <SelectValue placeholder="-- Pilih Jabatan / Divisi --" />
+                        <SelectValue placeholder="-- Pilih Jabatan --" />
                     </SelectTrigger>
                     <SelectContent>
                         {positions.map((position) => (
@@ -270,8 +270,8 @@ function UserFormFields({
             <div className="grid gap-2">
                 <Label htmlFor="password">
                     {isEdit
-                        ? 'Password baru (kosongkan jika tidak diubah)'
-                        : 'Password'}
+                        ? "Password baru (kosongkan jika tidak diubah)"
+                        : "Password"}
                 </Label>
                 <PasswordInput
                     id="password"
@@ -410,8 +410,8 @@ export default function UserManagement({ users, search, companies }: Props) {
                         <UsersIcon className="size-8 text-muted-foreground" />
                         <p className="text-sm text-muted-foreground">
                             {search
-                                ? 'Tidak ada user yang cocok dengan pencarian.'
-                                : 'Belum ada user.'}
+                                ? "Tidak ada user yang cocok dengan pencarian."
+                                : "Belum ada user."}
                         </p>
                     </div>
                 ) : (
@@ -468,7 +468,7 @@ export default function UserManagement({ users, search, companies }: Props) {
                                         </td>
                                         <td className="px-4 py-3">
                                             <span
-                                                className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASS[user.status] ?? ''}`}
+                                                className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASS[user.status] ?? ""}`}
                                             >
                                                 {STATUS_LABELS[user.status] ??
                                                     user.status}
@@ -528,7 +528,7 @@ export default function UserManagement({ users, search, companies }: Props) {
                 {users.last_page > 1 && (
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
                         <span>
-                            Halaman {users.current_page} dari {users.last_page}{' '}
+                            Halaman {users.current_page} dari {users.last_page}{" "}
                             · {users.total} user
                         </span>
                         <div className="flex gap-2">
@@ -618,7 +618,7 @@ export default function UserManagement({ users, search, companies }: Props) {
 UserManagement.layout = {
     breadcrumbs: [
         {
-            title: 'Manajemen User',
+            title: "Manajemen User",
             href: UserManagementController.index(),
         },
     ],

@@ -4,22 +4,22 @@ namespace App\Http\Controllers\Hrd;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\StorePayrollPeriodRequest;
-use App\Models\Company;
 use App\Models\PayrollPeriod;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PayrollPeriodController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        $periods = PayrollPeriod::with(['company:id,name', 'runs' => fn ($query) => $query->latest('version')->limit(1)])
+        $periods = PayrollPeriod::where('company_id', $request->user()->company_id)
+            ->with(['runs' => fn ($query) => $query->latest('version')->limit(1)])
             ->orderByDesc('starts_on')
             ->get()
             ->map(fn (PayrollPeriod $period) => [
                 'id' => $period->id,
-                'company' => ['id' => $period->company->id, 'name' => $period->company->name],
                 'code' => $period->code,
                 'name' => $period->name,
                 'starts_on' => $period->starts_on->toDateString(),
@@ -34,15 +34,15 @@ class PayrollPeriodController extends Controller
                 ] : null,
             ]);
 
-        return Inertia::render('hrd/payroll-periods', [
-            'periods' => $periods,
-            'companies' => Company::orderBy('name')->get(['id', 'name']),
-        ]);
+        return Inertia::render('hrd/payroll-periods', ['periods' => $periods]);
     }
 
     public function store(StorePayrollPeriodRequest $request): RedirectResponse
     {
-        $period = PayrollPeriod::create($request->validated());
+        $period = PayrollPeriod::create([
+            ...$request->validated(),
+            'company_id' => $request->user()->company_id,
+        ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Periode {$period->name} berhasil dibuat."]);
 

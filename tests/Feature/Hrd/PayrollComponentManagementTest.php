@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Hrd;
 
+use App\Models\Company;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -84,6 +85,60 @@ class PayrollComponentManagementTest extends TestCase
             ->assertSessionHasErrors('component');
 
         $this->assertModelExists($component);
+    }
+
+    public function test_hrd_cannot_edit_or_delete_another_companys_component(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherHrd = User::factory()->create(['role' => 'hrd']);
+        $component = PayrollComponent::create([
+            'company_id' => $otherHrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'type' => 'earning', 'category' => 'base_salary',
+        ]);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.komponen-gaji.update', $component), [
+                'code' => 'BASE', 'name' => 'Diubah', 'type' => 'earning',
+                'category' => 'base_salary', 'is_active' => true,
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($hrd)
+            ->delete(route('hrd.komponen-gaji.destroy', $component))
+            ->assertForbidden();
+
+        $this->assertSame('Gaji Pokok', $component->fresh()->name);
+    }
+
+    public function test_hrd_only_sees_their_own_companys_components(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherHrd = User::factory()->create(['role' => 'hrd']);
+        PayrollComponent::create([
+            'company_id' => $otherHrd->company_id, 'code' => 'BASE', 'name' => 'Punya Perusahaan Lain',
+            'type' => 'earning', 'category' => 'base_salary',
+        ]);
+
+        $response = $this->actingAs($hrd)->get(route('hrd.komponen-gaji.index'))->assertOk();
+
+        $names = collect($response->viewData('page')['props']['components'])->pluck('name');
+        $this->assertFalse($names->contains('Punya Perusahaan Lain'));
+    }
+
+    public function test_a_component_created_for_another_company_is_ignored(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherCompany = Company::factory()->create();
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.komponen-gaji.store'), [
+                'company_id' => $otherCompany->id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+                'type' => 'earning', 'category' => 'base_salary', 'is_active' => true,
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('payroll_components', ['code' => 'BASE', 'company_id' => $hrd->company_id]);
+        $this->assertDatabaseMissing('payroll_components', ['code' => 'BASE', 'company_id' => $otherCompany->id]);
     }
 
     public function test_karyawan_cannot_access_payroll_component_management(): void

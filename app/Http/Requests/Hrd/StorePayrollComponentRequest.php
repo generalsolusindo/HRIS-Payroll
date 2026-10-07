@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Hrd;
 
-use App\Models\Company;
 use App\Models\PayrollComponent;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -12,6 +11,9 @@ class StorePayrollComponentRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        // Gated by the route's auth/active/role:hrd middleware; company_id
+        // is assigned server-side from the actor, never accepted from the
+        // client, so there is no cross-company input to authorize here.
         return true;
     }
 
@@ -21,10 +23,9 @@ class StorePayrollComponentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'company_id' => ['required', Rule::exists(Company::class, 'id')],
             'code' => [
                 'required', 'string', 'max:50',
-                Rule::unique(PayrollComponent::class)->where(fn ($query) => $query->where('company_id', $this->input('company_id'))),
+                Rule::unique(PayrollComponent::class)->where(fn ($query) => $query->where('company_id', $this->user()->company_id)),
             ],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::in(['earning', 'deduction', 'employer_contribution'])],

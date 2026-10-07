@@ -174,6 +174,18 @@ class PayrollRunCalculationTest extends TestCase
                 ->where('run.employee_count', 1)
                 ->has('entries', 1)
                 ->where('entries.0.division_name', 'Operasional')
+                ->where('entries.0.division_id', $division->id)
+                ->where('entries.0.lines.0.source', 'salary')
+                ->where('entries.0.lines.0.amount', '2500000.00')
+                ->has('entries.0.lines.0.quantity')
+                ->has('entries.0.lines.0.rate')
+                ->where('divisions.0.id', $division->id)
+                ->where('divisions.0.net_total', '2500000.00')
+                ->where('capabilities.submit', true)
+                ->where('capabilities.recalculate', false)
+                ->where('entries.0.can_publish_slip', false)
+                ->where('run.period.attendance_starts_on', '2026-09-26')
+                ->missing('entries.0.payment_destination')
             );
     }
 

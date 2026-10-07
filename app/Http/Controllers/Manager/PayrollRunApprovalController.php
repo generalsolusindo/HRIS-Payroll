@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Models\PayrollApproval;
 use App\Models\PayrollRun;
+use App\Services\PayrollReadiness;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -82,6 +83,10 @@ class PayrollRunApprovalController extends Controller
                 throw ValidationException::withMessages([
                     'status' => 'Hasil payroll ini sudah diproses pihak lain, atau belum diajukan HRD.',
                 ]);
+            }
+
+            if ($toStatus === 'approved') {
+                (new PayrollReadiness)->assertReady($locked);
             }
 
             $locked->fill(array_merge(['status' => $toStatus], $extraAttributes))->save();

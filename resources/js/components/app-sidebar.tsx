@@ -84,6 +84,30 @@ const moduleNavItems: NavItem[] = [
     },
 ];
 
+const payrollNavItems: NavItem[] = [
+    {
+        title: 'Proses Gaji',
+        href: PayrollPeriodController.index(),
+        icon: Calculator,
+        activePaths: ['/hrd/periode-gaji', '/hrd/hasil-payroll'],
+    },
+    {
+        title: 'Aturan Gaji',
+        href: PayrollPolicyController.index(),
+        icon: ShieldCheck,
+    },
+    {
+        title: 'Komponen Gaji',
+        href: PayrollComponentController.index(),
+        icon: Wallet,
+    },
+    {
+        title: 'Profil Gaji',
+        href: PayrollProfileController.index(),
+        icon: UserCog,
+    },
+];
+
 const hrdNavItems: NavItem[] = [
     {
         title: 'Manajemen User',
@@ -101,21 +125,6 @@ const hrdNavItems: NavItem[] = [
         icon: Building2,
     },
     {
-        title: 'Komponen Gaji',
-        href: PayrollComponentController.index(),
-        icon: Wallet,
-    },
-    {
-        title: 'Profil Gaji',
-        href: PayrollProfileController.index(),
-        icon: UserCog,
-    },
-    {
-        title: 'Periode Payroll',
-        href: PayrollPeriodController.index(),
-        icon: Calculator,
-    },
-    {
         title: 'Kalender Kerja',
         href: CompanyCalendarDayController.index(),
         icon: CalendarDays,
@@ -124,11 +133,6 @@ const hrdNavItems: NavItem[] = [
         title: 'Koreksi Absensi',
         href: AttendanceReviewController.index(),
         icon: ClipboardCheck,
-    },
-    {
-        title: 'Kebijakan Absensi',
-        href: PayrollPolicyController.index(),
-        icon: ShieldCheck,
     },
     {
         title: 'Persetujuan Lembur',
@@ -177,7 +181,7 @@ export function AppSidebar() {
 
     return (
         <Sidebar collapsible="icon" variant="inset">
-            <SidebarHeader>
+            <SidebarHeader className="border-b border-sidebar-border/60 p-3">
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
@@ -189,9 +193,14 @@ export function AppSidebar() {
                 </SidebarMenu>
             </SidebarHeader>
 
-            <SidebarContent>
+            <SidebarContent className="gap-4 py-3">
                 <NavMain items={visibleMainNavItems} />
-                <NavMain items={moduleNavItems} groupLabel="Modul Lain" />
+                {isHrd && (
+                    <NavMain
+                        items={payrollNavItems}
+                        groupLabel="Penggajian HRD"
+                    />
+                )}
                 {isHrd && <NavMain items={hrdNavItems} groupLabel="HRD" />}
                 {isManager && (
                     <NavMain items={managerNavItems} groupLabel="Manager" />
@@ -199,9 +208,10 @@ export function AppSidebar() {
                 {isFinance && (
                     <NavMain items={financeNavItems} groupLabel="Finance" />
                 )}
+                <NavMain items={moduleNavItems} groupLabel="Menu Pribadi" />
             </SidebarContent>
 
-            <SidebarFooter>
+            <SidebarFooter className="border-t border-sidebar-border/60">
                 <NavThemeToggle />
                 <NavUser />
             </SidebarFooter>

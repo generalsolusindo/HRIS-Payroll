@@ -16,15 +16,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-
-type Company = { id: number; name: string };
 
 type LatestRun = {
     id: number;
@@ -36,7 +27,6 @@ type LatestRun = {
 
 type PeriodRow = {
     id: number;
-    company: Company;
     code: string;
     name: string;
     starts_on: string;
@@ -47,7 +37,6 @@ type PeriodRow = {
 
 type Props = {
     periods: PeriodRow[];
-    companies: Company[];
 };
 
 const RUN_STATUS_LABELS: Record<string, string> = {
@@ -79,37 +68,12 @@ function formatRupiah(value: string): string {
 }
 
 function PeriodFormFields({
-    companies,
     errors,
 }: {
-    companies: Company[];
     errors: Record<string, string | undefined>;
 }) {
-    const [companyId, setCompanyId] = useState('');
-
     return (
         <div className="grid gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor="company_id">Instansi</Label>
-                <input type="hidden" name="company_id" value={companyId} />
-                <Select value={companyId} onValueChange={setCompanyId}>
-                    <SelectTrigger id="company_id" className="w-full">
-                        <SelectValue placeholder="-- Pilih Instansi --" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {companies.map((company) => (
-                            <SelectItem
-                                key={company.id}
-                                value={String(company.id)}
-                            >
-                                {company.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <InputError message={errors.company_id} />
-            </div>
-
             <div className="grid gap-2">
                 <Label htmlFor="code">Kode Periode</Label>
                 <Input id="code" name="code" required placeholder="2026-10" />
@@ -183,7 +147,7 @@ function PeriodFormFields({
     );
 }
 
-export default function PayrollPeriods({ periods, companies }: Props) {
+export default function PayrollPeriods({ periods }: Props) {
     const [createOpen, setCreateOpen] = useState(false);
 
     function calculate(periodId: number) {
@@ -241,10 +205,7 @@ export default function PayrollPeriods({ periods, companies }: Props) {
                                             </DialogDescription>
                                         </DialogHeader>
                                         <div className="py-2">
-                                            <PeriodFormFields
-                                                companies={companies}
-                                                errors={errors}
-                                            />
+                                            <PeriodFormFields errors={errors} />
                                         </div>
                                         <DialogFooter>
                                             <Button
@@ -277,9 +238,6 @@ export default function PayrollPeriods({ periods, companies }: Props) {
                                         Periode
                                     </th>
                                     <th className="px-4 py-3 font-medium">
-                                        Instansi
-                                    </th>
-                                    <th className="px-4 py-3 font-medium">
                                         Rentang Tanggal
                                     </th>
                                     <th className="px-4 py-3 font-medium">
@@ -300,9 +258,6 @@ export default function PayrollPeriods({ periods, companies }: Props) {
                                             <div className="font-mono text-xs text-muted-foreground">
                                                 {period.code}
                                             </div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {period.company.name}
                                         </td>
                                         <td className="px-4 py-3 text-xs">
                                             {formatDate(period.starts_on)} –{' '}

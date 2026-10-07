@@ -167,6 +167,12 @@ function PendingRunCard({ run }: { run: PendingRun }) {
                     </Link>
                     <Form
                         {...PayrollRunApprovalController.approve.form(run.id)}
+                        onError={(errors) =>
+                            toast.error(
+                                Object.values(errors)[0] ??
+                                    'Persetujuan gagal. Periksa rincian payroll.',
+                            )
+                        }
                         disableWhileProcessing
                         onSuccess={() =>
                             toast.success('Hasil payroll disetujui.')

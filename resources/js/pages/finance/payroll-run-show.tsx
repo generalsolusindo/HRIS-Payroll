@@ -53,6 +53,7 @@ type Run = {
     status: string;
     employee_count: number;
     net_total: string;
+    paid_total: string;
     period: {
         name: string;
         company_name: string;
@@ -90,7 +91,7 @@ function formatRupiah(value: string): string {
     return new Intl.NumberFormat('id-ID', {
         style: 'currency',
         currency: 'IDR',
-        maximumFractionDigits: 0,
+        maximumFractionDigits: 2,
     }).format(Number(value));
 }
 
@@ -192,7 +193,7 @@ function PaymentDialog({
                                 id="amount"
                                 type="number"
                                 min="0"
-                                step="1"
+                                step="0.01"
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
                             />
@@ -257,6 +258,8 @@ function PaymentDialog({
                                 onChange={(e) => setNote(e.target.value)}
                             />
                             <InputError message={errors.note} />
+                            <InputError message={errors.status} />
+                            <InputError message={errors.idempotency_key} />
                         </div>
                     </div>
 
@@ -346,10 +349,7 @@ export default function PayrollRunShow({ run, entries }: Props) {
     const [payingEntry, setPayingEntry] = useState<Entry | null>(null);
     const [voidingPayment, setVoidingPayment] = useState<Payment | null>(null);
 
-    const paidTotal = entries.reduce(
-        (sum, entry) => sum + Number(entry.paid_amount),
-        0,
-    );
+    const paidTotal = run.paid_total;
 
     return (
         <>
@@ -375,6 +375,12 @@ export default function PayrollRunShow({ run, entries }: Props) {
                     {run.status === 'approved' && (
                         <Form
                             {...PayrollPaymentController.lock.form(run.id)}
+                            onError={(errors) =>
+                                toast.error(
+                                    Object.values(errors)[0] ??
+                                        'Penguncian payroll gagal.',
+                                )
+                            }
                             disableWhileProcessing
                             onSuccess={() =>
                                 toast.success(

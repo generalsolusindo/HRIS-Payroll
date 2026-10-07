@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Hrd;
 
+use App\Models\Company;
 use App\Models\PayrollPeriod;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -54,6 +55,30 @@ class PayrollPeriodManagementTest extends TestCase
                 'starts_on' => '2026-10-31', 'ends_on' => '2026-10-01',
             ]))
             ->assertSessionHasErrors('ends_on');
+    }
+
+    public function test_hrd_only_sees_their_own_companys_periods(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherHrd = User::factory()->create(['role' => 'hrd']);
+        PayrollPeriod::create($this->payload($otherHrd->company_id));
+
+        $response = $this->actingAs($hrd)->get(route('hrd.periode-gaji.index'))->assertOk();
+
+        $this->assertCount(0, $response->viewData('page')['props']['periods']);
+    }
+
+    public function test_a_period_created_for_another_company_is_ignored(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherCompany = Company::factory()->create();
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.store'), $this->payload($otherCompany->id))
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('payroll_periods', ['code' => '2026-10', 'company_id' => $hrd->company_id]);
+        $this->assertDatabaseMissing('payroll_periods', ['code' => '2026-10', 'company_id' => $otherCompany->id]);
     }
 
     public function test_karyawan_cannot_access_payroll_period_management(): void

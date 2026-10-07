@@ -9,10 +9,13 @@ use App\Models\PayrollApproval;
 use App\Models\PayrollEntry;
 use App\Models\PayrollPayment;
 use App\Models\PayrollRun;
+use App\Services\PayrollAuditLogger;
+use App\Services\PayrollMoney;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -40,7 +43,7 @@ class PayrollPaymentController extends Controller
                 'status' => $run->status,
                 'employee_count' => $run->employee_count,
                 'net_total' => (string) $run->net_total,
-                'paid_total' => number_format($this->paidTotal($run), 2, '.', ''),
+                'paid_total' => $this->paidTotal($run),
                 'period' => [
                     'name' => $run->period->name,
                     'company_name' => $run->period->company->name,
@@ -66,6 +69,7 @@ class PayrollPaymentController extends Controller
                 'status' => $run->status,
                 'employee_count' => $run->employee_count,
                 'net_total' => (string) $run->net_total,
+                'paid_total' => $this->paidTotal($run),
                 'period' => [
                     'name' => $run->period->name,
                     'company_name' => $run->period->company->name,
@@ -81,8 +85,8 @@ class PayrollPaymentController extends Controller
                     'name' => $entry->employee_snapshot['name'] ?? '—',
                     'division_name' => $entry->division_name,
                     'net_amount' => (string) $entry->net_amount,
-                    'paid_amount' => number_format($paid, 2, '.', ''),
-                    'remaining_amount' => number_format(max(0, (float) $entry->net_amount - $paid), 2, '.', ''),
+                    'paid_amount' => $paid,
+                    'remaining_amount' => bccomp($entry->net_amount, $paid, 2) > 0 ? bcsub($entry->net_amount, $paid, 2) : '0.00',
                     'has_destination' => $entry->payment_destination !== null,
                     'payments' => $entry->payments->sortByDesc('created_at')->values()->map(fn (PayrollPayment $payment) => [
                         'id' => $payment->id,
@@ -112,7 +116,7 @@ class PayrollPaymentController extends Controller
                 ]);
             }
 
-            $locked->update(['status' => 'locked']);
+            $locked->update(['status' => 'locked', 'locked_at' => now()]);
 
             PayrollApproval::create([
                 'payroll_run_id' => $locked->id,
@@ -144,31 +148,35 @@ class PayrollPaymentController extends Controller
             $proofPath = $request->file('proof')->store((string) $entry->id, 'payment_proofs');
         }
 
+        abort_if($proofPath === false, 500, 'Gagal menyimpan bukti pembayaran.');
+        $stored = false;
         try {
-            DB::transaction(function () use ($request, $entry, $validated, $proofPath) {
-                // Locking the entry (not just the run) serializes every
-                // concurrent payment attempt against THIS entry specifically:
-                // a second request blocks here until the first commits, so
-                // the balance it reads next already reflects the first
-                // payment — closing the TOCTOU window that previously let
-                // two concurrent requests both read the same "remaining"
-                // amount and both insert, overpaying the entry.
+            $stored = DB::transaction(function () use ($request, $entry, $validated, $proofPath) {
+                // All payroll mutations acquire run -> entry -> payment locks.
+                $run = PayrollRun::whereKey($entry->payroll_run_id)->lockForUpdate()->firstOrFail();
                 $lockedEntry = PayrollEntry::whereKey($entry->id)->lockForUpdate()->firstOrFail();
-                $run = $lockedEntry->run()->lockForUpdate()->first();
+                $amount = PayrollMoney::decimal((string) $validated['amount']);
+                $existing = PayrollPayment::where('idempotency_key', $validated['idempotency_key'])->first();
+                if ($existing) {
+                    if ($existing->payroll_entry_id !== $entry->id || bccomp(PayrollMoney::decimal($existing->amount), $amount, 2) !== 0
+                        || $existing->method !== $validated['method'] || $existing->reference !== ($validated['reference'] ?? null)) {
+                        throw ValidationException::withMessages(['idempotency_key' => 'Kode permintaan sudah dipakai untuk pembayaran berbeda.']);
+                    }
 
-                abort_unless(in_array($run->status, ['locked', 'partially_paid'], true), 422, 'Kunci hasil payroll ini sebelum mencatat pembayaran.');
-
-                $remaining = (float) $lockedEntry->net_amount - $this->confirmedTotal($lockedEntry);
-                if ((float) $validated['amount'] > $remaining + 0.004) {
-                    throw ValidationException::withMessages([
-                        'amount' => 'Nominal melebihi sisa yang belum dibayar ('.number_format($remaining, 0, ',', '.').').',
-                    ]);
+                    return false; // Also handles retry after full payment or voiding.
+                }
+                if (! in_array($run->status, ['locked', 'partially_paid'], true)) {
+                    throw ValidationException::withMessages(['status' => 'Kunci hasil payroll sebelum mencatat pembayaran.']);
+                }
+                $remaining = bcsub($lockedEntry->net_amount, $this->confirmedTotal($lockedEntry), 2);
+                if (bccomp($amount, $remaining, 2) > 0) {
+                    throw ValidationException::withMessages(['amount' => 'Nominal melebihi sisa yang belum dibayar (Rp '.$remaining.').']);
                 }
 
-                PayrollPayment::create([
+                $payment = PayrollPayment::create([
                     'payroll_entry_id' => $lockedEntry->id,
                     'idempotency_key' => $validated['idempotency_key'],
-                    'amount' => number_format((float) $validated['amount'], 2, '.', ''),
+                    'amount' => $amount,
                     'method' => $validated['method'],
                     'status' => 'confirmed',
                     'reference' => $validated['reference'] ?? null,
@@ -182,18 +190,20 @@ class PayrollPaymentController extends Controller
                 ]);
 
                 $this->recomputeRunStatus($run);
+                (new PayrollAuditLogger)->log($run->period->company_id, 'PayrollPayment', $payment->id, 'payment_recorded', null,
+                    ['amount' => $amount, 'method' => $payment->method, 'status' => 'confirmed'], $validated['note'] ?? 'Pembayaran dicatat Finance.', $run->id);
+
+                return true;
             });
         } catch (UniqueConstraintViolationException) {
-            // idempotency_key is unique — a client retrying an identical
-            // submission (e.g. after a dropped response) lands here instead
-            // of recording a second payment. Not an error from the user's
-            // point of view: the payment was already recorded.
-            Inertia::flash('toast', ['type' => 'success', 'message' => 'Pembayaran sudah tercatat sebelumnya.']);
-
-            return back();
+            throw ValidationException::withMessages(['idempotency_key' => 'Kode permintaan pembayaran sudah digunakan. Muat ulang data pembayaran.']);
+        } finally {
+            if (! $stored && is_string($proofPath)) {
+                Storage::disk('payment_proofs')->delete($proofPath);
+            }
         }
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => 'Pembayaran dicatat.']);
+        Inertia::flash('toast', ['type' => 'success', 'message' => $stored ? 'Pembayaran dicatat.' : 'Permintaan ini sudah tercatat; tidak dibuat pembayaran baru.']);
 
         return back();
     }
@@ -205,10 +215,9 @@ class PayrollPaymentController extends Controller
         $validated = $request->validate(['note' => ['required', 'string', 'max:2000']]);
 
         DB::transaction(function () use ($payment, $validated) {
-            // Same reasoning as storePayment: lock the entry first so a
-            // void can't race a concurrent payment attempt on it.
+            $run = PayrollRun::whereKey($payment->entry->payroll_run_id)->lockForUpdate()->firstOrFail();
+            PayrollEntry::whereKey($payment->payroll_entry_id)->lockForUpdate()->firstOrFail();
             $lockedPayment = PayrollPayment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
-            PayrollEntry::whereKey($lockedPayment->payroll_entry_id)->lockForUpdate()->firstOrFail();
 
             if ($lockedPayment->status !== 'confirmed') {
                 throw ValidationException::withMessages([
@@ -216,9 +225,11 @@ class PayrollPaymentController extends Controller
                 ]);
             }
 
+            $before = $lockedPayment->only(['amount', 'status', 'note']);
             $lockedPayment->update(['status' => 'voided', 'note' => $validated['note']]);
 
-            $this->recomputeRunStatus($lockedPayment->entry->run()->lockForUpdate()->first());
+            $this->recomputeRunStatus($run);
+            (new PayrollAuditLogger)->log($run->period->company_id, 'PayrollPayment', $lockedPayment->id, 'payment_voided', $before, ['status' => 'voided'], $validated['note'], $run->id);
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Pembayaran dibatalkan.']);
@@ -226,30 +237,32 @@ class PayrollPaymentController extends Controller
         return back();
     }
 
-    private function confirmedTotal(PayrollEntry $entry): float
+    /** @return numeric-string */
+    private function confirmedTotal(PayrollEntry $entry): string
     {
-        return (float) $entry->payments()->where('status', 'confirmed')->sum('amount');
+        return $entry->payments()->where('status', 'confirmed')->get()->reduce(
+            fn (string $total, PayrollPayment $payment) => bcadd($total, PayrollMoney::decimal($payment->amount), 2), '0.00');
     }
 
-    private function paidTotal(PayrollRun $run): float
+    /** @return numeric-string */
+    private function paidTotal(PayrollRun $run): string
     {
-        return (float) PayrollPayment::where('status', 'confirmed')
-            ->whereIn('payroll_entry_id', $run->entries()->pluck('id'))
-            ->sum('amount');
+        return PayrollPayment::where('status', 'confirmed')->whereIn('payroll_entry_id', $run->entries()->select('id'))->get()->reduce(
+            fn (string $total, PayrollPayment $payment) => bcadd($total, PayrollMoney::decimal($payment->amount), 2), '0.00');
     }
 
     private function recomputeRunStatus(PayrollRun $run): void
     {
-        $entries = $run->entries;
+        $entries = $run->entries()->get();
         $fullyPaid = 0;
         $anyPaid = false;
 
         foreach ($entries as $entry) {
             $paid = $this->confirmedTotal($entry);
-            if ($paid > 0) {
+            if (bccomp($paid, '0', 2) > 0) {
                 $anyPaid = true;
             }
-            if ($paid + 0.004 >= (float) $entry->net_amount) {
+            if (bccomp($paid, $entry->net_amount, 2) >= 0) {
                 $fullyPaid++;
             }
         }

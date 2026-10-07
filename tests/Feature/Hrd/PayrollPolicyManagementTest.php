@@ -20,7 +20,7 @@ class PayrollPolicyManagementTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('hrd/attendance-policy')
-                ->has('policies')
+                ->has('policy')
             );
 
         $this->assertDatabaseHas('payroll_policies', [
@@ -68,6 +68,27 @@ class PayrollPolicyManagementTest extends TestCase
                 'perfect_attendance_reward' => '100000',
             ])
             ->assertSessionHasErrors('late_deduction_per_minute');
+    }
+
+    public function test_hrd_cannot_edit_another_companys_policy(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherHrd = User::factory()->create(['role' => 'hrd']);
+        $policy = PayrollPolicy::create([
+            'company_id' => $otherHrd->company_id, 'code' => 'REGULAR', 'version' => 1,
+            'effective_from' => '2026-10-01', 'rules' => [],
+        ]);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.kebijakan-absensi.update', $policy), [
+                'late_deduction_per_minute' => '2000',
+                'absence_deduction_per_day' => '150000',
+                'perfect_attendance_reward' => '100000',
+                'overtime_rate_per_hour' => '25000',
+            ])
+            ->assertForbidden();
+
+        $this->assertSame([], $policy->fresh()->rules);
     }
 
     public function test_karyawan_cannot_view_or_edit_attendance_policy(): void

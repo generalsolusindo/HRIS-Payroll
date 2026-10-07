@@ -2,45 +2,48 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\UpdatePayrollPolicyRequest;
-use App\Models\Company;
 use App\Models\PayrollPolicy;
 use App\Services\PayrollAuditLogger;
+use App\Services\PayrollMoney;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PayrollPolicyController extends Controller
 {
+    use ScopesToOwnCompany;
+
     /**
      * Every company gets a "REGULAR" policy row (see PayrollPolicySeeder) —
      * this just guarantees one exists even for a company created after the
      * seeder ran, same firstOrCreate pattern PayrollRunController uses.
+     * HRD only ever sees and edits their own company's policy — there is no
+     * multi-company management role in this application.
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        $policies = Company::orderBy('name')->get()->map(function (Company $company) {
-            $policy = PayrollPolicy::firstOrCreate(
-                ['company_id' => $company->id, 'code' => 'REGULAR', 'version' => 1],
-                ['effective_from' => Carbon::today(), 'rules' => [], 'description' => 'Kebijakan awal — belum ada aturan potongan/reward.'],
-            );
+        $policy = PayrollPolicy::firstOrCreate(
+            ['company_id' => $request->user()->company_id, 'code' => 'REGULAR', 'version' => 1],
+            ['effective_from' => Carbon::today(), 'rules' => [], 'description' => 'Kebijakan awal — belum ada aturan potongan/reward.'],
+        );
 
-            $attendanceRules = $policy->rules['attendance'] ?? [];
-            $overtimeRules = $policy->rules['overtime'] ?? [];
+        $attendanceRules = $policy->rules['attendance'] ?? [];
+        $overtimeRules = $policy->rules['overtime'] ?? [];
 
-            return [
+        return Inertia::render('hrd/attendance-policy', [
+            'policy' => [
                 'id' => $policy->id,
-                'company' => ['id' => $company->id, 'name' => $company->name],
                 'late_deduction_per_minute' => (string) ($attendanceRules['late_deduction_per_minute'] ?? '0'),
                 'absence_deduction_per_day' => (string) ($attendanceRules['absence_deduction_per_day'] ?? '0'),
                 'perfect_attendance_reward' => (string) ($attendanceRules['perfect_attendance_reward'] ?? '0'),
                 'overtime_rate_per_hour' => (string) ($overtimeRules['rate_per_hour'] ?? '0'),
-            ];
-        });
-
-        return Inertia::render('hrd/attendance-policy', ['policies' => $policies]);
+            ],
+        ]);
     }
 
     /**
@@ -52,18 +55,20 @@ class PayrollPolicyController extends Controller
      */
     public function update(UpdatePayrollPolicyRequest $request, PayrollPolicy $policy, PayrollAuditLogger $auditLogger): RedirectResponse
     {
+        $this->assertOwnCompany($request, $policy->company_id);
+
         $validated = $request->validated();
 
         $before = $policy->rules;
 
         $after = [
             'attendance' => [
-                'late_deduction_per_minute' => number_format((float) $validated['late_deduction_per_minute'], 2, '.', ''),
-                'absence_deduction_per_day' => number_format((float) $validated['absence_deduction_per_day'], 2, '.', ''),
-                'perfect_attendance_reward' => number_format((float) $validated['perfect_attendance_reward'], 2, '.', ''),
+                'late_deduction_per_minute' => PayrollMoney::decimal((string) $validated['late_deduction_per_minute']),
+                'absence_deduction_per_day' => PayrollMoney::decimal((string) $validated['absence_deduction_per_day']),
+                'perfect_attendance_reward' => PayrollMoney::decimal((string) $validated['perfect_attendance_reward']),
             ],
             'overtime' => [
-                'rate_per_hour' => number_format((float) $validated['overtime_rate_per_hour'], 2, '.', ''),
+                'rate_per_hour' => PayrollMoney::decimal((string) $validated['overtime_rate_per_hour']),
             ],
         ];
 

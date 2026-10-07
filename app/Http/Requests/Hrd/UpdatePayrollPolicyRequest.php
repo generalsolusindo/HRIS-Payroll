@@ -19,10 +19,10 @@ class UpdatePayrollPolicyRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'late_deduction_per_minute' => ['required', 'numeric', 'min:0'],
-            'absence_deduction_per_day' => ['required', 'numeric', 'min:0'],
-            'perfect_attendance_reward' => ['required', 'numeric', 'min:0'],
-            'overtime_rate_per_hour' => ['required', 'numeric', 'min:0'],
+            'late_deduction_per_minute' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
+            'absence_deduction_per_day' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
+            'perfect_attendance_reward' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
+            'overtime_rate_per_hour' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
             'reason' => ['nullable', 'string', 'max:2000'],
         ];
     }

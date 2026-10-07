@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Finance;
 
+use App\Models\AttendanceReview;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -60,6 +61,14 @@ class PayrollPaymentTest extends TestCase
             'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        // A payroll eligible for approval needs a complete, reviewed attendance day.
+        AttendanceReview::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'present',
+            'source_snapshot' => [], 'schedule_snapshot' => [],
+            'correction_reason' => 'Kehadiran diverifikasi HRD untuk fixture payroll.',
+            'validated_by' => $hrd->id, 'validated_at' => now(),
         ]);
         $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
 
@@ -175,7 +184,7 @@ class PayrollPaymentTest extends TestCase
             ->post(route('finance.entri.bayar', $entry), [
                 'amount' => '3000000', 'method' => 'bank_transfer', 'idempotency_key' => (string) Str::uuid(),
             ])
-            ->assertStatus(422);
+            ->assertSessionHasErrors('status');
 
         $this->assertSame(0, PayrollPayment::count());
     }
@@ -390,5 +399,48 @@ class PayrollPaymentTest extends TestCase
         $this->actingAs($otherFinance)
             ->get(route('finance.pembayaran.bukti', $payment))
             ->assertForbidden();
+    }
+
+    public function test_full_payment_retry_and_mismatched_retry_have_no_duplicate_payment_or_orphan_proof(): void
+    {
+        [$finance, $run] = $this->makeFinanceAndApprovedRun();
+        $this->actingAs($finance)->patch(route('finance.payroll.kunci', $run))->assertSessionDoesntHaveErrors();
+        $this->assertNotNull($run->fresh()->locked_at);
+        $entry = $run->entries()->firstOrFail();
+        $key = (string) Str::uuid();
+        foreach ([1, 2] as $attempt) {
+            $this->post(route('finance.entri.bayar', $entry), [
+                'amount' => '3000000.00', 'method' => 'bank_transfer', 'idempotency_key' => $key,
+                'proof' => UploadedFile::fake()->create('bukti.pdf', 10, 'application/pdf'),
+            ])->assertSessionDoesntHaveErrors()->assertRedirect();
+        }
+        $this->assertSame('paid', $run->fresh()->status);
+        $this->assertSame(1, $entry->payments()->count());
+        $this->assertCount(1, Storage::disk('payment_proofs')->allFiles());
+        $this->post(route('finance.entri.bayar', $entry), [
+            'amount' => '1.00', 'method' => 'bank_transfer', 'idempotency_key' => $key,
+            'proof' => UploadedFile::fake()->create('bukti.pdf', 10, 'application/pdf'),
+        ])->assertSessionHasErrors('idempotency_key');
+        $this->assertCount(1, Storage::disk('payment_proofs')->allFiles());
+    }
+
+    public function test_fractional_payment_keeps_exact_remaining_balance_and_cleans_rejected_proof(): void
+    {
+        [$finance, $run] = $this->makeFinanceAndApprovedRun();
+        $this->actingAs($finance)->patch(route('finance.payroll.kunci', $run));
+        $entry = $run->entries()->firstOrFail();
+        $this->post(route('finance.entri.bayar', $entry), [
+            'amount' => '2999999.99', 'method' => 'cash', 'idempotency_key' => (string) Str::uuid(),
+        ])->assertSessionDoesntHaveErrors();
+        $this->get(route('finance.payroll.show', $run))->assertInertia(fn ($page) => $page->where('entries.0.remaining_amount', '0.01'));
+        $this->post(route('finance.entri.bayar', $entry), [
+            'amount' => '0.02', 'method' => 'cash', 'idempotency_key' => (string) Str::uuid(),
+            'proof' => UploadedFile::fake()->create('bukti.pdf', 10, 'application/pdf'),
+        ])->assertSessionHasErrors('amount');
+        $this->assertCount(0, Storage::disk('payment_proofs')->allFiles());
+        $this->post(route('finance.entri.bayar', $entry), [
+            'amount' => '0.01', 'method' => 'cash', 'idempotency_key' => (string) Str::uuid(),
+        ])->assertSessionDoesntHaveErrors();
+        $this->assertSame('paid', $run->fresh()->status);
     }
 }

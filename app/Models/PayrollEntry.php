@@ -22,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $deduction_amount
  * @property string $reward_amount
  * @property string $employer_contribution_amount
- * @property string $net_amount
+ * @property numeric-string $net_amount
  * @property string|null $note
  */
 class PayrollEntry extends Model

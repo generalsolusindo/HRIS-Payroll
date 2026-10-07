@@ -20,7 +20,7 @@ class StorePayrollPaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount' => ['required', 'numeric', 'min:0.01', 'regex:/^\d{1,16}(?:\.\d{1,2})?$/D'],
             'method' => ['required', Rule::in(['bank_transfer', 'cash', 'other'])],
             'reference' => ['nullable', 'string', 'max:255'],
             'proof' => ['nullable', 'file', 'mimes:jpeg,png,webp,pdf', 'max:5120'],

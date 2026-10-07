@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Hrd;
 
+use App\Models\AttendanceReview;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -42,6 +43,14 @@ class PayrollPayslipTest extends TestCase
             'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        // A payroll eligible for approval needs a complete, reviewed attendance day.
+        AttendanceReview::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'present',
+            'source_snapshot' => [], 'schedule_snapshot' => [],
+            'correction_reason' => 'Kehadiran diverifikasi HRD untuk fixture payroll.',
+            'validated_by' => $hrd->id, 'validated_at' => now(),
         ]);
         $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
 

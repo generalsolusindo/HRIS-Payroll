@@ -31,8 +31,8 @@ class UpdatePayrollProfileRequest extends FormRequest
             'bank_account_number' => ['nullable', 'string', 'max:255'],
             'bank_account_holder' => ['nullable', 'string', 'max:255'],
             'components' => ['required', 'array', 'min:1'],
-            'components.*.payroll_component_id' => ['required', 'integer'],
-            'components.*.amount' => ['required', 'numeric', 'min:0'],
+            'components.*.payroll_component_id' => ['required', 'integer', 'distinct'],
+            'components.*.amount' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
             'reason' => ['nullable', 'string', 'max:2000'],
         ];
     }
@@ -52,6 +52,7 @@ class UpdatePayrollProfileRequest extends FormRequest
             if ($componentIds->isNotEmpty()) {
                 $validCount = PayrollComponent::whereIn('id', $componentIds)
                     ->where('company_id', $targetUser->company_id)
+                    ->where('type', 'earning')->where('is_active', true)
                     ->count();
                 if ($validCount !== $componentIds->unique()->count()) {
                     $validator->errors()->add('components', 'Salah satu komponen gaji tidak tersedia untuk instansi karyawan ini.');

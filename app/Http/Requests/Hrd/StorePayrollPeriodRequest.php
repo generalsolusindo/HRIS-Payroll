@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Hrd;
 
-use App\Models\Company;
 use App\Models\PayrollPeriod;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -12,7 +11,9 @@ class StorePayrollPeriodRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // Gated by the route's auth/active/role:hrd middleware.
+        // Gated by the route's auth/active/role:hrd middleware; company_id
+        // is assigned server-side from the actor, never accepted from the
+        // client.
         return true;
     }
 
@@ -22,10 +23,9 @@ class StorePayrollPeriodRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'company_id' => ['required', Rule::exists(Company::class, 'id')],
             'code' => [
                 'required', 'string', 'max:40',
-                Rule::unique(PayrollPeriod::class)->where(fn ($query) => $query->where('company_id', $this->input('company_id'))),
+                Rule::unique(PayrollPeriod::class)->where(fn ($query) => $query->where('company_id', $this->user()->company_id)),
             ],
             'name' => ['required', 'string', 'max:255'],
             'starts_on' => ['required', 'date'],

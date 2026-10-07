@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Hrd;
 
+use App\Models\AttendanceReview;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -42,6 +43,14 @@ class PayrollRunSubmissionTest extends TestCase
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);
 
+        // A payroll eligible for approval needs a complete, reviewed attendance day.
+        AttendanceReview::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'present',
+            'source_snapshot' => [], 'schedule_snapshot' => [],
+            'correction_reason' => 'Kehadiran diverifikasi HRD untuk fixture payroll.',
+            'validated_by' => $hrd->id, 'validated_at' => now(),
+        ]);
         $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
 
         return $period;
@@ -140,5 +149,52 @@ class PayrollRunSubmissionTest extends TestCase
             'payroll_run_id' => $firstRun->id, 'action' => 'superseded',
             'from_status' => 'revision_requested', 'to_status' => 'superseded',
         ]);
+    }
+
+    public function test_incomplete_attendance_blocks_submission_and_refresh_rebuilds_corrected_draft(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($hrd);
+        $run = $period->runs()->firstOrFail();
+        $review = AttendanceReview::firstOrFail();
+        $review->update(['classification' => 'unresolved', 'status' => 'draft', 'version' => 2]);
+        $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.ajukan', $run))->assertSessionHasErrors('readiness');
+        $this->assertSame('draft', $run->fresh()->status);
+        $this->assertSame(0, $run->approvals()->count());
+        $review->update(['classification' => 'present', 'status' => 'validated', 'version' => 3]);
+        // The old snapshot must still be rejected even after the review is fixed.
+        $this->patch(route('hrd.hasil-payroll.ajukan', $run))->assertSessionHasErrors('readiness');
+        $this->post(route('hrd.periode-gaji.perbarui-draft', $period))->assertSessionDoesntHaveErrors();
+        $newRun = $period->runs()->latest('version')->firstOrFail();
+        $this->assertSame(2, $newRun->version);
+        $this->assertSame('superseded', $run->fresh()->status);
+        $this->patch(route('hrd.hasil-payroll.ajukan', $newRun))->assertSessionDoesntHaveErrors();
+        $this->assertSame('submitted', $newRun->fresh()->status);
+        $this->post(route('hrd.periode-gaji.perbarui-draft', $period))->assertSessionHasErrors('period');
+    }
+
+    public function test_missing_employee_future_window_and_inconsistent_total_block_submission(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($hrd);
+        $run = $period->runs()->firstOrFail();
+        $extra = User::factory()->create(['role' => 'karyawan', 'status' => 'active', 'company_id' => $hrd->company_id]);
+        $this->patch(route('hrd.hasil-payroll.ajukan', $run))->assertSessionHasErrors('readiness');
+        $extra->forceFill(['status' => 'inactive'])->save();
+        $period->update(['attendance_ends_on' => today()->addDay()]);
+        $this->patch(route('hrd.hasil-payroll.ajukan', $run))->assertSessionHasErrors('readiness');
+        $period->update(['attendance_ends_on' => '2026-09-28']);
+        $run->update(['net_total' => '1.00']);
+        $this->patch(route('hrd.hasil-payroll.ajukan', $run))->assertSessionHasErrors('readiness');
+        $this->assertSame('draft', $run->fresh()->status);
+    }
+
+    public function test_another_company_cannot_refresh_a_draft(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($hrd);
+        $other = User::factory()->create(['role' => 'hrd']);
+        $this->actingAs($other)->post(route('hrd.periode-gaji.perbarui-draft', $period))->assertForbidden();
+        $this->assertSame(1, $period->runs()->count());
     }
 }

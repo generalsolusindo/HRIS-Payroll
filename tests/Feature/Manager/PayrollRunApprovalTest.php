@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Manager;
 
+use App\Models\AttendanceReview;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -39,6 +40,14 @@ class PayrollRunApprovalTest extends TestCase
             'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        // A payroll eligible for approval needs a complete, reviewed attendance day.
+        AttendanceReview::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'present',
+            'source_snapshot' => [], 'schedule_snapshot' => [],
+            'correction_reason' => 'Kehadiran diverifikasi HRD untuk fixture payroll.',
+            'validated_by' => $hrd->id, 'validated_at' => now(),
         ]);
         $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
 
@@ -209,5 +218,15 @@ class PayrollRunApprovalTest extends TestCase
         $this->actingAs($manager)
             ->get(route('manager.payroll.show', $otherCompanysRun))
             ->assertForbidden();
+    }
+
+    public function test_manager_must_request_revision_if_attendance_changed_after_submission(): void
+    {
+        [$manager, $run] = $this->makeManagerAndSubmittedRun();
+        AttendanceReview::where('company_id', $manager->company_id)->update(['version' => 2]);
+        $this->actingAs($manager)->patch(route('manager.payroll.approve', $run))->assertSessionHasErrors('readiness');
+        $this->assertSame('submitted', $run->fresh()->status);
+        $this->patch(route('manager.payroll.revisi', $run), ['note' => 'Absensi berubah, hitung ulang.'])->assertSessionDoesntHaveErrors();
+        $this->assertSame('revision_requested', $run->fresh()->status);
     }
 }

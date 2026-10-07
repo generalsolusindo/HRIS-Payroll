@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AttendanceReview;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -12,6 +13,7 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class PenggajianTest extends TestCase
@@ -41,6 +43,14 @@ class PenggajianTest extends TestCase
             'company_id' => $employee->company_id, 'code' => '2026-09', 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        // A payroll eligible for approval needs a complete, reviewed attendance day.
+        AttendanceReview::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'present',
+            'source_snapshot' => [], 'schedule_snapshot' => [],
+            'correction_reason' => 'Kehadiran diverifikasi HRD untuk fixture payroll.',
+            'validated_by' => $hrd->id, 'validated_at' => now(),
         ]);
         $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
 
@@ -116,6 +126,52 @@ class PenggajianTest extends TestCase
         $this->actingAs($viewerHrd)
             ->get(route('penggajian.show', $payslip))
             ->assertOk();
+    }
+
+    public function test_published_slip_totals_remain_consistent_through_partial_payment_and_void(): void
+    {
+        // The helper calculates as HRD, submits, approves as Manager, then publishes.
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        $payslip = $this->makePublishedPayslip($employee);
+        $snapshot = $payslip->snapshot;
+        $entry = $payslip->entry;
+        $run = $entry->run;
+        $finance = User::factory()->create(['role' => 'finance', 'company_id' => $employee->company_id]);
+
+        $earnings = collect($snapshot['lines'])->where('type', 'earning')->sum('amount');
+        $deductions = collect($snapshot['lines'])->where('type', 'deduction')->sum('amount');
+        $this->assertSame('3000000.00', number_format($earnings - $deductions, 2, '.', ''));
+        $this->assertSame($entry->net_amount, $snapshot['net_amount']);
+        $this->assertSame($run->net_total, $snapshot['net_amount']);
+
+        $this->actingAs($finance)->patch(route('finance.payroll.kunci', $run))
+            ->assertRedirect()->assertSessionDoesntHaveErrors();
+
+        foreach (['1000000', '2000000'] as $index => $amount) {
+            $this->actingAs($finance)->post(route('finance.entri.bayar', $entry), [
+                'amount' => $amount,
+                'method' => 'bank_transfer',
+                'idempotency_key' => (string) Str::uuid(),
+            ])->assertRedirect()->assertSessionDoesntHaveErrors();
+
+            $this->assertSame($index === 0 ? 'partially_paid' : 'paid', $run->fresh()->status);
+        }
+
+        $this->assertSame('3000000.00', number_format((float) $entry->payments()->where('status', 'confirmed')->sum('amount'), 2, '.', ''));
+        $lastPayment = $entry->payments()->latest('id')->firstOrFail();
+        $this->actingAs($finance)->patch(route('finance.pembayaran.batalkan', $lastPayment), [
+            'note' => 'Koreksi pencatatan pembayaran kedua.',
+        ])->assertRedirect()->assertSessionDoesntHaveErrors();
+
+        $this->assertSame('partially_paid', $run->fresh()->status);
+        $this->assertSame($snapshot, $payslip->fresh()->snapshot);
+        $this->actingAs($employee)->get(route('penggajian.show', $payslip))
+            ->assertOk()->assertInertia(fn ($page) => $page
+            ->component('penggajian-detail')
+            ->where('payslip.snapshot.net_amount', '3000000.00')
+            ->where('payslip.snapshot.gross_amount', $snapshot['gross_amount'])
+            ->where('payslip.snapshot.deduction_amount', $snapshot['deduction_amount'])
+            );
     }
 
     public function test_a_superseded_payslip_no_longer_appears_in_the_employees_list(): void

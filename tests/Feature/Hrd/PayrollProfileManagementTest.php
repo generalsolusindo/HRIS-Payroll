@@ -164,6 +164,42 @@ class PayrollProfileManagementTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_hrd_cannot_view_or_edit_another_companys_employee_profile(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherHrd = User::factory()->create(['role' => 'hrd']);
+        $otherEmployee = User::factory()->create(['company_id' => $otherHrd->company_id, 'role' => 'karyawan']);
+        $otherDivision = Division::create(['company_id' => $otherHrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $otherComponent = PayrollComponent::create([
+            'company_id' => $otherHrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'type' => 'earning', 'category' => 'base_salary',
+        ]);
+
+        $this->actingAs($hrd)
+            ->get(route('hrd.profil-gaji.edit', $otherEmployee))
+            ->assertForbidden();
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.profil-gaji.update', $otherEmployee), $this->payload($otherDivision, [
+                ['payroll_component_id' => $otherComponent->id, 'amount' => '2500000'],
+            ]))
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('employee_payroll_profiles', ['user_id' => $otherEmployee->id]);
+    }
+
+    public function test_hrd_only_sees_their_own_companys_employees(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherHrd = User::factory()->create(['role' => 'hrd']);
+        User::factory()->create(['company_id' => $otherHrd->company_id, 'role' => 'karyawan', 'name' => 'Karyawan Perusahaan Lain']);
+
+        $response = $this->actingAs($hrd)->get(route('hrd.profil-gaji.index'))->assertOk();
+
+        $names = collect($response->viewData('page')['props']['employees'])->pluck('name');
+        $this->assertFalse($names->contains('Karyawan Perusahaan Lain'));
+    }
+
     public function test_karyawan_cannot_access_payroll_profile_management(): void
     {
         $karyawan = User::factory()->create(['role' => 'karyawan']);

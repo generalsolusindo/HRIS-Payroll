@@ -335,7 +335,8 @@ export default function PayrollProfileEdit({
                                                 name={`components[${index}][amount]`}
                                                 type="number"
                                                 min="0"
-                                                step="1"
+                                                step="0.01"
+                                                max="999999999999.99"
                                                 placeholder="Nominal"
                                                 value={row.amount}
                                                 onChange={(event) =>
@@ -376,7 +377,7 @@ export default function PayrollProfileEdit({
                                         {new Intl.NumberFormat('id-ID', {
                                             style: 'currency',
                                             currency: 'IDR',
-                                            maximumFractionDigits: 0,
+                                            maximumFractionDigits: 2,
                                         }).format(monthlyTotal)}
                                     </span>
                                 </div>

@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Hrd;
 
-use App\Models\Company;
 use App\Models\PayrollComponent;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -12,6 +11,10 @@ class UpdatePayrollComponentRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        // Company ownership of the target component is checked in the
+        // controller (ScopesToOwnCompany); company_id itself is never
+        // reassignable from the client — a component stays in the company
+        // it was created in.
         return true;
     }
 
@@ -24,11 +27,10 @@ class UpdatePayrollComponentRequest extends FormRequest
         $component = $this->route('payroll_component');
 
         return [
-            'company_id' => ['required', Rule::exists(Company::class, 'id')],
             'code' => [
                 'required', 'string', 'max:50',
                 Rule::unique(PayrollComponent::class)
-                    ->where(fn ($query) => $query->where('company_id', $this->input('company_id')))
+                    ->where(fn ($query) => $query->where('company_id', $component->company_id))
                     ->ignore($component->id),
             ],
             'name' => ['required', 'string', 'max:255'],

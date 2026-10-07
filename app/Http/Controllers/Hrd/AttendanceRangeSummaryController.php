@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Hrd;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceReview;
 use App\Models\User;
+use App\Services\AttendanceReviewGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -14,13 +15,16 @@ use Inertia\Response;
 class AttendanceRangeSummaryController extends Controller
 {
     /**
-     * Aggregates already-reviewed attendance_reviews rows (the same
-     * classification HRD validates in Koreksi Absensi, and the same data
-     * payroll reads) over a date range — this never generates or changes
-     * reviews itself, so a day nobody has reviewed yet simply doesn't count
-     * toward any bucket below instead of being guessed from raw punches.
+     * Generates (same automatic rules as payroll: present/absent/leave/
+     * rest_day/etc., see AttendanceReviewGenerator) and then aggregates
+     * attendance_reviews rows over a date range. This is now the only
+     * place that generates reviews for an arbitrary range on demand —
+     * payroll calculation generates its own window independently, but
+     * nothing else does since Koreksi Absensi was removed, so a date a
+     * payroll run never covered would otherwise simply have no row to
+     * read here.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, AttendanceReviewGenerator $generator): Response
     {
         $today = Carbon::today()->toDateString();
         $dari = $request->string('dari')->toString() ?: Carbon::today()->startOfMonth()->toDateString();
@@ -36,6 +40,12 @@ class AttendanceRangeSummaryController extends Controller
         }
 
         $expectedDays = (int) Carbon::parse($dari)->diffInDays(Carbon::parse($sampai)) + 1;
+
+        // Future dates have nothing to generate yet.
+        $generationEnd = Carbon::parse($sampai)->min(Carbon::today());
+        for ($date = Carbon::parse($dari); $date->lte($generationEnd); $date = $date->addDay()) {
+            $generator->generateForDate($date, $request->user()->company_id);
+        }
 
         $employees = User::where('company_id', $request->user()->company_id)
             ->where('role', 'karyawan')->where('status', 'active')

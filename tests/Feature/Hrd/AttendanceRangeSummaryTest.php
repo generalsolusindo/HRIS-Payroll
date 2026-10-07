@@ -14,6 +14,12 @@ class AttendanceRangeSummaryTest extends TestCase
 
     private function makeReview(User $employee, string $date, array $overrides = []): AttendanceReview
     {
+        // correction_reason is set so AttendanceReviewGenerator::upsert's
+        // "never overwrite an already-settled row" guard leaves this fixture
+        // alone — the controller under test now regenerates every date in
+        // the requested range before aggregating, and there is no real
+        // Attendance/LeaveRequest data backing these fixtures for it to
+        // compute from.
         return AttendanceReview::create(array_merge([
             'user_id' => $employee->id,
             'company_id' => $employee->company_id,
@@ -27,6 +33,7 @@ class AttendanceRangeSummaryTest extends TestCase
             'excused_minutes' => 0,
             'source_snapshot' => [],
             'schedule_snapshot' => [],
+            'correction_reason' => 'Test fixture',
             'version' => 1,
         ], $overrides));
     }
@@ -41,7 +48,9 @@ class AttendanceRangeSummaryTest extends TestCase
         $this->makeReview($employee, '2026-10-03', ['classification' => 'absent']);
         $this->makeReview($employee, '2026-10-04', ['classification' => 'permission']);
         $this->makeReview($employee, '2026-10-05', ['classification' => 'unresolved']);
-        // 2026-10-06 intentionally has no review at all.
+        // 2026-10-06 (a Tuesday) deliberately has no fixture: the controller
+        // must generate it itself — no attendance and no leave on a workday
+        // means it comes back as an automatic "absent", same as payroll.
 
         $response = $this->actingAs($hrd)
             ->get(route('hrd.rekap-periode.index', ['dari' => '2026-10-01', 'sampai' => '2026-10-06']))
@@ -53,10 +62,10 @@ class AttendanceRangeSummaryTest extends TestCase
         $this->assertSame(2, $row['hadir']);
         $this->assertSame(1, $row['telat']);
         $this->assertSame(15, $row['telat_menit']);
-        $this->assertSame(1, $row['alpha']);
+        $this->assertSame(2, $row['alpha']);
         $this->assertSame(1, $row['izin']);
         $this->assertSame(1, $row['perlu_konfirmasi']);
-        $this->assertSame(5, $row['reviewed_days']);
+        $this->assertSame(6, $row['reviewed_days']);
         $this->assertSame(6, $row['expected_days']);
     }
 

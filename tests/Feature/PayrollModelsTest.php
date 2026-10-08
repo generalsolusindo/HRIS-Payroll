@@ -36,7 +36,9 @@ class PayrollModelsTest extends TestCase
 
     public function test_the_full_payroll_chain_can_be_built_and_read_back_through_eloquent(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'bank_name' => 'BCA', 'bank_account_number' => '1234567890', 'bank_account_holder' => 'Pemilik Rekening',
+        ]);
         $hrd = User::factory()->create(['role' => 'hrd']);
         $manager = User::factory()->create(['role' => 'admin']);
         $finance = User::factory()->create(['role' => 'finance']);
@@ -68,17 +70,15 @@ class PayrollModelsTest extends TestCase
             'division_id' => $division->id, 'position_id' => $user->position_id,
             'effective_from' => '2026-10-01', 'employment_started_on' => '2026-10-01',
             'employment_type' => 'permanent',
-            'bank_name' => 'BCA', 'bank_account_number' => '1234567890',
-            'bank_account_holder' => $user->name,
             'created_by' => $hrd->id,
         ]);
 
-        // Bank account number must be encrypted at rest — same expectation
-        // as User::face_descriptor.
-        $rawStoredValue = DB::table('employee_payroll_profiles')
-            ->where('id', $profile->id)->value('bank_account_number');
+        // Bank account number lives on the user account and must be
+        // encrypted at rest — same expectation as User::face_descriptor.
+        $rawStoredValue = DB::table('users')
+            ->where('id', $user->id)->value('bank_account_number');
         $this->assertNotSame('1234567890', $rawStoredValue);
-        $this->assertSame('1234567890', $profile->fresh()->bank_account_number);
+        $this->assertSame('1234567890', $user->fresh()->bank_account_number);
 
         EmployeeSalaryComponent::create([
             'employee_payroll_profile_id' => $profile->id,

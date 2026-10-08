@@ -24,6 +24,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $name
  * @property string $email
  * @property string|null $phone
+ * @property string|null $bank_name
+ * @property string|null $bank_account_number
+ * @property string|null $bank_account_holder
  * @property string $role
  * @property string $status
  * @property array<int, float>|null $face_descriptor
@@ -37,7 +40,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['company_id', 'position_id', 'employee_number', 'name', 'email', 'phone', 'password'])]
+#[Fillable(['company_id', 'position_id', 'employee_number', 'name', 'email', 'phone', 'password', 'bank_name', 'bank_account_number', 'bank_account_holder'])]
 // face_descriptor is deliberately never mass-assignable or serialized —
 // it's biometric data and must only ever be set via an explicit enrollment
 // code path, never via fill()/create(), and never sent to the frontend
@@ -167,6 +170,9 @@ class User extends Authenticatable implements PasskeyUser
             'two_factor_confirmed_at' => 'datetime',
             'face_descriptor' => 'encrypted:array',
             'face_enrolled_at' => 'datetime',
+            // Same sensitivity reasoning as face_descriptor — never plaintext at rest.
+            'bank_account_number' => 'encrypted',
+            'bank_account_holder' => 'encrypted',
         ];
     }
 }

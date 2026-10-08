@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Position;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -109,6 +110,51 @@ class UserManagementTest extends TestCase
         $this->assertSame('hrd', $created->role);
         $this->assertSame('active', $created->status);
         $this->assertTrue(Hash::check('Password123!', $created->password));
+    }
+
+    public function test_bank_details_can_be_set_on_creation_and_are_encrypted_at_rest(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        [$company, $position] = $this->makeCompanyWithPosition();
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.users.store'), $this->payload($company, $position, [
+                'bank_name' => 'BCA',
+                'bank_account_number' => '9876543210',
+                'bank_account_holder' => 'Karyawan Baru',
+            ]))
+            ->assertSessionDoesntHaveErrors();
+
+        $created = User::where('email', 'baru@example.com')->firstOrFail();
+        $raw = DB::table('users')->where('id', $created->id)->value('bank_account_number');
+        $this->assertNotSame('9876543210', $raw);
+        $this->assertSame('9876543210', $created->bank_account_number);
+        $this->assertSame('BCA', $created->bank_name);
+    }
+
+    public function test_leaving_bank_account_number_blank_on_edit_keeps_the_existing_value(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        [$company, $position] = $this->makeCompanyWithPosition();
+        $target = User::factory()->create([
+            'company_id' => $company->id, 'position_id' => $position->id,
+            'bank_name' => 'BCA', 'bank_account_number' => '1111111111', 'bank_account_holder' => 'Lama',
+        ]);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.users.update', $target), [
+                'name' => $target->name, 'email' => $target->email, 'phone' => $target->phone,
+                'employee_number' => null, 'company_id' => $company->id, 'position_id' => $position->id,
+                'role' => $target->role, 'status' => $target->status,
+                'bank_name' => 'Mandiri', 'bank_account_number' => '', 'bank_account_holder' => 'Baru',
+                'password' => '', 'password_confirmation' => '',
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $fresh = $target->fresh();
+        $this->assertSame('1111111111', $fresh->bank_account_number, 'Blank bank_account_number must not overwrite the existing one.');
+        $this->assertSame('Mandiri', $fresh->bank_name);
+        $this->assertSame('Baru', $fresh->bank_account_holder);
     }
 
     public function test_creating_a_user_rejects_a_position_that_does_not_belong_to_the_chosen_company(): void

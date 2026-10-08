@@ -122,6 +122,7 @@ const sources: Record<string, string> = {
     attendance: 'Absensi',
     overtime: 'Lembur',
     reward: 'Reward',
+    allowance: 'Tunjangan',
     manual: 'Manual',
     adjustment: 'Penyesuaian',
 };

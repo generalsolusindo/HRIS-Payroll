@@ -2,31 +2,36 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\StoreDivisionRequest;
 use App\Http\Requests\Hrd\UpdateDivisionRequest;
-use App\Models\Company;
 use App\Models\Division;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DivisionController extends Controller
 {
-    public function index(): Response
+    use ScopesToOwnCompany;
+
+    public function index(Request $request): Response
     {
         return Inertia::render('hrd/divisions', [
-            'divisions' => Division::with('company:id,name')
+            'divisions' => Division::where('company_id', $request->user()->company_id)
                 ->orderBy('name')
-                ->get(['id', 'company_id', 'code', 'name', 'is_active']),
-            'companies' => Company::orderBy('name')->get(['id', 'name']),
+                ->get(['id', 'code', 'name', 'is_active', 'default_base_salary', 'daily_attendance_allowance']),
         ]);
     }
 
     public function store(StoreDivisionRequest $request): RedirectResponse
     {
-        $division = Division::create($request->validated());
+        $division = Division::create([
+            ...$request->validated(),
+            'company_id' => $request->user()->company_id,
+        ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Divisi {$division->name} berhasil dibuat."]);
 
@@ -35,6 +40,8 @@ class DivisionController extends Controller
 
     public function update(UpdateDivisionRequest $request, Division $division): RedirectResponse
     {
+        $this->assertOwnCompany($request, $division->company_id);
+
         $division->update($request->validated());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Divisi {$division->name} berhasil diperbarui."]);
@@ -42,8 +49,10 @@ class DivisionController extends Controller
         return back();
     }
 
-    public function destroy(Division $division): RedirectResponse
+    public function destroy(Request $request, Division $division): RedirectResponse
     {
+        $this->assertOwnCompany($request, $division->company_id);
+
         if ($division->employeePayrollProfiles()->exists()) {
             throw ValidationException::withMessages([
                 'division' => "Divisi {$division->name} masih dipakai oleh profil gaji karyawan — nonaktifkan saja, bukan hapus.",

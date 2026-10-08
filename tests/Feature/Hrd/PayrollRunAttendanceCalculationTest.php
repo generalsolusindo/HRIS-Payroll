@@ -3,6 +3,7 @@
 namespace Tests\Feature\Hrd;
 
 use App\Models\Attendance;
+use App\Models\AttendanceReview;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -198,6 +199,112 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $this->assertSame(0, $entry->attendance_snapshot['unresolved_days']);
         $this->assertSame(1, $entry->attendance_snapshot['absent_days']);
         $this->assertNull($entry->lines()->where('line_key', 'attendance-perfect-reward')->first());
+    }
+
+    public function test_attendance_allowance_is_paid_per_full_day_present_at_the_divisions_daily_rate(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $this->setAttendanceRates($hrd->company_id, '0', '0', '0');
+        $division = Division::create([
+            'company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional',
+            'daily_attendance_allowance' => '50000',
+        ]);
+        $base = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'type' => 'earning', 'category' => 'base_salary',
+        ]);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
+        $this->makeProfile($employee, $division, [[$base, '3000000']]);
+
+        Attendance::create([
+            'user_id' => $employee->id, 'tanggal' => '2026-09-28',
+            'clock_in_time' => '2026-09-28 08:00:00', 'clock_in_status' => 'tepat_waktu', 'clock_in_late_minutes' => 0,
+            'clock_out_time' => '2026-09-28 17:00:00', 'clock_out_status' => 'tepat_waktu', 'clock_out_early_minutes' => 0,
+        ]);
+
+        $period = PayrollPeriod::create([
+            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
+            'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period))->assertSessionDoesntHaveErrors();
+
+        $entry = PayrollEntry::where('user_id', $employee->id)->firstOrFail();
+        $line = $entry->lines()->where('line_key', 'attendance-allowance')->firstOrFail();
+        $this->assertSame('allowance', $line->category);
+        $this->assertSame('allowance', $line->source);
+        $this->assertSame('earning', $line->type);
+        $this->assertEqualsWithDelta(50_000.0, (float) $line->amount, 0.001);
+        $this->assertEqualsWithDelta(3_050_000.0, (float) $entry->gross_amount, 0.001);
+    }
+
+    public function test_attendance_allowance_pays_half_rate_for_a_half_day(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $this->setAttendanceRates($hrd->company_id, '0', '0', '0');
+        $division = Division::create([
+            'company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional',
+            'daily_attendance_allowance' => '50000',
+        ]);
+        $base = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'type' => 'earning', 'category' => 'base_salary',
+        ]);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
+        $this->makeProfile($employee, $division, [[$base, '3000000']]);
+
+        // A hand-corrected half_day — the default work schedule's 8-hour
+        // shift isn't under test here, only the allowance payout rule.
+        AttendanceReview::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'half_day',
+            'correction_reason' => 'Pulang lebih awal karena urusan keluarga, dikonfirmasi HRD.',
+            'source_snapshot' => [], 'schedule_snapshot' => [], 'version' => 1,
+        ]);
+
+        $period = PayrollPeriod::create([
+            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
+            'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
+
+        $entry = PayrollEntry::where('user_id', $employee->id)->firstOrFail();
+        $line = $entry->lines()->where('line_key', 'attendance-allowance')->firstOrFail();
+        $this->assertEqualsWithDelta(25_000.0, (float) $line->amount, 0.001);
+        $this->assertFalse($entry->attendance_snapshot['perfect_attendance'], 'A half day must not count as perfect attendance.');
+    }
+
+    public function test_a_division_with_the_default_zero_allowance_rate_never_adds_an_allowance_line(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $this->setAttendanceRates($hrd->company_id, '0', '0', '0');
+        // Deliberately not setting daily_attendance_allowance — the column
+        // defaults to 0, which must mean "no automatic allowance line".
+        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $base = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'type' => 'earning', 'category' => 'base_salary',
+        ]);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
+        $this->makeProfile($employee, $division, [[$base, '3000000']]);
+
+        Attendance::create([
+            'user_id' => $employee->id, 'tanggal' => '2026-09-28',
+            'clock_in_time' => '2026-09-28 08:00:00', 'clock_in_status' => 'tepat_waktu', 'clock_in_late_minutes' => 0,
+            'clock_out_time' => '2026-09-28 17:00:00', 'clock_out_status' => 'tepat_waktu', 'clock_out_early_minutes' => 0,
+        ]);
+
+        $period = PayrollPeriod::create([
+            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
+            'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
+
+        $entry = PayrollEntry::where('user_id', $employee->id)->firstOrFail();
+        $this->assertNull($entry->lines()->where('line_key', 'attendance-allowance')->first());
+        $this->assertEqualsWithDelta(3_000_000.0, (float) $entry->gross_amount, 0.001);
     }
 
     public function test_run_totals_aggregate_deduction_and_reward_across_employees(): void

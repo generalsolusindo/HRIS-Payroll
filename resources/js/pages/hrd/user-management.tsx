@@ -38,6 +38,8 @@ type UserRow = {
     status: string;
     company: { id: number; name: string };
     position: { id: number; name: string };
+    bank_name: string | null;
+    bank_account_holder: string | null;
 };
 
 type PaginatedUsers = {
@@ -216,6 +218,47 @@ function UserFormFields({
                     </SelectContent>
                 </Select>
                 <InputError message={errors.position_id} />
+            </div>
+
+            <div className="grid gap-4 rounded-2xl border p-4">
+                <p className="text-xs font-medium text-muted-foreground">
+                    Rekening bank (opsional) — dipakai Finance saat mencatat
+                    pembayaran gaji.
+                </p>
+                <div className="grid gap-2">
+                    <Label htmlFor="bank_name">Nama Bank</Label>
+                    <Input
+                        id="bank_name"
+                        name="bank_name"
+                        defaultValue={defaultValues?.bank_name ?? ''}
+                        placeholder="BCA"
+                    />
+                    <InputError message={errors.bank_name} />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor="bank_account_number">
+                        {isEdit
+                            ? 'Nomor Rekening (kosongkan jika tidak diubah)'
+                            : 'Nomor Rekening'}
+                    </Label>
+                    <Input
+                        id="bank_account_number"
+                        name="bank_account_number"
+                        placeholder={isEdit ? '••••••••••' : '1234567890'}
+                    />
+                    <InputError message={errors.bank_account_number} />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor="bank_account_holder">
+                        Nama Pemilik Rekening
+                    </Label>
+                    <Input
+                        id="bank_account_holder"
+                        name="bank_account_holder"
+                        defaultValue={defaultValues?.bank_account_holder ?? ''}
+                    />
+                    <InputError message={errors.bank_account_holder} />
+                </div>
             </div>
 
             <div className="grid gap-2">

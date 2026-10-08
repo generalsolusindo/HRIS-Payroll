@@ -18,9 +18,6 @@ use Illuminate\Support\Carbon;
  * @property Carbon $employment_started_on
  * @property Carbon|null $employment_ended_on
  * @property string $employment_type
- * @property string|null $bank_name
- * @property string|null $bank_account_number
- * @property string|null $bank_account_holder
  * @property string|null $tax_identity
  * @property string|null $insurance_identity
  * @property int|null $created_by
@@ -31,7 +28,6 @@ class EmployeePayrollProfile extends Model
         'user_id', 'company_id', 'division_id', 'position_id',
         'effective_from', 'effective_until',
         'employment_started_on', 'employment_ended_on', 'employment_type',
-        'bank_name', 'bank_account_number', 'bank_account_holder',
         'tax_identity', 'insurance_identity', 'created_by',
     ];
 
@@ -42,10 +38,8 @@ class EmployeePayrollProfile extends Model
             'effective_until' => 'date',
             'employment_started_on' => 'date',
             'employment_ended_on' => 'date',
-            // Bank/tax/insurance identity — biometric-adjacent sensitivity,
-            // same reasoning as User::face_descriptor: never plaintext at rest.
-            'bank_account_number' => 'encrypted',
-            'bank_account_holder' => 'encrypted',
+            // Tax/insurance identity — biometric-adjacent sensitivity, same
+            // reasoning as User::face_descriptor: never plaintext at rest.
             'tax_identity' => 'encrypted',
             'insurance_identity' => 'encrypted',
         ];

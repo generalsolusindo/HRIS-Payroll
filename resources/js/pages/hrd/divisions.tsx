@@ -22,60 +22,40 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 
-type Company = { id: number; name: string };
+function formatRupiah(value: string): string {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+    }).format(Number(value));
+}
 
 type DivisionRow = {
     id: number;
     code: string;
     name: string;
     is_active: boolean;
-    company: Company;
+    default_base_salary: string;
+    daily_attendance_allowance: string;
 };
 
 type Props = {
     divisions: DivisionRow[];
-    companies: Company[];
 };
 
 function DivisionFormFields({
-    companies,
     defaultValues,
     errors,
 }: {
-    companies: Company[];
     defaultValues?: DivisionRow;
     errors: Record<string, string | undefined>;
 }) {
-    const [companyId, setCompanyId] = useState(
-        defaultValues ? String(defaultValues.company.id) : '',
-    );
     const [isActive, setIsActive] = useState(
         defaultValues ? (defaultValues.is_active ? '1' : '0') : '1',
     );
 
     return (
         <div className="grid gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor="company_id">Instansi</Label>
-                <input type="hidden" name="company_id" value={companyId} />
-                <Select value={companyId} onValueChange={setCompanyId}>
-                    <SelectTrigger id="company_id" className="w-full">
-                        <SelectValue placeholder="-- Pilih Instansi --" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {companies.map((company) => (
-                            <SelectItem
-                                key={company.id}
-                                value={String(company.id)}
-                            >
-                                {company.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <InputError message={errors.company_id} />
-            </div>
-
             <div className="grid gap-2">
                 <Label htmlFor="code">Kode</Label>
                 <Input
@@ -101,6 +81,50 @@ function DivisionFormFields({
             </div>
 
             <div className="grid gap-2">
+                <Label htmlFor="default_base_salary">
+                    Gaji Pokok Default (Rp)
+                </Label>
+                <Input
+                    id="default_base_salary"
+                    name="default_base_salary"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    defaultValue={defaultValues?.default_base_salary ?? '0'}
+                />
+                <p className="text-xs text-muted-foreground">
+                    Terisi otomatis sebagai Gaji Pokok saat HRD mengatur profil
+                    gaji karyawan di divisi ini — tetap bisa diubah manual per
+                    karyawan.
+                </p>
+                <InputError message={errors.default_base_salary} />
+            </div>
+
+            <div className="grid gap-2">
+                <Label htmlFor="daily_attendance_allowance">
+                    Tunjangan per Hari Hadir (Rp)
+                </Label>
+                <Input
+                    id="daily_attendance_allowance"
+                    name="daily_attendance_allowance"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    defaultValue={
+                        defaultValues?.daily_attendance_allowance ?? '0'
+                    }
+                />
+                <p className="text-xs text-muted-foreground">
+                    Dihitung otomatis saat payroll diproses: hari hadir penuh
+                    dapat tarif penuh, setengah hari dapat separuh tarif. Isi 0
+                    untuk menonaktifkan.
+                </p>
+                <InputError message={errors.daily_attendance_allowance} />
+            </div>
+
+            <div className="grid gap-2">
                 <Label htmlFor="is_active">Status</Label>
                 <input type="hidden" name="is_active" value={isActive} />
                 <Select value={isActive} onValueChange={setIsActive}>
@@ -118,7 +142,7 @@ function DivisionFormFields({
     );
 }
 
-export default function Divisions({ divisions, companies }: Props) {
+export default function Divisions({ divisions }: Props) {
     const [createOpen, setCreateOpen] = useState(false);
     const [editingDivision, setEditingDivision] = useState<DivisionRow | null>(
         null,
@@ -168,7 +192,6 @@ export default function Divisions({ divisions, companies }: Props) {
                                         </DialogHeader>
                                         <div className="py-2">
                                             <DivisionFormFields
-                                                companies={companies}
                                                 errors={errors}
                                             />
                                         </div>
@@ -206,7 +229,10 @@ export default function Divisions({ divisions, companies }: Props) {
                                         Nama
                                     </th>
                                     <th className="px-4 py-3 font-medium">
-                                        Instansi
+                                        Gaji Pokok Default
+                                    </th>
+                                    <th className="px-4 py-3 font-medium">
+                                        Tunjangan/Hari
                                     </th>
                                     <th className="px-4 py-3 font-medium">
                                         Status
@@ -225,8 +251,15 @@ export default function Divisions({ divisions, companies }: Props) {
                                         <td className="px-4 py-3 font-medium">
                                             {division.name}
                                         </td>
-                                        <td className="px-4 py-3">
-                                            {division.company.name}
+                                        <td className="px-4 py-3 tabular-nums">
+                                            {formatRupiah(
+                                                division.default_base_salary,
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 tabular-nums">
+                                            {formatRupiah(
+                                                division.daily_attendance_allowance,
+                                            )}
                                         </td>
                                         <td className="px-4 py-3">
                                             <span
@@ -320,7 +353,6 @@ export default function Divisions({ divisions, companies }: Props) {
                                     </DialogHeader>
                                     <div className="py-2">
                                         <DivisionFormFields
-                                            companies={companies}
                                             defaultValues={editingDivision}
                                             errors={errors}
                                         />

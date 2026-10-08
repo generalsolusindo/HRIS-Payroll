@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
-type Division = { id: number; name: string };
+type Division = { id: number; name: string; default_base_salary: string };
 type AvailableComponent = { id: number; name: string; category: string };
 
 type ProfileComponent = { payroll_component_id: number; amount: string };
@@ -25,9 +25,6 @@ type Profile = {
     effective_from: string;
     employment_started_on: string;
     employment_type: string;
-    bank_name: string | null;
-    bank_account_number: string | null;
-    bank_account_holder: string | null;
     components: ProfileComponent[];
 } | null;
 
@@ -75,6 +72,55 @@ export default function PayrollProfileEdit({
               }))
             : [{ rowId: nextRowId++, componentId: '', amount: '' }],
     );
+
+    // Gaji Pokok is tied to the employee's division: picking a division
+    // fills (or refreshes) that one row from the division's standard rate.
+    // HRD can still type a different number afterwards — this only resets
+    // on an actual division change, never on page load, so an existing
+    // saved profile's components are left alone until HRD touches it.
+    function handleDivisionChange(nextDivisionId: string) {
+        setDivisionId(nextDivisionId);
+
+        const division = divisions.find(
+            (item) => String(item.id) === nextDivisionId,
+        );
+        const baseComponent = availableComponents.find(
+            (item) => item.category === 'base_salary',
+        );
+        if (!division || !baseComponent) return;
+
+        setRows((current) => {
+            const baseComponentId = String(baseComponent.id);
+            const existingIndex = current.findIndex(
+                (row) => row.componentId === baseComponentId,
+            );
+
+            if (existingIndex >= 0) {
+                return current.map((row, index) =>
+                    index === existingIndex
+                        ? { ...row, amount: division.default_base_salary }
+                        : row,
+                );
+            }
+
+            const newRow = {
+                rowId: nextRowId++,
+                componentId: baseComponentId,
+                amount: division.default_base_salary,
+            };
+
+            // Replace a still-blank starter row instead of adding a second one.
+            if (
+                current.length === 1 &&
+                current[0].componentId === '' &&
+                current[0].amount === ''
+            ) {
+                return [newRow];
+            }
+
+            return [...current, newRow];
+        });
+    }
 
     function addRow() {
         setRows((current) => [
@@ -135,7 +181,7 @@ export default function PayrollProfileEdit({
                                     />
                                     <Select
                                         value={divisionId}
-                                        onValueChange={setDivisionId}
+                                        onValueChange={handleDivisionChange}
                                     >
                                         <SelectTrigger
                                             id="division_id"
@@ -229,50 +275,6 @@ export default function PayrollProfileEdit({
                                 </div>
                             </div>
 
-                            <div className="grid gap-4 rounded-2xl border p-4 sm:grid-cols-3">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="bank_name">
-                                        Nama Bank (opsional)
-                                    </Label>
-                                    <Input
-                                        id="bank_name"
-                                        name="bank_name"
-                                        defaultValue={profile?.bank_name ?? ''}
-                                    />
-                                    <InputError message={errors.bank_name} />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="bank_account_number">
-                                        Nomor Rekening (opsional)
-                                    </Label>
-                                    <Input
-                                        id="bank_account_number"
-                                        name="bank_account_number"
-                                        defaultValue={
-                                            profile?.bank_account_number ?? ''
-                                        }
-                                    />
-                                    <InputError
-                                        message={errors.bank_account_number}
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="bank_account_holder">
-                                        Nama Pemilik Rekening (opsional)
-                                    </Label>
-                                    <Input
-                                        id="bank_account_holder"
-                                        name="bank_account_holder"
-                                        defaultValue={
-                                            profile?.bank_account_holder ?? ''
-                                        }
-                                    />
-                                    <InputError
-                                        message={errors.bank_account_holder}
-                                    />
-                                </div>
-                            </div>
-
                             <div className="rounded-2xl border p-4">
                                 <div className="flex items-center justify-between">
                                     <h2 className="font-semibold">
@@ -289,6 +291,13 @@ export default function PayrollProfileEdit({
                                         Tambah Komponen
                                     </Button>
                                 </div>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Gaji Pokok terisi otomatis dari tarif divisi
+                                    yang dipilih — nominalnya tetap bisa diubah
+                                    manual. Tunjangan harian dihitung otomatis
+                                    dari kehadiran saat payroll dihitung, tidak
+                                    perlu ditambah di sini.
+                                </p>
 
                                 <div className="mt-4 flex flex-col gap-3">
                                     {rows.map((row, index) => (

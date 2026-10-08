@@ -13,16 +13,16 @@ use Carbon\CarbonInterface;
 /**
  * Turns the app's own attendance (selfie+GPS clock-in/out) and approved
  * leave requests into attendance_reviews — the record the payroll
- * calculator reads from. Fully automatic: a workday with neither an
- * attendance row nor an approved leave becomes "absent" (alpha) on its
- * own, and a clock-in with no matching clock-out is still counted as a
- * full present day (benefit of the doubt — there is proof they showed
- * up), so no HRD confirmation step ever blocks payroll. HRD can still
- * hand-correct an individual day afterwards (Koreksi Absensi) if the
- * automatic read was wrong; that correction is what's preserved below.
+ * calculator and Rekap Periode both read from. Fully automatic: a workday
+ * with neither an attendance row nor an approved leave becomes "absent"
+ * (alpha) on its own; a clock-in with no matching clock-out is counted as
+ * a full present day (benefit of the doubt — there is proof they showed
+ * up); and a clock-in/out pair covering less than half the scheduled
+ * shift becomes "half_day". No HRD confirmation step ever blocks payroll.
  *
- * Idempotent and safe to re-run: a review HR has already corrected
- * (correction_reason is set) is left untouched. Everything else is
+ * Idempotent and safe to re-run: a row with correction_reason already set
+ * (a hand override, however it got there) is left untouched. Everything
+ * else is
  * regenerated fresh from the current source data every time — so an
  * employee who clocks in after this already ran for the day flips back
  * from "absent" to "present" on the next recalculation, not stuck stale.
@@ -170,10 +170,13 @@ class AttendanceReviewGenerator
         }
 
         $workedMinutes = (int) $attendance->clock_in_time->diffInMinutes($attendance->clock_out_time);
+        // Clocked in and out, but for less than half the scheduled shift —
+        // counted as a half day rather than a full present day.
+        $classification = $scheduledMinutes > 0 && $workedMinutes < $scheduledMinutes / 2 ? 'half_day' : 'present';
 
         $this->upsert($existing, $user, $date, [
             'status' => 'validated',
-            'classification' => 'present',
+            'classification' => $classification,
             'scheduled_minutes' => $scheduledMinutes,
             'worked_minutes' => $workedMinutes,
             'late_minutes' => $attendance->clock_in_late_minutes ?? 0,

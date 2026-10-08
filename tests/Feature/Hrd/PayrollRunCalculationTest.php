@@ -121,7 +121,7 @@ class PayrollRunCalculationTest extends TestCase
         $this->assertSame(1, PayrollRun::where('payroll_period_id', $period->id)->count());
     }
 
-    public function test_payment_destination_is_populated_from_the_profiles_bank_details_and_encrypted(): void
+    public function test_payment_destination_is_populated_from_the_employees_bank_details_and_encrypted(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
@@ -130,8 +130,8 @@ class PayrollRunCalculationTest extends TestCase
             'type' => 'earning', 'category' => 'base_salary',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
-        $profile = $this->makeProfile($employee, $division, [[$base, '2500000']]);
-        $profile->update(['bank_name' => 'BCA', 'bank_account_number' => '111222333', 'bank_account_holder' => $employee->name]);
+        $employee->update(['bank_name' => 'BCA', 'bank_account_number' => '111222333', 'bank_account_holder' => $employee->name]);
+        $this->makeProfile($employee, $division, [[$base, '2500000']]);
 
         $period = PayrollPeriod::create([
             'company_id' => $hrd->company_id, 'code' => '2026-10', 'name' => 'Oktober 2026',

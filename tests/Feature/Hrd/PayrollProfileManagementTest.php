@@ -8,7 +8,6 @@ use App\Models\EmployeePayrollProfile;
 use App\Models\PayrollComponent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PayrollProfileManagementTest extends TestCase
@@ -82,31 +81,6 @@ class PayrollProfileManagementTest extends TestCase
         $profile = EmployeePayrollProfile::where('user_id', $employee->id)->firstOrFail();
         $this->assertCount(1, $profile->fresh()->salaryComponents);
         $this->assertSame(1, EmployeePayrollProfile::where('user_id', $employee->id)->count(), 'Must update the one profile row, not create a second.');
-    }
-
-    public function test_bank_account_number_is_encrypted_at_rest(): void
-    {
-        $hrd = User::factory()->create(['role' => 'hrd']);
-        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan']);
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
-        $base = PayrollComponent::create([
-            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
-
-        $payload = $this->payload($division, [['payroll_component_id' => $base->id, 'amount' => '2500000']]);
-        $payload['bank_name'] = 'BCA';
-        $payload['bank_account_number'] = '9876543210';
-        $payload['bank_account_holder'] = $employee->name;
-
-        $this->actingAs($hrd)->put(route('hrd.profil-gaji.update', $employee), $payload);
-
-        $raw = DB::table('employee_payroll_profiles')
-            ->where('user_id', $employee->id)->value('bank_account_number');
-        $this->assertNotSame('9876543210', $raw);
-
-        $profile = EmployeePayrollProfile::where('user_id', $employee->id)->firstOrFail();
-        $this->assertSame('9876543210', $profile->bank_account_number);
     }
 
     public function test_a_division_from_another_company_is_rejected(): void

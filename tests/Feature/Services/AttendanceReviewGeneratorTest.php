@@ -125,6 +125,51 @@ class AttendanceReviewGeneratorTest extends TestCase
         $this->assertSame(10, $review->early_departure_minutes);
     }
 
+    public function test_clocking_out_in_under_half_the_scheduled_shift_is_a_half_day(): void
+    {
+        $user = User::factory()->create(['role' => 'karyawan', 'status' => 'active']);
+        WorkSchedule::create([
+            'company_id' => $user->company_id, 'name' => 'Reguler',
+            'jam_masuk' => '08:00:00', 'jam_pulang' => '17:00:00', 'toleransi_telat_menit' => 0,
+        ]);
+        $date = Carbon::parse('2026-10-05');
+        // Scheduled shift is 540 minutes; clocking out after 200 is under half.
+        Attendance::create([
+            'user_id' => $user->id, 'tanggal' => $date,
+            'clock_in_time' => '2026-10-05 08:00:00', 'clock_in_status' => 'tepat_waktu', 'clock_in_late_minutes' => 0,
+            'clock_out_time' => '2026-10-05 11:20:00', 'clock_out_status' => 'pulang_cepat', 'clock_out_early_minutes' => 340,
+        ]);
+
+        $this->generator()->generateForDate($date);
+
+        $review = AttendanceReview::where('user_id', $user->id)->whereDate('date', $date)->firstOrFail();
+        $this->assertSame('half_day', $review->classification);
+        $this->assertSame('validated', $review->status);
+        $this->assertSame(200, $review->worked_minutes);
+    }
+
+    public function test_working_at_least_half_the_scheduled_shift_still_counts_as_present(): void
+    {
+        $user = User::factory()->create(['role' => 'karyawan', 'status' => 'active']);
+        WorkSchedule::create([
+            'company_id' => $user->company_id, 'name' => 'Reguler',
+            'jam_masuk' => '08:00:00', 'jam_pulang' => '17:00:00', 'toleransi_telat_menit' => 0,
+        ]);
+        $date = Carbon::parse('2026-10-05');
+        // Exactly half the 540-minute shift — the boundary must still count
+        // as present, not half_day (the rule is strictly *less than* half).
+        Attendance::create([
+            'user_id' => $user->id, 'tanggal' => $date,
+            'clock_in_time' => '2026-10-05 08:00:00', 'clock_in_status' => 'tepat_waktu', 'clock_in_late_minutes' => 0,
+            'clock_out_time' => '2026-10-05 12:30:00', 'clock_out_status' => 'pulang_cepat', 'clock_out_early_minutes' => 270,
+        ]);
+
+        $this->generator()->generateForDate($date);
+
+        $review = AttendanceReview::where('user_id', $user->id)->whereDate('date', $date)->firstOrFail();
+        $this->assertSame('present', $review->classification);
+    }
+
     public function test_regenerating_never_overwrites_a_hand_corrected_review(): void
     {
         $user = User::factory()->create(['role' => 'karyawan', 'status' => 'active']);

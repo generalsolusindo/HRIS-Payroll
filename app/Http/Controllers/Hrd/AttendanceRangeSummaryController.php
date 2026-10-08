@@ -68,6 +68,7 @@ class AttendanceRangeSummaryController extends Controller
                     'hadir' => $present->count(),
                     'telat' => $present->where('late_minutes', '>', 0)->count(),
                     'telat_menit' => $present->sum('late_minutes'),
+                    'setengah_hari' => $reviews->where('classification', 'half_day')->count(),
                     'alpha' => $reviews->where('classification', 'absent')->count(),
                     'izin' => $reviews->where('classification', 'permission')->count(),
                     'sakit' => $reviews->where('classification', 'sick')->count(),

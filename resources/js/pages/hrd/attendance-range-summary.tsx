@@ -13,6 +13,7 @@ type EmployeeSummary = {
     hadir: number;
     telat: number;
     telat_menit: number;
+    setengah_hari: number;
     alpha: number;
     izin: number;
     sakit: number;
@@ -60,9 +61,9 @@ export default function AttendanceRangeSummary({
                     </h1>
                     <p className="mt-1 text-sm text-muted-foreground">
                         Rekap hadir/telat/alpha per karyawan untuk rentang
-                        tanggal yang dipilih, diambil dari status yang sudah
-                        dikoreksi HRD di Koreksi Absensi — sumber yang sama
-                        dengan yang dipakai payroll. Hari yang belum dikoreksi
+                        tanggal yang dipilih, dihitung otomatis dari absensi dan
+                        izin yang disetujui — sumber yang sama dengan yang
+                        dipakai payroll. Hari yang belum terjadi (di masa depan)
                         tidak ikut terhitung di kolom manapun.
                     </p>
                 </div>
@@ -121,6 +122,9 @@ export default function AttendanceRangeSummary({
                                             Menit Telat
                                         </th>
                                         <th className="p-3 text-right font-medium text-muted-foreground">
+                                            Setengah Hari
+                                        </th>
+                                        <th className="p-3 text-right font-medium text-muted-foreground">
                                             Alpha
                                         </th>
                                         <th className="p-3 text-right font-medium text-muted-foreground">
@@ -166,6 +170,9 @@ export default function AttendanceRangeSummary({
                                             </td>
                                             <td className="p-3 text-right tabular-nums">
                                                 {employee.telat_menit}
+                                            </td>
+                                            <td className="p-3 text-right tabular-nums">
+                                                {employee.setengah_hari}
                                             </td>
                                             <td className="p-3 text-right text-red-600 tabular-nums dark:text-red-400">
                                                 {employee.alpha}

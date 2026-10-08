@@ -44,13 +44,15 @@ class PayrollPaymentTest extends TestCase
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
             'type' => 'earning', 'category' => 'base_salary',
         ]);
-        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
+        $employee = User::factory()->create([
+            'company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active',
+            'bank_name' => 'BCA', 'bank_account_number' => '111222333', 'bank_account_holder' => 'Pemilik Rekening',
+        ]);
         $profile = EmployeePayrollProfile::create([
             'user_id' => $employee->id, 'company_id' => $hrd->company_id,
             'division_id' => $division->id, 'position_id' => $employee->position_id,
             'effective_from' => '2026-09-01', 'employment_started_on' => '2026-01-01',
             'employment_type' => 'permanent',
-            'bank_name' => 'BCA', 'bank_account_number' => '111222333', 'bank_account_holder' => $employee->name,
         ]);
         EmployeeSalaryComponent::create([
             'employee_payroll_profile_id' => $profile->id, 'payroll_component_id' => $base->id,

@@ -13,7 +13,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $date
  * @property int|null $attendance_id
  * @property string $status draft|validated
- * @property string $classification unresolved|present|leave|sick|permission|business_trip|absent|rest_day|holiday
+ * @property string $classification unresolved|present|half_day|leave|sick|permission|business_trip|absent|rest_day|holiday
  * @property Carbon|null $clock_in_at
  * @property Carbon|null $clock_out_at
  * @property int $scheduled_minutes

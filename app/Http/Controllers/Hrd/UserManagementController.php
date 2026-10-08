@@ -40,6 +40,12 @@ class UserManagementController extends Controller
                 'status' => $user->status,
                 'company' => ['id' => $user->company->id, 'name' => $user->company->name],
                 'position' => ['id' => $user->position->id, 'name' => $user->position->name],
+                // bank_account_number is deliberately left out of this list —
+                // it's the one genuinely sensitive field, so it's treated
+                // like the password field: write-only from the edit form,
+                // never round-tripped back to the browser for every row.
+                'bank_name' => $user->bank_name,
+                'bank_account_holder' => $user->bank_account_holder,
             ]);
 
         return Inertia::render('hrd/user-management', [
@@ -64,6 +70,9 @@ class UserManagementController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
+            'bank_name' => $validated['bank_name'] ?? null,
+            'bank_account_number' => $validated['bank_account_number'] ?? null,
+            'bank_account_holder' => $validated['bank_account_holder'] ?? null,
             // The model casts this ('hashed') — hash it here too and
             // double-hashing would still be safe, but passing it through
             // plain matches how CreateNewUser does it elsewhere.
@@ -91,10 +100,19 @@ class UserManagementController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
+            'bank_name' => $validated['bank_name'] ?? null,
+            'bank_account_holder' => $validated['bank_account_holder'] ?? null,
         ]);
 
         if (! empty($validated['password'])) {
             $user->password = $validated['password'];
+        }
+
+        // Blank means "don't change" — the same write-only treatment as
+        // password, since this is the one genuinely sensitive bank field
+        // and the edit form never receives the existing value to prefill.
+        if (! empty($validated['bank_account_number'])) {
+            $user->bank_account_number = $validated['bank_account_number'];
         }
 
         // An HRD account editing its own row can't demote or deactivate

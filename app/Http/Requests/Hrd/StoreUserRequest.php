@@ -35,6 +35,9 @@ class StoreUserRequest extends FormRequest
             'position_id' => ['required', 'integer'],
             'role' => ['required', Rule::in(['karyawan', 'hrd', 'admin', 'finance'])],
             'status' => ['required', Rule::in(['pending', 'active', 'rejected'])],
+            'bank_name' => ['nullable', 'string', 'max:255'],
+            'bank_account_number' => ['nullable', 'string', 'max:255'],
+            'bank_account_holder' => ['nullable', 'string', 'max:255'],
             'password' => $this->passwordRules(),
         ];
     }

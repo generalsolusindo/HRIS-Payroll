@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Hrd;
 
+use App\Models\Company;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\User;
@@ -12,18 +13,29 @@ class DivisionManagementTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function payload(array $overrides = []): array
+    {
+        return array_merge([
+            'code' => 'OPS',
+            'name' => 'Operasional',
+            'is_active' => true,
+            'default_base_salary' => '3000000',
+            'daily_attendance_allowance' => '25000',
+        ], $overrides);
+    }
+
     public function test_hrd_can_create_a_division(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
 
         $this->actingAs($hrd)
-            ->post(route('hrd.divisi.store'), [
-                'company_id' => $hrd->company_id, 'code' => 'OPS',
-                'name' => 'Operasional', 'is_active' => true,
-            ])
+            ->post(route('hrd.divisi.store'), $this->payload())
             ->assertSessionDoesntHaveErrors();
 
-        $this->assertDatabaseHas('divisions', ['code' => 'OPS', 'name' => 'Operasional']);
+        $this->assertDatabaseHas('divisions', [
+            'code' => 'OPS', 'name' => 'Operasional', 'company_id' => $hrd->company_id,
+            'default_base_salary' => '3000000.00', 'daily_attendance_allowance' => '25000.00',
+        ]);
     }
 
     public function test_division_code_must_be_unique_within_a_company(): void
@@ -32,10 +44,7 @@ class DivisionManagementTest extends TestCase
         Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
 
         $this->actingAs($hrd)
-            ->post(route('hrd.divisi.store'), [
-                'company_id' => $hrd->company_id, 'code' => 'OPS',
-                'name' => 'Operasional 2', 'is_active' => true,
-            ])
+            ->post(route('hrd.divisi.store'), $this->payload(['name' => 'Operasional 2']))
             ->assertSessionHasErrors('code');
     }
 
@@ -45,15 +54,57 @@ class DivisionManagementTest extends TestCase
         $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
 
         $this->actingAs($hrd)
-            ->put(route('hrd.divisi.update', $division), [
-                'company_id' => $hrd->company_id, 'code' => 'OPS',
-                'name' => 'Operasional Baru', 'is_active' => false,
-            ])
+            ->put(route('hrd.divisi.update', $division), $this->payload([
+                'name' => 'Operasional Baru', 'is_active' => false, 'default_base_salary' => '3500000',
+            ]))
             ->assertSessionDoesntHaveErrors();
 
         $fresh = $division->fresh();
         $this->assertSame('Operasional Baru', $fresh->name);
         $this->assertFalse($fresh->is_active);
+        $this->assertSame('3500000.00', $fresh->default_base_salary);
+    }
+
+    public function test_hrd_cannot_edit_or_delete_another_companys_division(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherHrd = User::factory()->create(['role' => 'hrd']);
+        $division = Division::create(['company_id' => $otherHrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.divisi.update', $division), $this->payload())
+            ->assertForbidden();
+
+        $this->actingAs($hrd)
+            ->delete(route('hrd.divisi.destroy', $division))
+            ->assertForbidden();
+
+        $this->assertSame('Operasional', $division->fresh()->name);
+    }
+
+    public function test_hrd_only_sees_their_own_companys_divisions(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherCompany = Company::factory()->create();
+        Division::create(['company_id' => $otherCompany->id, 'code' => 'OPS', 'name' => 'Divisi Perusahaan Lain']);
+
+        $response = $this->actingAs($hrd)->get(route('hrd.divisi.index'))->assertOk();
+
+        $names = collect($response->viewData('page')['props']['divisions'])->pluck('name');
+        $this->assertFalse($names->contains('Divisi Perusahaan Lain'));
+    }
+
+    public function test_a_division_created_for_another_company_is_ignored(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherCompany = Company::factory()->create();
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.divisi.store'), $this->payload(['company_id' => $otherCompany->id]))
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('divisions', ['code' => 'OPS', 'company_id' => $hrd->company_id]);
+        $this->assertDatabaseMissing('divisions', ['code' => 'OPS', 'company_id' => $otherCompany->id]);
     }
 
     public function test_a_division_still_used_by_an_employee_profile_cannot_be_deleted(): void

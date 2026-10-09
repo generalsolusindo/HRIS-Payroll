@@ -51,9 +51,7 @@ class FaceVerificationController extends Controller
         }
 
         if (! $result->ok) {
-            // The worker being unreachable/erroring is an infrastructure
-            // problem distinct from a normal "no face in this frame"
-            // business outcome, even though both come back as !$result->ok.
+            
             if (in_array($result->error, ['process_failed', 'invalid_output'], true)) {
                 return response()->json([
                     'status' => 'service_unavailable',

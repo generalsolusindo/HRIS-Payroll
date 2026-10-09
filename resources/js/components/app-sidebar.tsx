@@ -184,9 +184,13 @@ export function AppSidebar() {
             <SidebarHeader className="border-b border-sidebar-border/60 p-3">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
+                        <SidebarMenuButton
+                            size="lg"
+                            className="h-20 justify-center p-0"
+                            asChild
+                        >
                             <Link href={dashboard()} prefetch>
-                                <AppLogo />
+                                <AppLogo className="h-auto w-full max-w-40 object-center" />
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

@@ -1,3 +1,4 @@
+import { EMPLOYMENT_TYPE_LABELS } from '@/lib/employment-types';
 import { Form, Head, router, usePage } from '@inertiajs/react';
 import { Pencil, Plus, Trash2, Users as UsersIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -31,6 +32,7 @@ type Company = { id: number; name: string; positions: Position[] };
 type UserRow = {
     id: number;
     employee_number: string | null;
+    employment_type: string | null;
     name: string;
     email: string;
     phone: string | null;
@@ -158,14 +160,39 @@ function UserFormFields({
 
             <div className="grid gap-2">
                 <Label htmlFor="employee_number">
-                    Nomor Karyawan (opsional)
+                    Nomor Karyawan (otomatis)
                 </Label>
                 <Input
                     id="employee_number"
-                    name="employee_number"
+                    readOnly
+                    placeholder="Dibuat otomatis saat karyawan disimpan"
                     defaultValue={defaultValues?.employee_number ?? ''}
                 />
                 <InputError message={errors.employee_number} />
+            </div>
+            <div className="grid gap-2">
+                <Label htmlFor="employment_type">Jenis Karyawan</Label>
+                <select
+                    id="employment_type"
+                    name="employment_type"
+                    defaultValue={defaultValues?.employment_type ?? ''}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                    <option
+                        value=""
+                        disabled={Boolean(defaultValues?.employment_type)}
+                    >
+                        Belum ditentukan
+                    </option>
+                    {Object.entries(EMPLOYMENT_TYPE_LABELS).map(
+                        ([value, label]) => (
+                            <option key={value} value={value}>
+                                {label}
+                            </option>
+                        ),
+                    )}
+                </select>
+                <InputError message={errors.employment_type} />
             </div>
 
             <div className="grid gap-2">
@@ -495,6 +522,15 @@ export default function UserManagement({ users, search, companies }: Props) {
                                                     </div>
                                                     <div className="text-xs text-muted-foreground">
                                                         {user.email}
+                                                        <br />
+                                                        {user.employee_number ??
+                                                            '—'}{' '}
+                                                        ·{' '}
+                                                        {EMPLOYMENT_TYPE_LABELS[
+                                                            user.employment_type ??
+                                                                ''
+                                                        ] ??
+                                                            'Jenis belum ditentukan'}
                                                     </div>
                                                 </div>
                                             </div>

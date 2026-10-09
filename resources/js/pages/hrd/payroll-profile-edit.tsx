@@ -1,3 +1,4 @@
+import { EMPLOYMENT_TYPE_LABELS } from '@/lib/employment-types';
 import { Form, Head } from '@inertiajs/react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -34,17 +35,11 @@ type Props = {
         name: string;
         company_id: number;
         company_name: string;
+        employment_type: string | null;
     };
     profile: Profile;
     divisions: Division[];
     availableComponents: AvailableComponent[];
-};
-
-const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
-    permanent: 'Tetap',
-    contract: 'Kontrak',
-    probation: 'Percobaan',
-    intern: 'Magang',
 };
 
 let nextRowId = 0;
@@ -59,7 +54,7 @@ export default function PayrollProfileEdit({
         profile ? String(profile.division_id) : '',
     );
     const [employmentType, setEmploymentType] = useState(
-        profile?.employment_type ?? 'permanent',
+        employee.employment_type ?? profile?.employment_type ?? 'permanent',
     );
     const [rows, setRows] = useState<
         { rowId: number; componentId: string; amount: string }[]

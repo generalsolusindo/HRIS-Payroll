@@ -26,7 +26,7 @@ class UpdatePayrollProfileRequest extends FormRequest
             'division_id' => ['required', 'integer'],
             'effective_from' => ['required', 'date'],
             'employment_started_on' => ['required', 'date'],
-            'employment_type' => ['required', Rule::in(['permanent', 'contract', 'probation', 'intern'])],
+            'employment_type' => ['required', Rule::in(User::EMPLOYMENT_TYPES)],
             'components' => ['required', 'array', 'min:1'],
             'components.*.payroll_component_id' => ['required', 'integer', 'distinct'],
             'components.*.amount' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],

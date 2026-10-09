@@ -48,6 +48,7 @@ class PayrollProfileManagementTest extends TestCase
             ->assertRedirect(route('hrd.profil-gaji.index'));
 
         $profile = EmployeePayrollProfile::where('user_id', $employee->id)->firstOrFail();
+        $this->assertSame('permanent', $employee->fresh()->employment_type);
         $this->assertSame($division->id, $profile->division_id);
         $this->assertSame($employee->position_id, $profile->position_id);
         $this->assertCount(2, $profile->salaryComponents);

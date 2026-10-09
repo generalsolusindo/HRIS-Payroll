@@ -65,6 +65,7 @@ class PayrollProfileController extends Controller
                 'name' => $user->name,
                 'company_id' => $user->company_id,
                 'company_name' => $user->company->name,
+                'employment_type' => $user->employment_type,
             ],
             'profile' => $profile ? [
                 'division_id' => $profile->division_id,
@@ -119,6 +120,7 @@ class PayrollProfileController extends Controller
                 'employment_type' => $validated['employment_type'],
             ]);
             $profile->save();
+            $user->update(['employment_type' => $validated['employment_type']]);
 
             $submittedComponentIds = collect((array) $validated['components'])->pluck('payroll_component_id');
             $profile->salaryComponents()->whereNotIn('payroll_component_id', $submittedComponentIds)->delete();

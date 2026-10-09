@@ -3,6 +3,8 @@
 namespace Tests\Feature\Hrd;
 
 use App\Models\Company;
+use App\Models\Division;
+use App\Models\EmployeePayrollProfile;
 use App\Models\Position;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,6 +15,67 @@ use Tests\TestCase;
 class UserManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_employee_numbers_are_sequential_and_never_reused_after_deletion(): void
+    {
+        $first = User::factory()->create();
+        $second = User::factory()->create();
+        $this->assertSame('0001', $first->employee_number);
+        $this->assertSame('0002', $second->employee_number);
+        $second->delete();
+        $third = User::factory()->create();
+        $this->assertSame('0003', $third->employee_number);
+        $first->update(['name' => 'Changed']);
+        $this->assertSame('0001', $first->fresh()->employee_number);
+    }
+
+    public function test_hrd_cannot_override_generated_number_and_can_choose_all_employee_types(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        [$company, $position] = $this->makeCompanyWithPosition();
+        foreach (User::EMPLOYMENT_TYPES as $index => $type) {
+            $this->actingAs($hrd)->post(route('hrd.users.store'), $this->payload($company, $position, [
+                'email' => "employee{$index}@example.com", 'employment_type' => $type, 'employee_number' => 'CUSTOM',
+            ]))->assertSessionHasNoErrors()->assertRedirect();
+            $employee = User::where('email', "employee{$index}@example.com")->firstOrFail();
+            $this->assertSame(str_pad((string) ($index + 1), 4, '0', STR_PAD_LEFT), $employee->employee_number);
+            $this->assertSame($type, $employee->employment_type);
+        }
+    }
+
+    public function test_user_type_updates_current_payroll_profile(): void
+    {
+        $profile = $this->makePayrollProfile(User::factory()->create(), 'permanent');
+        $user = $profile->user;
+        $user->update(['employment_type' => 'part_time']);
+        $this->assertSame('part_time', $profile->fresh()->employment_type);
+    }
+
+    public function test_migration_preserves_numbers_backfills_missing_and_keeps_known_types(): void
+    {
+        $existing = User::factory()->create(['employee_number' => '0042']);
+        $missing = User::factory()->create();
+        $profile = $this->makePayrollProfile($missing, 'intern');
+        DB::table('users')->where('id', $missing->id)->update(['employee_number' => null]);
+        $migration = require database_path('migrations/2026_10_09_120000_add_employee_identity_and_sequence.php');
+        $migration->down();
+        $migration->up();
+        $this->assertSame('0042', $existing->fresh()->employee_number);
+        $this->assertSame('0043', $missing->fresh()->employee_number);
+        $this->assertSame('intern', $missing->fresh()->employment_type);
+        $this->assertSame('0044', User::factory()->create()->employee_number);
+    }
+
+    private function makePayrollProfile(User $user, string $type): EmployeePayrollProfile
+    {
+        $division = Division::create(['company_id' => $user->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+
+        return EmployeePayrollProfile::create([
+            'user_id' => $user->id, 'company_id' => $user->company_id,
+            'position_id' => $user->position_id, 'division_id' => $division->id,
+            'effective_from' => '2026-10-01', 'employment_started_on' => '2026-10-01', 'employment_type' => $type,
+        ]);
+    }
 
     private function makeCompanyWithPosition(): array
     {

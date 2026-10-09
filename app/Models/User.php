@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\EmployeeNumber;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -20,6 +21,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int $id
  * @property int $company_id
  * @property int $position_id
+ * @property string|null $employment_type
  * @property string|null $employee_number
  * @property string $name
  * @property string $email
@@ -40,7 +42,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['company_id', 'position_id', 'employee_number', 'name', 'email', 'phone', 'password', 'bank_name', 'bank_account_number', 'bank_account_holder'])]
+#[Fillable(['company_id', 'position_id', 'employee_number', 'employment_type', 'name', 'email', 'phone', 'password', 'bank_name', 'bank_account_number', 'bank_account_holder'])]
 // face_descriptor is deliberately never mass-assignable or serialized —
 // it's biometric data and must only ever be set via an explicit enrollment
 // code path, never via fill()/create(), and never sent to the frontend
@@ -51,6 +53,22 @@ class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+
+    public const EMPLOYMENT_TYPES = ['permanent', 'contract', 'part_time', 'daily', 'freelance', 'outsourcing', 'intern', 'volunteer', 'probation'];
+
+    protected static function booted(): void
+    {
+        static::saving(function (User $user): void {
+            if (($user->role ?? 'karyawan') === 'karyawan' && ! $user->employee_number) {
+                $user->employee_number = EmployeeNumber::next();
+            }
+        });
+        static::saved(function (User $user): void {
+            if ($user->wasChanged('employment_type') && $user->employment_type !== null) {
+                $user->payrollProfiles()->whereNull('effective_until')->update(['employment_type' => $user->employment_type]);
+            }
+        });
+    }
 
     /**
      * @return BelongsTo<Company, $this>

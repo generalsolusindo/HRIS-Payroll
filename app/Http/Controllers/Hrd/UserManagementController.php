@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,6 +34,7 @@ class UserManagementController extends Controller
             ->through(fn (User $user) => [
                 'id' => $user->id,
                 'employee_number' => $user->employee_number,
+                'employment_type' => $user->employment_type,
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone,
@@ -63,10 +65,10 @@ class UserManagementController extends Controller
         // (see the #[Fillable] attribute on the model) so nothing else in
         // the app can mass-assign them by accident. This is the one place
         // that's allowed to set them, and it does so explicitly.
-        $user = User::create([
+        $user = new User([
             'company_id' => $validated['company_id'],
             'position_id' => $validated['position_id'],
-            'employee_number' => $validated['employee_number'] ?? null,
+            'employment_type' => $validated['employment_type'] ?? null,
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
@@ -96,7 +98,7 @@ class UserManagementController extends Controller
         $user->fill([
             'company_id' => $validated['company_id'],
             'position_id' => $validated['position_id'],
-            'employee_number' => $validated['employee_number'] ?? null,
+            'employment_type' => $validated['employment_type'] ?? $user->employment_type,
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
@@ -123,7 +125,7 @@ class UserManagementController extends Controller
             $user->status = $validated['status'];
         }
 
-        $user->save();
+        DB::transaction(fn () => $user->save());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Data {$user->name} berhasil diperbarui."]);
 

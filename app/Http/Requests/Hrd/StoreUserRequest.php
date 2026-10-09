@@ -29,8 +29,8 @@ class StoreUserRequest extends FormRequest
     {
         return [
             ...$this->profileRules(),
+            'employment_type' => ['nullable', Rule::in(User::EMPLOYMENT_TYPES)],
             'phone' => ['nullable', 'string', 'max:20'],
-            'employee_number' => ['nullable', 'string', 'max:255', Rule::unique(User::class)],
             'company_id' => ['required', Rule::exists(Company::class, 'id')],
             'position_id' => ['required', 'integer'],
             'role' => ['required', Rule::in(['karyawan', 'hrd', 'admin', 'finance'])],

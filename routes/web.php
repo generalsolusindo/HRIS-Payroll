@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FaceVerificationController;
 use App\Http\Controllers\Finance\PaymentProofController;
 use App\Http\Controllers\Finance\PayrollPaymentController;
+use App\Http\Controllers\Hrd\AttendanceConfirmationController;
 use App\Http\Controllers\Hrd\AttendanceDashboardController;
 use App\Http\Controllers\Hrd\AttendanceRangeSummaryController;
 use App\Http\Controllers\Hrd\CompanyCalendarDayController;
@@ -82,6 +83,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::delete('users/{user}', [UserManagementController::class, 'destroy'])->name('users.destroy');
 
     Route::get('absensi', [AttendanceDashboardController::class, 'index'])->name('absensi.index');
+    Route::patch('konfirmasi-absensi/{review}', [AttendanceConfirmationController::class, 'update'])->name('konfirmasi-absensi.update');
     Route::get('rekap-periode', [AttendanceRangeSummaryController::class, 'index'])->name('rekap-periode.index');
 
     Route::get('izin', [LeaveRequestApprovalController::class, 'index'])->name('izin.index');

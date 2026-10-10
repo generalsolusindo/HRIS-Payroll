@@ -609,6 +609,7 @@ class PayrollRunController extends Controller
                 $lateMinutesTotal += $review->late_minutes;
                 $presentDays++;
             } elseif ($review->classification === 'half_day') {
+                $lateMinutesTotal += $review->late_minutes;
                 $halfDays++;
             } elseif ($review->classification === 'absent') {
                 $absentDays++;

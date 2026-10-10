@@ -9,19 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
-/**
- * Live preview check for the capture screen — called repeatedly (every
- * ~1-1.5s) while the camera is open, purely to drive the visual
- * cocok/tidak-cocok indicator. Never the authoritative check: a "matched"
- * response here only issues a short-lived receipt proving a preview
- * passed, and absen/masuk|pulang still independently re-extracts and
- * compares whatever photo is actually submitted (see AttendanceController)
- * — a forged or replayed receipt alone can never record an attendance.
- *
- * The response never includes the descriptor, a reference photo, or any
- * internal extractor error detail — only a coarse status a client could
- * show to a user.
- */
+
 class FaceVerificationController extends Controller
 {
     public function __construct(

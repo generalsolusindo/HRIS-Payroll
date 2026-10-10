@@ -1,8 +1,13 @@
-import { Head, router } from '@inertiajs/react';
+import { Form, Head, router } from '@inertiajs/react';
 import { Users } from 'lucide-react';
 import AttendanceRangeSummaryController from '@/actions/App/Http/Controllers/Hrd/AttendanceRangeSummaryController';
 import { DateField } from '@/components/date-field';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import InputError from '@/components/input-error';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 type EmployeeSummary = {
     id: number;
@@ -27,6 +32,14 @@ type Props = {
     dari: string;
     sampai: string;
     employees: EmployeeSummary[];
+    confirmations: {
+        id: number;
+        name: string;
+        date: string;
+        version: number;
+        clock_in: string;
+        can_confirm: boolean;
+    }[];
 };
 
 function formatDate(value: string): string {
@@ -41,6 +54,7 @@ export default function AttendanceRangeSummary({
     dari,
     sampai,
     employees,
+    confirmations,
 }: Props) {
     function handleChange(next: Partial<{ dari: string; sampai: string }>) {
         router.get(
@@ -93,6 +107,87 @@ export default function AttendanceRangeSummary({
                     {formatDate(dari)} – {formatDate(sampai)}
                 </p>
 
+                {confirmations.length > 0 && (
+                    <Card className="p-5">
+                        <h2 className="font-semibold">
+                            Konfirmasi absen pulang
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                            Isi jam pulang yang sudah diverifikasi dan alasan
+                            koreksi. Catatan absensi asli tetap disimpan.
+                            Setelah konfirmasi, perbarui draft payroll.
+                        </p>
+                        {confirmations.map((review) => (
+                            <Form
+                                key={`${review.id}-${review.version}`}
+                                action={`/hrd/konfirmasi-absensi/${review.id}`}
+                                method="patch"
+                                options={{ preserveScroll: true }}
+                                className="space-y-3 border-t pt-4"
+                            >
+                                {({ processing, errors }) => (
+                                    <>
+                                        <p className="text-sm font-medium">
+                                            {review.name} ·{' '}
+                                            {formatDate(review.date)} · Masuk{' '}
+                                            {review.clock_in} WIB
+                                        </p>
+                                        <input
+                                            type="hidden"
+                                            name="version"
+                                            value={review.version}
+                                        />
+                                        <Label htmlFor={`out-${review.id}`}>
+                                            Jam pulang terkonfirmasi (WIB)
+                                        </Label>
+                                        <Input
+                                            id={`out-${review.id}`}
+                                            type="time"
+                                            name="clock_out"
+                                            required
+                                            disabled={!review.can_confirm}
+                                            className="max-w-48"
+                                        />
+                                        <InputError
+                                            message={errors.clock_out}
+                                        />
+                                        <Label htmlFor={`reason-${review.id}`}>
+                                            Alasan / dasar konfirmasi
+                                        </Label>
+                                        <Textarea
+                                            id={`reason-${review.id}`}
+                                            name="reason"
+                                            required
+                                            minLength={5}
+                                            maxLength={2000}
+                                            disabled={!review.can_confirm}
+                                        />
+                                        <InputError message={errors.reason} />
+                                        <InputError
+                                            message={
+                                                errors.confirmation ??
+                                                errors.version
+                                            }
+                                        />
+                                        <Button
+                                            disabled={
+                                                processing ||
+                                                !review.can_confirm
+                                            }
+                                        >
+                                            Konfirmasi HRD
+                                        </Button>
+                                        {!review.can_confirm && (
+                                            <p className="text-sm text-muted-foreground">
+                                                Menunggu hari absensi selesai.
+                                            </p>
+                                        )}
+                                    </>
+                                )}
+                            </Form>
+                        ))}
+                    </Card>
+                )}
                 {employees.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-2 rounded-3xl bg-muted/40 py-16 text-center">
                         <Users className="size-8 text-muted-foreground" />

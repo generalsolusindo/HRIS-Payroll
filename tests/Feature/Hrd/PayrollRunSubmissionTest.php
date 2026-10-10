@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Hrd;
 
+use App\Models\Attendance;
 use App\Models\AttendanceReview;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
@@ -11,7 +12,10 @@ use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\User;
+use App\Models\WorkSchedule;
+use App\Services\AttendanceReviewGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class PayrollRunSubmissionTest extends TestCase
@@ -54,6 +58,26 @@ class PayrollRunSubmissionTest extends TestCase
         $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
 
         return $period;
+    }
+
+    public function test_old_draft_requires_clock_out_confirmation_and_recalculation(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($hrd);
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+        $review = AttendanceReview::where('company_id', $hrd->company_id)->firstOrFail();
+        WorkSchedule::create(['company_id' => $hrd->company_id, 'name' => 'Reguler', 'jam_masuk' => '08:30:00', 'jam_pulang' => '16:30:00', 'toleransi_telat_menit' => 0]);
+        Attendance::create(['user_id' => $review->user_id, 'tanggal' => '2026-09-28', 'clock_in_time' => '2026-09-28 08:30:00', 'clock_in_status' => 'tepat_waktu']);
+        $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.ajukan', $run))->assertSessionHasErrors('readiness');
+        $review->update(['correction_reason' => null]);
+        app(AttendanceReviewGenerator::class)->generateForDate(Carbon::parse('2026-09-28'), $hrd->company_id);
+        $review->refresh();
+        $this->actingAs($hrd)->patch(route('hrd.konfirmasi-absensi.update', $review), ['version' => $review->version, 'clock_out' => '16:30', 'reason' => 'Dikonfirmasi oleh HRD.'])->assertSessionHasNoErrors();
+        $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.ajukan', $run))->assertSessionHasErrors('readiness');
+        $this->actingAs($hrd)->post(route('hrd.periode-gaji.perbarui-draft', $period))->assertSessionHasNoErrors();
+        $new = PayrollRun::where('payroll_period_id', $period->id)->latest('version')->firstOrFail();
+        $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.ajukan', $new))->assertSessionHasNoErrors();
+        $this->assertSame('submitted', $new->fresh()->status);
     }
 
     public function test_hrd_can_submit_a_draft_run_for_approval(): void

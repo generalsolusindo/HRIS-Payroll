@@ -241,7 +241,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
     public function test_attendance_allowance_pays_half_rate_for_a_half_day(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $this->setAttendanceRates($hrd->company_id, '0', '0', '0');
+        $this->setAttendanceRates($hrd->company_id, '1000', '0', '0');
         $division = Division::create([
             'company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional',
             'daily_attendance_allowance' => '50000',
@@ -257,7 +257,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         // shift isn't under test here, only the allowance payout rule.
         AttendanceReview::create([
             'user_id' => $employee->id, 'company_id' => $employee->company_id,
-            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'half_day',
+            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'half_day', 'late_minutes' => 10,
             'correction_reason' => 'Pulang lebih awal karena urusan keluarga, dikonfirmasi HRD.',
             'source_snapshot' => [], 'schedule_snapshot' => [], 'version' => 1,
         ]);
@@ -270,6 +270,8 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
 
         $entry = PayrollEntry::where('user_id', $employee->id)->firstOrFail();
+        $this->assertSame('10000.00', $entry->deduction_amount);
+        $this->assertSame(10, $entry->attendance_snapshot['late_minutes_total']);
         $line = $entry->lines()->where('line_key', 'attendance-allowance')->firstOrFail();
         $this->assertEqualsWithDelta(25_000.0, (float) $line->amount, 0.001);
         $this->assertFalse($entry->attendance_snapshot['perfect_attendance'], 'A half day must not count as perfect attendance.');

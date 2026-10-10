@@ -58,6 +58,7 @@ class AttendanceRangeSummaryController extends Controller
                     ->get();
 
                 $present = $reviews->where('classification', 'present');
+                $attended = $reviews->whereIn('classification', ['present', 'half_day']);
 
                 return [
                     'id' => $user->id,
@@ -66,8 +67,8 @@ class AttendanceRangeSummaryController extends Controller
                     'reviewed_days' => $reviews->count(),
                     'expected_days' => $expectedDays,
                     'hadir' => $present->count(),
-                    'telat' => $present->where('late_minutes', '>', 0)->count(),
-                    'telat_menit' => $present->sum('late_minutes'),
+                    'telat' => $attended->where('late_minutes', '>', 0)->count(),
+                    'telat_menit' => $attended->sum('late_minutes'),
                     'setengah_hari' => $reviews->where('classification', 'half_day')->count(),
                     'alpha' => $reviews->where('classification', 'absent')->count(),
                     'izin' => $reviews->where('classification', 'permission')->count(),
@@ -83,6 +84,15 @@ class AttendanceRangeSummaryController extends Controller
             'dari' => $dari,
             'sampai' => $sampai,
             'employees' => $employees,
+            'confirmations' => AttendanceReview::where('company_id', $request->user()->company_id)
+                ->whereBetween('date', [$dari, $sampai])->whereNotNull('clock_in_at')
+                ->whereNull('clock_out_at')->where('classification', 'unresolved')
+                ->with('user:id,name')->orderBy('date')->get()->map(fn (AttendanceReview $review) => [
+                    'id' => $review->id, 'name' => $review->user->name,
+                    'date' => $review->date->toDateString(), 'version' => $review->version,
+                    'clock_in' => $review->clock_in_at?->format('H:i'),
+                    'can_confirm' => $review->date->endOfDay()->isPast(),
+                ]),
         ]);
     }
 }

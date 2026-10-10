@@ -9,23 +9,12 @@ use App\Models\LeaveRequest;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
 
 /**
- * Turns the app's own attendance (selfie+GPS clock-in/out) and approved
- * leave requests into attendance_reviews — the record the payroll
- * calculator and Rekap Periode both read from. Fully automatic: a workday
- * with neither an attendance row nor an approved leave becomes "absent"
- * (alpha) on its own; a clock-in with no matching clock-out is counted as
- * a full present day (benefit of the doubt — there is proof they showed
- * up); and a clock-in/out pair covering less than half the scheduled
- * shift becomes "half_day". No HRD confirmation step ever blocks payroll.
- *
- * Idempotent and safe to re-run: a row with correction_reason already set
- * (a hand override, however it got there) is left untouched. Everything
- * else is
- * regenerated fresh from the current source data every time — so an
- * employee who clocks in after this already ran for the day flips back
- * from "absent" to "present" on the next recalculation, not stuck stale.
+ * Generates payroll reviews from attendance, approved leave and calendars.
+ * Missing clock-out requires an HRD confirmation; manual corrections survive
+ * regeneration so payroll can retain an auditable source.
  */
 class AttendanceReviewGenerator
 {
@@ -143,14 +132,12 @@ class AttendanceReviewGenerator
         }
 
         if (! $attendance->clock_out_time) {
-            // Clocked in, never clocked out — counted as a full present
-            // day (benefit of the doubt: there is proof they showed up),
-            // not an automatic deduction.
+            // Do not invent worked hours: HRD must confirm the missing clock-out.
             $this->upsert($existing, $user, $date, [
-                'status' => 'validated',
-                'classification' => 'present',
+                'status' => 'draft',
+                'classification' => 'unresolved',
                 'scheduled_minutes' => $scheduledMinutes,
-                'worked_minutes' => $scheduledMinutes,
+                'worked_minutes' => 0,
                 'late_minutes' => $attendance->clock_in_late_minutes ?? 0,
                 'early_departure_minutes' => 0,
                 'excused_minutes' => 0,
@@ -228,7 +215,17 @@ class AttendanceReviewGenerator
             'date' => $date->toDateString(),
         ]);
 
-        $review->fill($attributes)->save();
+        DB::transaction(function () use ($review, $attributes): void {
+            $current = $review->exists ? AttendanceReview::whereKey($review->id)->lockForUpdate()->firstOrFail() : $review;
+            if ($current->correction_reason !== null) {
+                return; // A concurrent HRD confirmation takes precedence.
+            }
+            $current->fill($attributes);
+            if ($current->exists && $current->isDirty()) {
+                $current->version++;
+            }
+            $current->save();
+        });
     }
 
     private function minutesBetween(string $start, string $end): int

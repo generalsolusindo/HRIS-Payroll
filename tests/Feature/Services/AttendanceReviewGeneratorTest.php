@@ -77,7 +77,7 @@ class AttendanceReviewGeneratorTest extends TestCase
         $this->assertSame('validated', $review->status);
     }
 
-    public function test_clocking_in_without_clocking_out_is_automatically_a_full_present_day(): void
+    public function test_clocking_in_without_clocking_out_requires_hrd_confirmation(): void
     {
         $user = User::factory()->create(['role' => 'karyawan', 'status' => 'active']);
         WorkSchedule::create([
@@ -93,10 +93,10 @@ class AttendanceReviewGeneratorTest extends TestCase
         $this->generator()->generateForDate($date);
 
         $review = AttendanceReview::where('user_id', $user->id)->whereDate('date', $date)->firstOrFail();
-        $this->assertSame('present', $review->classification);
-        $this->assertSame('validated', $review->status);
+        $this->assertSame('unresolved', $review->classification);
+        $this->assertSame('draft', $review->status);
         $this->assertSame(5, $review->late_minutes);
-        $this->assertSame(540, $review->worked_minutes);
+        $this->assertSame(0, $review->worked_minutes);
         $this->assertSame(0, $review->early_departure_minutes);
     }
 

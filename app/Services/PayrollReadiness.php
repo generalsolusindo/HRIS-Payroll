@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Attendance;
 use App\Models\AttendanceReview;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollRun;
@@ -39,6 +40,22 @@ class PayrollReadiness
                 $issues[] = "$name: rekap absensi belum lengkap. Koreksi absensi lalu hitung ulang draft.";
             }
             $reviews = AttendanceReview::where('user_id', $entry->user_id)->whereBetween('date', [$run->period->attendance_starts_on->toDateString(), $run->period->attendance_ends_on->toDateString()])->get()->keyBy('id');
+            $missingOut = Attendance::where('user_id', $entry->user_id)
+                ->whereDate('tanggal', '>=', $run->period->attendance_starts_on->toDateString())
+                ->whereDate('tanggal', '<=', $run->period->attendance_ends_on->toDateString())
+                ->whereNotNull('clock_in_time')->whereNull('clock_out_time')->get();
+            foreach ($missingOut as $attendance) {
+                $confirmed = $reviews->first(fn (AttendanceReview $review) => $review->date->toDateString() === $attendance->tanggal->toDateString());
+                // Approved leave/non-working days override an incidental clock-in.
+                if ($confirmed && in_array($confirmed->classification, ['sick', 'leave', 'permission', 'business_trip', 'rest_day', 'holiday'], true)) {
+                    continue;
+                }
+                if (! $confirmed || ! $confirmed->correction_reason || ! $confirmed->validated_by
+                    || $confirmed->status !== 'validated' || ! $confirmed->clock_out_at) {
+                    $issues[] = "$name: absen pulang belum dikonfirmasi HRD. Buka Rekap Periode lalu perbarui draft.";
+                    break;
+                }
+            }
             foreach ($days as $day) {
                 $review = $reviews->get($day['attendance_review_id'] ?? 0);
                 if (! $review || $review->version !== ($day['attendance_review_version'] ?? null)
@@ -49,6 +66,10 @@ class PayrollReadiness
                     $issues[] = "$name: rekap absensi berubah atau belum divalidasi. Hitung ulang draft setelah koreksi.";
                     break;
                 }
+            }
+            $expectedLate = $reviews->whereIn('classification', ['present', 'half_day'])->sum('late_minutes');
+            if ($expectedLate !== ($entry->attendance_snapshot['late_minutes_total'] ?? 0)) {
+                $issues[] = "$name: total menit telat berubah. Perbarui draft payroll.";
             }
             $overtimeRate = PayrollMoney::decimal((string) ($run->policy_snapshot['rules']['overtime']['rate_per_hour'] ?? '0'));
             if (bccomp($overtimeRate, '0', 2) > 0) {

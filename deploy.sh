@@ -46,6 +46,20 @@ php artisan migrate --force
 log "Installing JS dependencies"
 npm ci
 
+log "Clearing stale route/config cache before building"
+# Must run before the build, not just after: Wayfinder generates
+# resources/js/actions and resources/js/routes by reflecting on the
+# app's own *currently loaded* routes — if a previous deploy left a
+# route cache (bootstrap/cache/routes-v7.php) on disk from before this
+# pull's new routes existed, Wayfinder reflects on that stale cached
+# list and silently omits the new routes' helpers, instead of the fresh
+# ones from routes/web.php. The app then throws "X is not a function"
+# at runtime for any of those routes, on every single page, the moment
+# the JS tries to call the missing helper — this bit us for real once,
+# don't let it regress to "after the build" again.
+php artisan route:clear
+php artisan config:clear
+
 log "Building frontend assets"
 # Must run after composer install: Wayfinder generates resources/js/actions
 # and resources/js/routes by reflecting on the app's own PHP controllers —
@@ -54,9 +68,7 @@ log "Building frontend assets"
 # "Could not load .../SomeController".
 npm run build
 
-log "Refreshing caches"
-php artisan config:clear
-php artisan route:clear
+log "Refreshing remaining caches"
 php artisan view:clear
 php artisan cache:clear
 php artisan config:cache

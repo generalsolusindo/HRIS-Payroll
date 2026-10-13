@@ -127,6 +127,24 @@ export function IzinRequestForm({ onSuccess }: { onSuccess?: () => void }) {
         } else if (rule.min && (!leaveDate || leaveDate < rule.min)) {
             setLeaveDate(rule.min);
         }
+
+        // Several fields are reused across types under different labels
+        // (startTime is "Jam Mulai" for half_day but "Jam Keluar" for
+        // temporary_exit; estimatedArrival is "Estimasi Jam Kedatangan"
+        // for late but "Estimasi Jam Kembali" for temporary_exit;
+        // duration is shared by leave and sick). Switching type must
+        // clear them all, or a value typed for one type's field silently
+        // reappears under a different type's differently-labeled field.
+        // reason and attachments are intentionally left alone — they
+        // stay meaningful even after picking a different type.
+        setStartTime('');
+        setEndTime('');
+        setEstimatedArrival('');
+        setDuration('');
+        setEmergency(false);
+        setEmergencyReason('');
+        setContactable(null);
+        setAgreement(false);
         // Only react to the type changing — leaveDate is intentionally
         // left out so typing in the date field doesn't get overwritten.
         // eslint-disable-next-line react-hooks/exhaustive-deps

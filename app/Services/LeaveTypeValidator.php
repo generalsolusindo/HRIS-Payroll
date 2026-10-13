@@ -78,6 +78,14 @@ class LeaveTypeValidator
             $errors['estimated_arrival'] = 'Estimasi kedatangan maksimal jam 09:30.';
         }
 
+        if (! ($input['agreement'] ?? false)) {
+            $errors['agreement'] = 'Wajib menyetujui pernyataan persetujuan konsekuensi sebelum mengajukan.';
+        }
+
+        if (($input['emergency'] ?? false) && empty($input['emergency_reason'])) {
+            $errors['emergency_reason'] = 'Wajib menjelaskan kondisi darurat.';
+        }
+
         return $errors;
     }
 
@@ -96,8 +104,24 @@ class LeaveTypeValidator
 
         if (empty($input['start_time'])) {
             $errors['start_time'] = 'Jam mulai wajib diisi.';
-        } elseif ($this->timeToday($input['start_time'])->lessThan($this->timeToday('12:30'))) {
-            $errors['start_time'] = 'Jam mulai Izin Setengah Hari minimal jam 12:30.';
+        }
+
+        if (empty($input['end_time'])) {
+            $errors['end_time'] = 'Jam selesai wajib diisi.';
+        }
+
+        // Jam mulai boleh kapan saja dalam sehari (pagi/siang/sore) — yang
+        // dibatasi hanya durasinya, bukan posisinya, supaya sisa jam kerja
+        // hari itu tetap minimal 4 jam di manapun blok izinnya diletakkan.
+        if (! empty($input['start_time']) && ! empty($input['end_time'])) {
+            $start = $this->timeToday($input['start_time']);
+            $end = $this->timeToday($input['end_time']);
+
+            if ($end->lessThanOrEqualTo($start)) {
+                $errors['end_time'] = 'Jam selesai harus lebih besar dari jam mulai.';
+            } elseif ($start->diffInMinutes($end) > 240) {
+                $errors['end_time'] = 'Durasi Izin Setengah Hari maksimal 4 jam.';
+            }
         }
 
         return $errors;
@@ -142,6 +166,8 @@ class LeaveTypeValidator
 
         if (empty($input['duration']) || (float) $input['duration'] < 1) {
             $errors['duration'] = 'Durasi cuti (hari) wajib diisi, minimal 1 hari.';
+        } elseif ((float) $input['duration'] > 30) {
+            $errors['duration'] = 'Durasi cuti maksimal 30 hari.';
         }
 
         return $errors;
@@ -189,8 +215,16 @@ class LeaveTypeValidator
             $errors['emergency'] = 'Sudah lewat jam 08:30 — centang kondisi darurat untuk tetap mengajukan.';
         }
 
+        if (($input['emergency'] ?? false) && empty($input['emergency_reason'])) {
+            $errors['emergency_reason'] = 'Wajib menjelaskan kondisi darurat.';
+        }
+
         if (! array_key_exists('contactable', $input) || $input['contactable'] === null) {
             $errors['contactable'] = 'Wajib diisi: apakah Anda bisa dihubungi untuk koordinasi?';
+        }
+
+        if (empty($input['duration']) || (float) $input['duration'] < 1) {
+            $errors['duration'] = 'Estimasi lama istirahat (hari) wajib diisi, minimal 1 hari.';
         }
 
         return $errors;

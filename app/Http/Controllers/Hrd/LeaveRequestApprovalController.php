@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\FiltersLeaveRequests;
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Models\LeaveRequest;
 use App\Services\LeaveRequestNotifier;
@@ -11,27 +13,85 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LeaveRequestApprovalController extends Controller
 {
+    use FiltersLeaveRequests, ScopesToOwnCompany;
+
+    private const PENDING_STATUS = 'pending';
+
     public function __construct(
         private readonly LeaveRequestNotifier $notifier,
     ) {}
 
-    public function index(): Response
+    /**
+     * HRD's own queue — only pengajuan still awaiting the HRD stage.
+     */
+    public function index(Request $request): Response
     {
-        $leaveRequests = LeaveRequest::where('status', 'pending')
+        $companyId = $request->user()->company_id;
+
+        $leaveRequests = $this->filteredLeaveRequestsQuery($request, $companyId)
+            ->where('status', self::PENDING_STATUS)
             ->with(['user:id,name,company_id,position_id', 'user.company:id,name', 'user.position:id,name', 'attachments'])
             ->oldest()
             ->get();
 
         return Inertia::render('hrd/leave-request-approval', [
             'leaveRequests' => $leaveRequests,
+            'stats' => $this->leaveRequestStats($companyId, self::PENDING_STATUS),
+            'filters' => $request->only('search', 'type', 'position_id'),
+            'positions' => $this->positionsForCompany($companyId),
+            'leaveTypes' => $this->leaveTypeOptions(),
         ]);
+    }
+
+    /**
+     * Full searchable archive — every status, every pengajuan this
+     * company has ever had, not just what's currently awaiting HRD.
+     */
+    public function riwayat(Request $request): Response
+    {
+        $companyId = $request->user()->company_id;
+
+        $leaveRequests = $this->filteredLeaveRequestsQuery($request, $companyId)
+            ->when(
+                $request->filled('status'),
+                fn ($query) => $query->where('status', $request->string('status')->toString()),
+            )
+            ->with(['user:id,name,company_id,position_id', 'user.company:id,name', 'user.position:id,name', 'hrdProcessedBy:id,name', 'processedBy:id,name'])
+            ->latest('created_at')
+            ->paginate(30)
+            ->withQueryString();
+
+        return Inertia::render('hrd/leave-request-history', [
+            'leaveRequests' => $leaveRequests,
+            'stats' => $this->leaveRequestStats($companyId, self::PENDING_STATUS),
+            'filters' => $request->only('search', 'type', 'position_id', 'status'),
+            'positions' => $this->positionsForCompany($companyId),
+            'leaveTypes' => $this->leaveTypeOptions(),
+        ]);
+    }
+
+    public function laporan(Request $request): StreamedResponse
+    {
+        $companyId = $request->user()->company_id;
+
+        $query = $this->filteredLeaveRequestsQuery($request, $companyId)
+            ->when(
+                $request->filled('status'),
+                fn ($q) => $q->where('status', $request->string('status')->toString()),
+            );
+
+        return $this->streamLeaveRequestsCsv($query, 'laporan-izin-'.now()->format('Y-m-d').'.csv');
     }
 
     public function approve(Request $request, LeaveRequest $leaveRequest): RedirectResponse
     {
+        $this->assertOwnCompany($request, $leaveRequest->user->company_id);
+        $this->assertNotOwnRequest($request, $leaveRequest);
+
         $validated = $request->validate([
             'note' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -64,6 +124,9 @@ class LeaveRequestApprovalController extends Controller
 
     public function reject(Request $request, LeaveRequest $leaveRequest): RedirectResponse
     {
+        $this->assertOwnCompany($request, $leaveRequest->user->company_id);
+        $this->assertNotOwnRequest($request, $leaveRequest);
+
         $validated = $request->validate([
             'note' => ['required', 'string', 'max:2000'],
         ]);
@@ -107,5 +170,16 @@ class LeaveRequestApprovalController extends Controller
                 'status' => 'Pengajuan ini sudah diproses sebelumnya.',
             ]);
         }
+    }
+
+    /**
+     * New submissions from HRD/Manager are already blocked at the
+     * StoreLeaveRequestRequest level, but this is the actual control
+     * boundary — it must hold even if a role changed after submission,
+     * not just rely on the submit-time check never having let one through.
+     */
+    private function assertNotOwnRequest(Request $request, LeaveRequest $leaveRequest): void
+    {
+        abort_if($leaveRequest->user_id === $request->user()->id, 403, 'Tidak dapat memproses pengajuan milik sendiri.');
     }
 }

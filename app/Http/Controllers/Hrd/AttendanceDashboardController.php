@@ -25,6 +25,7 @@ class AttendanceDashboardController extends Controller
 
         $employees = User::where('role', 'karyawan')
             ->where('status', 'active')
+            ->where('company_id', $request->user()->company_id)
             ->with(['company:id,name', 'position:id,name'])
             ->with(['attendances' => fn ($query) => $query->where('tanggal', $date)])
             ->orderBy('name')

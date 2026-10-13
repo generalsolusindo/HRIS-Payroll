@@ -31,6 +31,37 @@ class OvertimeRequestTest extends TestCase
         $this->assertSame(30, $overtimeRequest->break_minutes);
     }
 
+    public function test_hrd_cannot_submit_an_overtime_request(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+
+        $this->actingAs($hrd)
+            ->post(route('lembur.store'), [
+                'starts_at' => '2026-09-28 18:00:00',
+                'ends_at' => '2026-09-28 21:00:00',
+                'reason' => 'Tidak boleh.',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('overtime_requests', 0);
+    }
+
+    public function test_manager_can_submit_an_overtime_request(): void
+    {
+        $manager = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($manager)
+            ->post(route('lembur.store'), [
+                'starts_at' => '2026-09-28 18:00:00',
+                'ends_at' => '2026-09-28 21:00:00',
+                'reason' => 'Rapat evaluasi bulanan.',
+            ])
+            ->assertSessionDoesntHaveErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseCount('overtime_requests', 1);
+    }
+
     public function test_end_time_must_be_after_start_time(): void
     {
         $karyawan = User::factory()->create(['role' => 'karyawan']);

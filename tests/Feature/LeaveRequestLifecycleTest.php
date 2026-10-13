@@ -35,9 +35,9 @@ class LeaveRequestLifecycleTest extends TestCase
 
     public function test_full_lifecycle_submit_through_hrd_and_manager_approval()
     {
-        $employee = User::factory()->create(['name' => 'Budi Karyawan']);
         $hrd = User::factory()->create(['role' => 'hrd', 'name' => 'Tim HRD']);
-        $manager = User::factory()->create(['role' => 'admin', 'name' => 'Pak Manager']);
+        $manager = User::factory()->create(['role' => 'admin', 'company_id' => $hrd->company_id, 'name' => 'Pak Manager']);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'name' => 'Budi Karyawan']);
 
         $this->actingAs($employee)->post(route('izin.store'), [
             'type' => 'temporary_exit',
@@ -97,14 +97,15 @@ class LeaveRequestLifecycleTest extends TestCase
 
     public function test_full_lifecycle_hrd_rejection_is_final_and_never_reaches_manager()
     {
-        $employee = User::factory()->create();
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $manager = User::factory()->create(['role' => 'admin']);
+        $manager = User::factory()->create(['role' => 'admin', 'company_id' => $hrd->company_id]);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id]);
 
         $this->actingAs($employee)->post(route('izin.store'), [
             'type' => 'leave',
             'leave_date' => today()->addDays(7)->toDateString(),
             'duration' => 3,
+            'reason' => 'Acara keluarga.',
         ]);
 
         $leaveRequest = LeaveRequest::firstOrFail();
@@ -134,15 +135,16 @@ class LeaveRequestLifecycleTest extends TestCase
 
     public function test_full_lifecycle_manager_rejection_after_hrd_approval()
     {
-        $employee = User::factory()->create();
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $manager = User::factory()->create(['role' => 'admin']);
+        $manager = User::factory()->create(['role' => 'admin', 'company_id' => $hrd->company_id]);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id]);
 
         $this->actingAs($employee)->post(route('izin.store'), [
             'type' => 'temporary_exit',
             'leave_date' => today()->toDateString(),
             'start_time' => '10:00',
             'estimated_arrival' => '11:00',
+            'reason' => 'Urusan bank.',
         ]);
 
         $leaveRequest = LeaveRequest::firstOrFail();

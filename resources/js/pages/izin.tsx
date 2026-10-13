@@ -1,7 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { Inbox } from 'lucide-react';
 import LeaveRequestController from '@/actions/App/Http/Controllers/LeaveRequestController';
-import { IzinRequestDialog } from '@/components/izin-request-dialog';
+import { IzinRequestForm } from '@/components/izin-request-form';
 import {
     IzinStatusBadge,
     type IzinStatus,
@@ -65,39 +65,40 @@ export default function Izin({ leaveRequests }: Props) {
         <>
             <Head title="Izin" />
             <div className="flex flex-1 flex-col gap-6 p-4">
-                <div className="flex items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                            Izin
-                        </h1>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Ajukan dan pantau izin Anda.
-                        </p>
-                    </div>
-                    <IzinRequestDialog
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                        Izin
+                    </h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Ajukan dan pantau izin Anda.
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+                    <IzinRequestForm
                         onSuccess={() =>
                             router.reload({ only: ['leaveRequests'] })
                         }
                     />
-                </div>
 
-                {leaveRequests.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center gap-2 rounded-3xl bg-muted/40 py-16 text-center">
-                        <Inbox className="size-8 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">
-                            Belum ada pengajuan izin.
-                        </p>
-                    </div>
-                ) : (
-                    <div className="flex flex-col gap-2">
-                        {leaveRequests.map((leaveRequest) => (
-                            <IzinHistoryRow
-                                key={leaveRequest.id}
-                                leaveRequest={leaveRequest}
-                            />
-                        ))}
-                    </div>
-                )}
+                    {leaveRequests.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center gap-2 rounded-3xl bg-muted/40 py-16 text-center">
+                            <Inbox className="size-8 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">
+                                Belum ada pengajuan izin.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-2">
+                            {leaveRequests.map((leaveRequest) => (
+                                <IzinHistoryRow
+                                    key={leaveRequest.id}
+                                    leaveRequest={leaveRequest}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         </>
     );

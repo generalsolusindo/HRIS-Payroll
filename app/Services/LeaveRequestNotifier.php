@@ -14,27 +14,46 @@ use Throwable;
  * lifecycle events. Every send is wrapped so a failure here can never
  * break the approve/reject flow that triggered it — only the
  * telegram_status/email_status tracking columns reflect what happened.
+ *
+ * Message wording/structure is pinned to TEMPLATE-PESAN-TELEGRAM.md at
+ * the repo root — match it exactly on any change, not just "close enough".
  */
 class LeaveRequestNotifier
 {
     public function notifySubmitted(LeaveRequest $leaveRequest): void
     {
-        $this->sendTelegram($leaveRequest, $this->renderMessage(
+        $this->sendTelegram(
             $leaveRequest,
-            '🔔 PENGAJUAN IZIN BARU',
-            '🔵 MENUNGGU PERSETUJUAN HRD',
-            'HRD meninjau terlebih dahulu. Setelah disetujui HRD, Manager memberikan keputusan final.',
-        ));
+            $this->renderMessage(
+                $leaveRequest,
+                '🔔 PENGAJUAN IZIN BARU',
+                [],
+                '🔵 MENUNGGU PERSETUJUAN HRD',
+                [
+                    'HRD meninjau terlebih dahulu. Setelah disetujui HRD, Manager memberikan keputusan final.',
+                    'Login Web: '.$this->escape($this->loginUrl()),
+                ],
+            ),
+            $this->loginButton(),
+        );
     }
 
     public function notifyHrdApproved(LeaveRequest $leaveRequest): void
     {
-        $this->sendTelegram($leaveRequest, $this->renderMessage(
+        $this->sendTelegram(
             $leaveRequest,
-            '🟡 DISETUJUI HRD — MENUNGGU MANAGER',
-            '🟡 MENUNGGU PERSETUJUAN MANAGER',
-            'Mohon Manager untuk meninjau pengajuan ini.',
-        ));
+            $this->renderMessage(
+                $leaveRequest,
+                '🟡 DISETUJUI HRD — MENUNGGU MANAGER',
+                ['Disetujui HRD: '.$this->escape($leaveRequest->hrdProcessedBy->name)],
+                '🟡 MENUNGGU PERSETUJUAN MANAGER',
+                [
+                    'Mohon Manager untuk meninjau dan memberikan keputusan final.',
+                    'Login Web: '.$this->escape($this->loginUrl()),
+                ],
+            ),
+            $this->loginButton(),
+        );
     }
 
     public function notifyFinalApproved(LeaveRequest $leaveRequest): void
@@ -44,10 +63,14 @@ class LeaveRequestNotifier
             $this->renderMessage(
                 $leaveRequest,
                 '🟢 PENGAJUAN IZIN DISETUJUI (FINAL)',
+                [
+                    'Disetujui HRD: '.$this->escape($leaveRequest->hrdProcessedBy->name),
+                    'Disetujui Manager: '.$this->escape($leaveRequest->processedBy->name),
+                ],
                 '🟢 DISETUJUI',
-                'Silakan teruskan konfirmasi ke karyawan lewat tombol WhatsApp di bawah ini.',
+                ['Silakan teruskan konfirmasi ke karyawan lewat tombol WhatsApp di bawah ini.'],
             ),
-            $this->whatsAppButton($leaveRequest, 'Disetujui'),
+            $this->whatsAppButton($leaveRequest, 'MANAGER', now()),
         );
 
         $this->sendEmail($leaveRequest);
@@ -62,29 +85,36 @@ class LeaveRequestNotifier
         $rejector = $rejectedByStage === 'hrd'
             ? $leaveRequest->hrdProcessedBy
             : $leaveRequest->processedBy;
-
-        $note = sprintf(
-            "Ditolak oleh: %s (%s)\nAlasan: %s\n\nSilakan teruskan konfirmasi ke karyawan lewat tombol WhatsApp di bawah ini.",
-            $this->escape($rejector->name),
-            $rejectedByStage === 'hrd' ? 'HRD' : 'Manager',
-            $this->escape($leaveRequest->rejection_reason ?? '-'),
-        );
+        $rejectorRole = $rejectedByStage === 'hrd' ? 'HRD' : 'MANAGER';
 
         $this->sendTelegram(
             $leaveRequest,
-            $this->renderMessage($leaveRequest, '🔴 PENGAJUAN IZIN DITOLAK (FINAL)', '🔴 DITOLAK', $note),
-            $this->whatsAppButton($leaveRequest, 'Ditolak'),
+            $this->renderMessage(
+                $leaveRequest,
+                '🔴 PENGAJUAN IZIN DITOLAK',
+                [
+                    'Ditolak oleh: '.$rejectorRole.' ('.$this->escape($rejector->name).')',
+                    'Alasan Penolakan: '.$this->escape($leaveRequest->rejection_reason ?: 'Tidak memenuhi ketentuan kebijakan kantor.'),
+                ],
+                '🔴 DITOLAK',
+                ['Silakan teruskan informasi penolakan ke karyawan lewat tombol WhatsApp di bawah ini.'],
+            ),
+            $this->whatsAppButton($leaveRequest, $rejectorRole, now()),
         );
 
         $this->sendEmail($leaveRequest);
     }
 
-    private function renderMessage(LeaveRequest $leaveRequest, string $title, string $statusLine, string $note): string
+    /**
+     * @param  array<int, string>  $extraLines  Inserted between "Alasan: ..." and "Status: ...".
+     * @param  array<int, string>  $trailingLines  Inserted after the blank line following "Status: ...".
+     */
+    private function renderMessage(LeaveRequest $leaveRequest, string $title, array $extraLines, string $statusLine, array $trailingLines): string
     {
         $user = $leaveRequest->user;
 
         $lines = [
-            '<b>'.$this->escape($title).'</b>',
+            $this->escape($title),
             '',
             'No. Pengajuan: '.$this->escape($leaveRequest->request_number),
             'Nama: '.$this->escape($user->name),
@@ -92,40 +122,109 @@ class LeaveRequestNotifier
             'Jabatan: '.$this->escape($user->position->name ?? '-'),
             'Jenis Izin: '.$this->escape($leaveRequest->typeLabel()),
             'Tanggal Izin: '.$leaveRequest->leave_date->format('d/m/Y'),
+            'Alasan: '.$this->escape($leaveRequest->reason),
+            ...$extraLines,
+            'Status: '.$this->escape($statusLine),
+            '',
+            ...$trailingLines,
         ];
-
-        if ($leaveRequest->hrd_processed_by) {
-            $lines[] = 'Disetujui HRD: '.$this->escape($leaveRequest->hrdProcessedBy->name);
-        }
-
-        if ($leaveRequest->status === 'approved' && $leaveRequest->processed_by) {
-            $lines[] = 'Disetujui Manager: '.$this->escape($leaveRequest->processedBy->name);
-        }
-
-        $lines[] = 'Status: '.$this->escape($statusLine);
-        $lines[] = '';
-        $lines[] = $note;
 
         return implode("\n", $lines);
     }
 
     /**
+     * A short line describing the relevant date/time detail for this
+     * type — used only in the WhatsApp message, where there is no room
+     * for per-field labels like the Telegram message has.
+     */
+    private function tanggalInfo(LeaveRequest $leaveRequest): string
+    {
+        $date = $leaveRequest->leave_date->format('d/m/Y');
+
+        return match ($leaveRequest->type) {
+            'late' => "{$date}, estimasi tiba ".$this->shortTime($leaveRequest->estimated_arrival),
+            'half_day' => "{$date}, ".$this->shortTime($leaveRequest->start_time).'–'.$this->shortTime($leaveRequest->end_time),
+            'temporary_exit' => "{$date}, keluar ".$this->shortTime($leaveRequest->start_time).', estimasi kembali '.$this->shortTime($leaveRequest->estimated_arrival),
+            'leave', 'sick' => "{$date}, ".rtrim(rtrim((string) $leaveRequest->duration, '0'), '.').' hari',
+            default => $date,
+        };
+    }
+
+    private function shortTime(?string $time): string
+    {
+        return $time ? substr($time, 0, 5) : '-';
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function whatsAppButton(LeaveRequest $leaveRequest, string $decisionLabel): array
+    private function whatsAppButton(LeaveRequest $leaveRequest, string $processedByRole, \DateTimeInterface $processedAt): array
     {
         $phone = $this->normalizePhoneForWhatsApp($leaveRequest->user->phone);
+        $decided = $leaveRequest->status === 'approved';
 
-        $text = urlencode(sprintf(
-            'Halo %s, pengajuan izin Anda (%s) sudah diputuskan: %s.',
-            $leaveRequest->user->name,
-            $leaveRequest->request_number,
-            $decisionLabel,
-        ));
+        $lines = [
+            'Halo '.$leaveRequest->user->name.',',
+            '',
+            $decided
+                ? 'Pengajuan izin Anda telah DISETUJUI.'
+                : 'Pengajuan izin Anda telah DITOLAK.',
+            '',
+            'Nomor Pengajuan: '.$leaveRequest->request_number,
+            'Jenis Izin: '.$leaveRequest->typeLabel(),
+            'Tanggal: '.$this->tanggalInfo($leaveRequest),
+            'Status: '.($decided ? 'DISETUJUI' : 'DITOLAK'),
+        ];
+
+        if ($decided) {
+            $lines[] = 'Diproses oleh: '.$processedByRole;
+            $lines[] = 'Waktu proses: '.$processedAt->format('d/m/Y H:i');
+            $lines[] = '';
+            $lines[] = 'Silakan simpan pesan ini sebagai informasi pengajuan izin Anda.';
+        } else {
+            $lines[] = '';
+            $lines[] = 'Alasan penolakan:';
+            $lines[] = $leaveRequest->rejection_reason ?: 'Tidak memenuhi ketentuan kebijakan kantor.';
+            $lines[] = '';
+            $lines[] = 'Diproses oleh: '.$processedByRole;
+            $lines[] = 'Waktu proses: '.$processedAt->format('d/m/Y H:i');
+            $lines[] = '';
+            $lines[] = 'Silakan hubungi HRD apabila memerlukan informasi lebih lanjut.';
+        }
+
+        $text = urlencode(implode("\n", $lines));
 
         return [
             'inline_keyboard' => [[
                 ['text' => 'Kirim ke WhatsApp Karyawan', 'url' => "https://wa.me/{$phone}?text={$text}"],
+            ]],
+        ];
+    }
+
+    private function loginUrl(): string
+    {
+        return config('services.telegram.login_url') ?: route('login');
+    }
+
+    /**
+     * "Login Web Izin" button for the submitted/HRD-approved notifications.
+     * Telegram rejects http:// button URLs outright, so a non-https login
+     * URL just drops the button — the "Login Web: ..." text line (always
+     * sent, see renderMessage() callers) still carries the URL either way.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function loginButton(): ?array
+    {
+        $url = $this->loginUrl();
+
+        if (! str_starts_with($url, 'https://')) {
+            return null;
+        }
+
+        return [
+            'inline_keyboard' => [[
+                ['text' => 'Login Web Izin', 'url' => $url],
             ]],
         ];
     }

@@ -34,6 +34,52 @@ class LeaveRequestTest extends TestCase
         $this->assertDatabaseCount('leave_requests', 0);
     }
 
+    public function test_hrd_cannot_submit_a_leave_request()
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+
+        $response = $this->actingAs($hrd)->post(route('izin.store'), [
+            'type' => 'temporary_exit',
+            'leave_date' => today()->toDateString(),
+            'start_time' => '10:00',
+            'estimated_arrival' => '11:00',
+        ]);
+
+        $response->assertForbidden();
+        $this->assertDatabaseCount('leave_requests', 0);
+    }
+
+    public function test_manager_cannot_submit_a_leave_request()
+    {
+        $manager = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($manager)->post(route('izin.store'), [
+            'type' => 'temporary_exit',
+            'leave_date' => today()->toDateString(),
+            'start_time' => '10:00',
+            'estimated_arrival' => '11:00',
+        ]);
+
+        $response->assertForbidden();
+        $this->assertDatabaseCount('leave_requests', 0);
+    }
+
+    public function test_finance_can_submit_a_leave_request()
+    {
+        $finance = User::factory()->create(['role' => 'finance']);
+
+        $response = $this->actingAs($finance)->post(route('izin.store'), [
+            'type' => 'temporary_exit',
+            'leave_date' => today()->toDateString(),
+            'start_time' => '10:00',
+            'estimated_arrival' => '11:00',
+            'reason' => 'Urusan pribadi.',
+        ]);
+
+        $response->assertSessionDoesntHaveErrors()->assertRedirect();
+        $this->assertDatabaseCount('leave_requests', 1);
+    }
+
     public function test_employee_can_submit_a_temporary_exit_request()
     {
         $user = User::factory()->create();
@@ -98,6 +144,7 @@ class LeaveRequestTest extends TestCase
             'leave_date' => today()->toDateString(),
             'contactable' => true,
             'duration' => 2,
+            'reason' => 'Demam tinggi.',
             'attachments' => [$file],
         ]);
 
@@ -121,6 +168,7 @@ class LeaveRequestTest extends TestCase
             'leave_date' => today()->toDateString(),
             'start_time' => '10:00',
             'estimated_arrival' => '11:00',
+            'reason' => 'Urusan bank.',
         ]);
 
         $this->actingAs($user)->post(route('izin.store'), [
@@ -128,6 +176,7 @@ class LeaveRequestTest extends TestCase
             'leave_date' => today()->toDateString(),
             'start_time' => '14:00',
             'estimated_arrival' => '15:00',
+            'reason' => 'Ambil paket.',
         ]);
 
         $numbers = LeaveRequest::pluck('request_number')->all();

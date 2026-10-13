@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import LeaveRequestApprovalController from '@/actions/App/Http/Controllers/Hrd/LeaveRequestApprovalController';
 import LeaveRequestAttachmentController from '@/actions/App/Http/Controllers/LeaveRequestAttachmentController';
+import { SummaryStat } from '@/components/attendance-summary-stat';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,7 +15,15 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import {
     LEAVE_TYPE_ICONS,
@@ -48,8 +57,22 @@ type PendingLeaveRequest = {
     attachments: Attachment[];
 };
 
+type Stats = {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    today: number;
+};
+
+type Position = { id: number; name: string };
+
 type Props = {
     leaveRequests: PendingLeaveRequest[];
+    stats: Stats;
+    filters: { search?: string; type?: string; position_id?: string };
+    positions: Position[];
+    leaveTypes: Record<string, string>;
 };
 
 function initialsOf(name: string): string {
@@ -308,7 +331,29 @@ function PendingLeaveRequestCard({
     );
 }
 
-export default function LeaveRequestApproval({ leaveRequests }: Props) {
+export default function LeaveRequestApproval({
+    leaveRequests,
+    stats,
+    filters,
+    positions,
+    leaveTypes,
+}: Props) {
+    const [search, setSearch] = useState(filters.search ?? '');
+    const [type, setType] = useState(filters.type ?? '');
+    const [positionId, setPositionId] = useState(filters.position_id ?? '');
+
+    function applyFilters(next: Partial<Props['filters']>) {
+        router.get(
+            LeaveRequestApprovalController.index().url,
+            {
+                search: next.search ?? search,
+                type: next.type ?? type,
+                position_id: next.position_id ?? positionId,
+            },
+            { preserveState: true, preserveScroll: true },
+        );
+    }
+
     return (
         <>
             <Head title="Persetujuan Izin" />
@@ -322,6 +367,97 @@ export default function LeaveRequestApproval({ leaveRequests }: Props) {
                         Tinjau pengajuan izin karyawan. Setujui untuk meneruskan
                         ke Manager, atau tolak dengan catatan.
                     </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                    <SummaryStat
+                        label="Total"
+                        value={stats.total}
+                        tone="navy"
+                    />
+                    <SummaryStat
+                        label="Menunggu HRD"
+                        value={stats.pending}
+                        tone="yellow"
+                    />
+                    <SummaryStat
+                        label="Disetujui"
+                        value={stats.approved}
+                        tone="muted"
+                    />
+                    <SummaryStat
+                        label="Ditolak"
+                        value={stats.rejected}
+                        tone="red"
+                        emphasize
+                    />
+                    <SummaryStat
+                        label="Hari Ini"
+                        value={stats.today}
+                        tone="muted"
+                    />
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                    <Input
+                        placeholder="Cari nama / nomor pengajuan..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') applyFilters({});
+                        }}
+                        onBlur={() => applyFilters({})}
+                        className="w-64"
+                    />
+
+                    <Select
+                        value={type || 'all'}
+                        onValueChange={(value) => {
+                            const next = value === 'all' ? '' : value;
+                            setType(next);
+                            applyFilters({ type: next });
+                        }}
+                    >
+                        <SelectTrigger className="w-56">
+                            <SelectValue placeholder="Semua jenis izin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">
+                                Semua jenis izin
+                            </SelectItem>
+                            {Object.entries(leaveTypes).map(
+                                ([value, label]) => (
+                                    <SelectItem key={value} value={value}>
+                                        {label}
+                                    </SelectItem>
+                                ),
+                            )}
+                        </SelectContent>
+                    </Select>
+
+                    <Select
+                        value={positionId || 'all'}
+                        onValueChange={(value) => {
+                            const next = value === 'all' ? '' : value;
+                            setPositionId(next);
+                            applyFilters({ position_id: next });
+                        }}
+                    >
+                        <SelectTrigger className="w-56">
+                            <SelectValue placeholder="Semua jabatan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Semua jabatan</SelectItem>
+                            {positions.map((position) => (
+                                <SelectItem
+                                    key={position.id}
+                                    value={String(position.id)}
+                                >
+                                    {position.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
 
                 {leaveRequests.length === 0 ? (

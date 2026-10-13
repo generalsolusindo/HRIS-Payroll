@@ -20,9 +20,15 @@ class PayrollAuditLogController extends Controller
      */
     public function index(Request $request): Response
     {
+        // Role middleware only checks the "hrd" role name, not the
+        // tenant boundary — every log, entity-type option, and company
+        // in this screen is pinned to the HRD's own company, never a
+        // client-supplied company_id.
+        $companyId = $request->user()->company_id;
+
         $logs = PayrollAuditLog::with('company:id,name', 'actor:id,name')
+            ->where('company_id', $companyId)
             ->when($request->filled('entity_type'), fn ($query) => $query->where('entity_type', $request->string('entity_type')->toString()))
-            ->when($request->filled('company_id'), fn ($query) => $query->where('company_id', $request->integer('company_id')))
             ->latest('created_at')
             ->paginate(30)
             ->withQueryString()
@@ -41,8 +47,8 @@ class PayrollAuditLogController extends Controller
 
         return Inertia::render('hrd/audit-log', [
             'logs' => $logs,
-            'entityTypes' => PayrollAuditLog::query()->distinct()->orderBy('entity_type')->pluck('entity_type'),
-            'companies' => Company::orderBy('name')->get(['id', 'name']),
+            'entityTypes' => PayrollAuditLog::query()->where('company_id', $companyId)->distinct()->orderBy('entity_type')->pluck('entity_type'),
+            'companies' => Company::where('id', $companyId)->orderBy('name')->get(['id', 'name']),
             'filters' => $request->only('entity_type', 'company_id'),
         ]);
     }

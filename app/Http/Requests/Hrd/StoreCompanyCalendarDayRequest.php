@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Hrd;
 
-use App\Models\Company;
 use App\Models\CompanyCalendarDay;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -22,7 +21,10 @@ class StoreCompanyCalendarDayRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'company_id' => ['required', Rule::exists(Company::class, 'id')],
+            // Role middleware only checks the "hrd" role name, not the
+            // tenant boundary — an HRD must never add a calendar day for
+            // a company other than their own.
+            'company_id' => ['required', Rule::in([$this->user()->company_id])],
             'date' => [
                 'required', 'date',
                 Rule::unique(CompanyCalendarDay::class)->where(fn ($query) => $query->where('company_id', $this->input('company_id'))),

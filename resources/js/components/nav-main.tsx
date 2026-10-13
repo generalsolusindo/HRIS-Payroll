@@ -21,19 +21,43 @@ export function NavMain({
     const { currentUrl } = useCurrentUrl();
     const { isMobile, setOpenMobile } = useSidebar();
 
+    // Only the single most specific match wins. Plain prefix-matching
+    // would otherwise keep a broader item highlighted too (e.g.
+    // "Persetujuan Izin" at /hrd/izin) whenever a sibling's own
+    // sub-path (e.g. "Riwayat Izin" at /hrd/izin/riwayat) is open, just
+    // because that sub-path happens to start with the broader one's
+    // prefix.
+    let activeIndex = -1;
+    let bestSpecificity = -1;
+
+    items.forEach((item, index) => {
+        if (item.isActive) {
+            activeIndex = index;
+            bestSpecificity = Infinity;
+            return;
+        }
+
+        for (const path of item.activePaths ?? [toUrl(item.href)]) {
+            let specificity = -1;
+            if (currentUrl === path) {
+                specificity = path.length + 1;
+            } else if (currentUrl.startsWith(`${path}/`)) {
+                specificity = path.length;
+            }
+
+            if (specificity > bestSpecificity) {
+                bestSpecificity = specificity;
+                activeIndex = index;
+            }
+        }
+    });
+
     return (
         <SidebarGroup className="px-2 py-0">
             <SidebarGroupLabel>{groupLabel}</SidebarGroupLabel>
             <SidebarMenu>
-                {items.map((item) => {
-                    const paths = item.activePaths ?? [toUrl(item.href)];
-                    const isActive =
-                        item.isActive ??
-                        paths.some(
-                            (path) =>
-                                currentUrl === path ||
-                                currentUrl.startsWith(`${path}/`),
-                        );
+                {items.map((item, index) => {
+                    const isActive = index === activeIndex;
 
                     return (
                         <SidebarMenuItem key={item.title}>

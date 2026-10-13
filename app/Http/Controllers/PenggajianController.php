@@ -34,10 +34,15 @@ class PenggajianController extends Controller
 
     public function show(Request $request, PayrollPayslip $payslip): Response
     {
-        $payslip->loadMissing('entry');
+        $payslip->loadMissing('entry.user');
 
+        // Role middleware only checks the "hrd" role name, not the
+        // tenant boundary — an HRD must only reach this self-service
+        // route (not the dedicated /hrd/hasil-payroll screen) for a
+        // payslip belonging to their own company.
         abort_unless(
-            $payslip->entry->user_id === $request->user()->id || $request->user()->role === 'hrd',
+            $payslip->entry->user_id === $request->user()->id
+                || ($request->user()->role === 'hrd' && $payslip->entry->user->company_id === $request->user()->company_id),
             403,
         );
 

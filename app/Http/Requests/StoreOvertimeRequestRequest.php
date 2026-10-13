@@ -9,7 +9,9 @@ class StoreOvertimeRequestRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        // HRD is Lembur's only approval stage — letting HRD submit its
+        // own would mean that stage is asked to approve its own request.
+        return $this->user()->role !== 'hrd';
     }
 
     /**

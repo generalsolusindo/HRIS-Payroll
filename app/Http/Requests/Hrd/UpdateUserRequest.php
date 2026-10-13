@@ -48,10 +48,23 @@ class UpdateUserRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $validator->after(fn (Validator $validator) => $this->assertPositionBelongsToCompany(
-            $validator,
-            $this->input('company_id'),
-            $this->input('position_id'),
-        ));
+        $validator->after(function (Validator $validator) {
+            // Role middleware only checks the "hrd" role name, not the
+            // tenant boundary — an HRD must never move a user into a
+            // company other than their own. (Whether the target user
+            // already belongs to another company is checked separately,
+            // in the controller, before this request is even validated.)
+            if ($this->filled('company_id') && (int) $this->input('company_id') !== $this->user()->company_id) {
+                $validator->errors()->add('company_id', 'Anda hanya dapat mengelola pengguna pada instansi Anda sendiri.');
+
+                return;
+            }
+
+            $this->assertPositionBelongsToCompany(
+                $validator,
+                $this->input('company_id'),
+                $this->input('position_id'),
+            );
+        });
     }
 }

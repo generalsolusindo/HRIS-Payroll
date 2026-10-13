@@ -2,20 +2,25 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\StoreCompanyCalendarDayRequest;
 use App\Models\Company;
 use App\Models\CompanyCalendarDay;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CompanyCalendarDayController extends Controller
 {
-    public function index(): Response
+    use ScopesToOwnCompany;
+
+    public function index(Request $request): Response
     {
         return Inertia::render('hrd/calendar-days', [
             'days' => CompanyCalendarDay::with('company:id,name')
+                ->where('company_id', $request->user()->company_id)
                 ->orderByDesc('date')
                 ->get(['id', 'company_id', 'date', 'type', 'description'])
                 ->map(fn (CompanyCalendarDay $day) => [
@@ -25,7 +30,7 @@ class CompanyCalendarDayController extends Controller
                     'type' => $day->type,
                     'description' => $day->description,
                 ]),
-            'companies' => Company::orderBy('name')->get(['id', 'name']),
+            'companies' => Company::where('id', $request->user()->company_id)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -38,8 +43,10 @@ class CompanyCalendarDayController extends Controller
         return back();
     }
 
-    public function destroy(CompanyCalendarDay $day): RedirectResponse
+    public function destroy(Request $request, CompanyCalendarDay $day): RedirectResponse
     {
+        $this->assertOwnCompany($request, $day->company_id);
+
         $day->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Tanggal kalender berhasil dihapus.']);

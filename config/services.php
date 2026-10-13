@@ -38,6 +38,11 @@ return [
     'telegram' => [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
         'chat_id' => env('TELEGRAM_CHAT_ID'),
+        // URL for the "Login Web Izin" button on the submitted/HRD-approved
+        // notifications. Falls back to the app's own login route at
+        // send-time if left unset — only override when staff log in from a
+        // different host/path than the public app URL.
+        'login_url' => env('TELEGRAM_LOGIN_URL'),
     ],
 
 ];

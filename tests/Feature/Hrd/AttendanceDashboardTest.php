@@ -14,7 +14,7 @@ class AttendanceDashboardTest extends TestCase
     public function test_hrd_sees_employees_who_have_not_clocked_in_today()
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $employee = User::factory()->create(['status' => 'active', 'name' => 'Budi']);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'status' => 'active', 'name' => 'Budi']);
 
         $response = $this->actingAs($hrd)
             ->get(route('hrd.absensi.index'))
@@ -31,7 +31,7 @@ class AttendanceDashboardTest extends TestCase
     public function test_hrd_sees_todays_attendance_record()
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $employee = User::factory()->create(['status' => 'active']);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'status' => 'active']);
 
         Attendance::create([
             'user_id' => $employee->id,
@@ -52,7 +52,7 @@ class AttendanceDashboardTest extends TestCase
     public function test_hrd_sees_a_face_mismatch_flag(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $employee = User::factory()->create(['status' => 'active']);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'status' => 'active']);
 
         Attendance::create([
             'user_id' => $employee->id,
@@ -75,7 +75,7 @@ class AttendanceDashboardTest extends TestCase
     public function test_an_employee_without_enrolled_face_shows_no_mismatch_flag(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $employee = User::factory()->create(['status' => 'active']);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'status' => 'active']);
 
         Attendance::create([
             'user_id' => $employee->id,
@@ -96,7 +96,7 @@ class AttendanceDashboardTest extends TestCase
     public function test_hrd_can_view_a_different_dates_attendance()
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $employee = User::factory()->create(['status' => 'active']);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'status' => 'active']);
 
         Attendance::create([
             'user_id' => $employee->id,
@@ -112,6 +112,18 @@ class AttendanceDashboardTest extends TestCase
         $row = collect($employees)->firstWhere('id', $employee->id);
 
         $this->assertSame('tepat_waktu', $row['clock_in_status']);
+    }
+
+    public function test_hrd_does_not_see_another_companys_employees()
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $outsider = User::factory()->create(['status' => 'active', 'name' => 'Outsider']);
+
+        $employees = $this->actingAs($hrd)
+            ->get(route('hrd.absensi.index'))
+            ->viewData('page')['props']['employees'];
+
+        $this->assertNull(collect($employees)->firstWhere('id', $outsider->id));
     }
 
     public function test_hrd_accounts_are_excluded_from_the_list()

@@ -12,7 +12,10 @@ class StoreLeaveRequestRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        // HRD and Manager are the two approval stages for Izin — letting
+        // either submit their own would mean one of those stages is
+        // asked to approve its own submission.
+        return ! in_array($this->user()->role, ['hrd', 'admin'], true);
     }
 
     /**
@@ -27,10 +30,13 @@ class StoreLeaveRequestRequest extends FormRequest
             'end_time' => ['nullable', 'date_format:H:i'],
             'estimated_arrival' => ['nullable', 'date_format:H:i'],
             'duration' => ['nullable', 'numeric', 'min:0.5'],
-            'reason' => ['nullable', 'string', 'max:2000'],
+            'reason' => ['required', 'string', 'max:2000'],
             'emergency' => ['sometimes', 'boolean'],
             'emergency_reason' => ['nullable', 'string', 'max:2000'],
             'contactable' => ['nullable', 'boolean'],
+            // Only meaningful for type=late (checked in LeaveTypeValidator);
+            // harmless to accept for every type since it is never persisted.
+            'agreement' => ['sometimes', 'boolean'],
             'attachments' => ['sometimes', 'array'],
             'attachments.*' => ['file', 'mimes:jpeg,png,webp,pdf', 'max:5120'],
         ];
@@ -71,7 +77,9 @@ class StoreLeaveRequestRequest extends FormRequest
             'estimated_arrival' => $this->input('estimated_arrival'),
             'duration' => $this->input('duration'),
             'emergency' => $this->boolean('emergency'),
+            'emergency_reason' => $this->input('emergency_reason'),
             'contactable' => $this->has('contactable') ? $this->boolean('contactable') : null,
+            'agreement' => $this->boolean('agreement'),
         ];
     }
 
@@ -86,7 +94,6 @@ class StoreLeaveRequestRequest extends FormRequest
         return [
             'type' => $this->input('type'),
             'reason' => $this->input('reason'),
-            'emergency_reason' => $this->input('emergency_reason'),
             ...$this->normalized(),
         ];
     }

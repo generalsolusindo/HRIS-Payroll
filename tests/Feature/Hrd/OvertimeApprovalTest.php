@@ -86,6 +86,26 @@ class OvertimeApprovalTest extends TestCase
         $this->assertSame('submitted', $otherCompanysRequest->fresh()->status);
     }
 
+    public function test_hrd_cannot_approve_their_own_overtime_request(): void
+    {
+        // Submitting one's own is already blocked at
+        // StoreOvertimeRequestRequest, but the row is created directly
+        // here to prove the controller's own guard holds independently
+        // (e.g. if the role changed after submission).
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $overtimeRequest = OvertimeRequest::create([
+            'user_id' => $hrd->id, 'company_id' => $hrd->company_id,
+            'starts_at' => '2026-09-28 18:00:00', 'ends_at' => '2026-09-28 21:00:00',
+            'break_minutes' => 30, 'reason' => 'Laporan bulanan', 'status' => 'submitted',
+        ]);
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.persetujuan-lembur.approve', $overtimeRequest), ['approved_minutes' => 150])
+            ->assertForbidden();
+
+        $this->assertSame('submitted', $overtimeRequest->fresh()->status);
+    }
+
     public function test_hrd_can_approve_fewer_minutes_than_requested(): void
     {
         [$hrd, $overtimeRequest] = $this->makeHrdAndSubmittedOvertime();

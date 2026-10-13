@@ -70,10 +70,10 @@ class LeaveRequestReadTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_hrd_can_view_any_leave_request_detail_including_already_decided_ones()
+    public function test_hrd_can_view_their_own_companys_leave_request_detail_including_already_decided_ones()
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $employee = User::factory()->create();
+        $employee = User::factory()->create(['company_id' => $hrd->company_id]);
         $leaveRequest = $this->makeLeaveRequest($employee, ['status' => 'approved']);
 
         $this->actingAs($hrd)
@@ -81,7 +81,29 @@ class LeaveRequestReadTest extends TestCase
             ->assertOk();
     }
 
-    public function test_manager_can_view_any_leave_request_detail()
+    public function test_hrd_cannot_view_another_companys_leave_request_detail()
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $employee = User::factory()->create();
+        $leaveRequest = $this->makeLeaveRequest($employee, ['status' => 'approved']);
+
+        $this->actingAs($hrd)
+            ->get(route('izin.show', $leaveRequest))
+            ->assertForbidden();
+    }
+
+    public function test_manager_can_view_their_own_companys_leave_request_detail()
+    {
+        $manager = User::factory()->create(['role' => 'admin']);
+        $employee = User::factory()->create(['company_id' => $manager->company_id]);
+        $leaveRequest = $this->makeLeaveRequest($employee);
+
+        $this->actingAs($manager)
+            ->get(route('izin.show', $leaveRequest))
+            ->assertOk();
+    }
+
+    public function test_manager_cannot_view_another_companys_leave_request_detail()
     {
         $manager = User::factory()->create(['role' => 'admin']);
         $employee = User::factory()->create();
@@ -89,6 +111,6 @@ class LeaveRequestReadTest extends TestCase
 
         $this->actingAs($manager)
             ->get(route('izin.show', $leaveRequest))
-            ->assertOk();
+            ->assertForbidden();
     }
 }

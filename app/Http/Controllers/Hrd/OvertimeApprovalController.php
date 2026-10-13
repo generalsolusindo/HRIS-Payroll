@@ -40,6 +40,7 @@ class OvertimeApprovalController extends Controller
     public function approve(Request $request, OvertimeRequest $overtimeRequest): RedirectResponse
     {
         $this->assertOwnCompany($request, $overtimeRequest->company_id);
+        $this->assertNotOwnRequest($request, $overtimeRequest);
         $this->assertAwaitingDecision($overtimeRequest);
 
         $validated = $request->validate([
@@ -63,6 +64,7 @@ class OvertimeApprovalController extends Controller
     public function reject(Request $request, OvertimeRequest $overtimeRequest): RedirectResponse
     {
         $this->assertOwnCompany($request, $overtimeRequest->company_id);
+        $this->assertNotOwnRequest($request, $overtimeRequest);
         $this->assertAwaitingDecision($overtimeRequest);
 
         $validated = $request->validate(['note' => ['required', 'string', 'max:2000']]);
@@ -86,6 +88,17 @@ class OvertimeApprovalController extends Controller
                 'status' => 'Pengajuan ini sudah diproses sebelumnya.',
             ]);
         }
+    }
+
+    /**
+     * New submissions from HRD are already blocked at the
+     * StoreOvertimeRequestRequest level, but this is the actual control
+     * boundary — it must hold even if a role changed after submission,
+     * not just rely on the submit-time check never having let one through.
+     */
+    private function assertNotOwnRequest(Request $request, OvertimeRequest $overtimeRequest): void
+    {
+        abort_if($overtimeRequest->user_id === $request->user()->id, 403, 'Tidak dapat memproses pengajuan milik sendiri.');
     }
 
     private function rawMinutes(OvertimeRequest $overtimeRequest): int

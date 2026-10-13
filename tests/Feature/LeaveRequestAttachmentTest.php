@@ -75,10 +75,10 @@ class LeaveRequestAttachmentTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_hrd_can_access_any_attachment()
+    public function test_hrd_can_access_an_attachment_from_their_own_company()
     {
-        $owner = User::factory()->create();
         $hrd = User::factory()->create(['role' => 'hrd']);
+        $owner = User::factory()->create(['company_id' => $hrd->company_id]);
         $attachment = $this->makeAttachment($owner);
 
         $this->actingAs($hrd)
@@ -86,7 +86,29 @@ class LeaveRequestAttachmentTest extends TestCase
             ->assertOk();
     }
 
-    public function test_manager_can_access_any_attachment()
+    public function test_manager_can_access_an_attachment_from_their_own_company()
+    {
+        $manager = User::factory()->create(['role' => 'admin']);
+        $owner = User::factory()->create(['company_id' => $manager->company_id]);
+        $attachment = $this->makeAttachment($owner);
+
+        $this->actingAs($manager)
+            ->get(route('izin.attachments.show', $attachment))
+            ->assertOk();
+    }
+
+    public function test_hrd_cannot_access_another_companys_attachment()
+    {
+        $owner = User::factory()->create();
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $attachment = $this->makeAttachment($owner);
+
+        $this->actingAs($hrd)
+            ->get(route('izin.attachments.show', $attachment))
+            ->assertForbidden();
+    }
+
+    public function test_manager_cannot_access_another_companys_attachment()
     {
         $owner = User::factory()->create();
         $manager = User::factory()->create(['role' => 'admin']);
@@ -94,7 +116,7 @@ class LeaveRequestAttachmentTest extends TestCase
 
         $this->actingAs($manager)
             ->get(route('izin.attachments.show', $attachment))
-            ->assertOk();
+            ->assertForbidden();
     }
 
     public function test_missing_file_on_disk_returns_404_instead_of_crashing()

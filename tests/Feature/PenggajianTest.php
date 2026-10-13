@@ -117,7 +117,18 @@ class PenggajianTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_hrd_can_view_any_employees_payslip_detail(): void
+    public function test_hrd_can_view_their_own_companys_employee_payslip_detail(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        $payslip = $this->makePublishedPayslip($employee);
+
+        $viewerHrd = User::factory()->create(['role' => 'hrd', 'company_id' => $employee->company_id]);
+        $this->actingAs($viewerHrd)
+            ->get(route('penggajian.show', $payslip))
+            ->assertOk();
+    }
+
+    public function test_hrd_cannot_view_another_companys_employee_payslip_detail(): void
     {
         $employee = User::factory()->create(['role' => 'karyawan']);
         $payslip = $this->makePublishedPayslip($employee);
@@ -125,7 +136,7 @@ class PenggajianTest extends TestCase
         $viewerHrd = User::factory()->create(['role' => 'hrd']);
         $this->actingAs($viewerHrd)
             ->get(route('penggajian.show', $payslip))
-            ->assertOk();
+            ->assertForbidden();
     }
 
     public function test_published_slip_totals_remain_consistent_through_partial_payment_and_void(): void

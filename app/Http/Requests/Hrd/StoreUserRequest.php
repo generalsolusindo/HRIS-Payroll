@@ -44,10 +44,21 @@ class StoreUserRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $validator->after(fn (Validator $validator) => $this->assertPositionBelongsToCompany(
-            $validator,
-            $this->input('company_id'),
-            $this->input('position_id'),
-        ));
+        $validator->after(function (Validator $validator) {
+            // Role middleware only checks the "hrd" role name, not the
+            // tenant boundary — an HRD must never create a user in a
+            // company other than their own.
+            if ($this->filled('company_id') && (int) $this->input('company_id') !== $this->user()->company_id) {
+                $validator->errors()->add('company_id', 'Anda hanya dapat membuat pengguna pada instansi Anda sendiri.');
+
+                return;
+            }
+
+            $this->assertPositionBelongsToCompany(
+                $validator,
+                $this->input('company_id'),
+                $this->input('position_id'),
+            );
+        });
     }
 }

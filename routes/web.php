@@ -63,7 +63,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('daily-report', fn () => Inertia::render('daily-report'))->name('daily-report');
     Route::get('izin', [LeaveRequestController::class, 'index'])->name('izin');
     Route::post('izin', [LeaveRequestController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:30,1')
         ->name('izin.store');
     // Registered before izin/{leaveRequest} so "attachments" isn't
     // swallowed as a {leaveRequest} parameter.
@@ -87,6 +87,10 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::get('rekap-periode', [AttendanceRangeSummaryController::class, 'index'])->name('rekap-periode.index');
 
     Route::get('izin', [LeaveRequestApprovalController::class, 'index'])->name('izin.index');
+    // Registered before izin/{leaveRequest}-style routes so these literal
+    // segments are never swallowed as a route parameter.
+    Route::get('izin/riwayat', [LeaveRequestApprovalController::class, 'riwayat'])->name('izin.riwayat');
+    Route::get('izin/laporan', [LeaveRequestApprovalController::class, 'laporan'])->name('izin.laporan');
     Route::patch('izin/{leaveRequest}/approve', [LeaveRequestApprovalController::class, 'approve'])->name('izin.approve');
     Route::patch('izin/{leaveRequest}/reject', [LeaveRequestApprovalController::class, 'reject'])->name('izin.reject');
 
@@ -132,6 +136,8 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
 
 Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('manager.')->group(function () {
     Route::get('izin', [ManagerLeaveRequestApprovalController::class, 'index'])->name('izin.index');
+    Route::get('izin/riwayat', [ManagerLeaveRequestApprovalController::class, 'riwayat'])->name('izin.riwayat');
+    Route::get('izin/laporan', [ManagerLeaveRequestApprovalController::class, 'laporan'])->name('izin.laporan');
     Route::patch('izin/{leaveRequest}/approve', [ManagerLeaveRequestApprovalController::class, 'approve'])->name('izin.approve');
     Route::patch('izin/{leaveRequest}/reject', [ManagerLeaveRequestApprovalController::class, 'reject'])->name('izin.reject');
 

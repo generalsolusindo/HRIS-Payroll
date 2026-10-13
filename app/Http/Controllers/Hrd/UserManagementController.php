@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\StoreUserRequest;
 use App\Http\Requests\Hrd\UpdateUserRequest;
@@ -17,11 +18,14 @@ use Inertia\Response;
 
 class UserManagementController extends Controller
 {
+    use ScopesToOwnCompany;
+
     public function index(Request $request): Response
     {
         $search = trim((string) $request->string('search'));
 
         $users = User::query()
+            ->where('company_id', $request->user()->company_id)
             ->with(['company:id,name', 'position:id,name'])
             ->when($search !== '', fn ($query) => $query->where(
                 fn ($q) => $q->where('name', 'like', "%{$search}%")
@@ -53,7 +57,7 @@ class UserManagementController extends Controller
         return Inertia::render('hrd/user-management', [
             'users' => $users,
             'search' => $search,
-            'companies' => $this->companiesWithPositions(),
+            'companies' => $this->companiesWithPositions($request->user()->company_id),
         ]);
     }
 
@@ -92,6 +96,8 @@ class UserManagementController extends Controller
 
     public function update(UpdateUserRequest $request, User $user): RedirectResponse
     {
+        $this->assertOwnCompany($request, $user->company_id);
+
         $validated = $request->validated();
         $isSelf = $user->id === $request->user()->id;
 
@@ -134,6 +140,7 @@ class UserManagementController extends Controller
 
     public function destroy(Request $request, User $user): RedirectResponse
     {
+        $this->assertOwnCompany($request, $user->company_id);
         abort_if($user->id === $request->user()->id, 403, 'Tidak bisa menghapus akun sendiri.');
 
         $name = $user->name;
@@ -145,11 +152,15 @@ class UserManagementController extends Controller
     }
 
     /**
+     * HRD only ever creates/edits users within their own company — the
+     * dropdown this feeds must never offer another tenant's company.
+     *
      * @return Collection<int, array{id: int<0, max>, name: string, positions: Collection<int, array{id: int<0, max>, name: string}>}>
      */
-    private function companiesWithPositions()
+    private function companiesWithPositions(int $companyId)
     {
         return Company::with(['positions' => fn ($query) => $query->orderBy('name')])
+            ->where('id', $companyId)
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (Company $company) => [

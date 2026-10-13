@@ -31,8 +31,8 @@ class UserManagementTest extends TestCase
 
     public function test_hrd_cannot_override_generated_number_and_can_choose_all_employee_types(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
         [$company, $position] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
         foreach (User::EMPLOYMENT_TYPES as $index => $type) {
             $this->actingAs($hrd)->post(route('hrd.users.store'), $this->payload($company, $position, [
                 'email' => "employee{$index}@example.com", 'employment_type' => $type, 'employee_number' => 'CUSTOM',
@@ -135,8 +135,8 @@ class UserManagementTest extends TestCase
         // Faker locale can plausibly generate "Budi" on its own for an
         // unconstrained factory user, which would flakily match the
         // search term below and break the exact-count assertion.
-        $hrd = User::factory()->create(['role' => 'hrd', 'name' => 'Test Hrd Account', 'email' => 'test-hrd-account@example.com']);
         [$company, $position] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id, 'name' => 'Test Hrd Account', 'email' => 'test-hrd-account@example.com']);
         $match = User::factory()->create([
             'company_id' => $company->id, 'position_id' => $position->id,
             'name' => 'Budi Santoso', 'email' => 'budi-santoso@example.com', 'employee_number' => 'EMP-001',
@@ -158,8 +158,8 @@ class UserManagementTest extends TestCase
 
     public function test_hrd_can_create_a_user_with_an_explicit_role_and_status(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
         [$company, $position] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
 
         $this->actingAs($hrd)
             ->post(route('hrd.users.store'), $this->payload($company, $position, [
@@ -177,8 +177,8 @@ class UserManagementTest extends TestCase
 
     public function test_bank_details_can_be_set_on_creation_and_are_encrypted_at_rest(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
         [$company, $position] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
 
         $this->actingAs($hrd)
             ->post(route('hrd.users.store'), $this->payload($company, $position, [
@@ -197,8 +197,8 @@ class UserManagementTest extends TestCase
 
     public function test_leaving_bank_account_number_blank_on_edit_keeps_the_existing_value(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
         [$company, $position] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
         $target = User::factory()->create([
             'company_id' => $company->id, 'position_id' => $position->id,
             'bank_name' => 'BCA', 'bank_account_number' => '1111111111', 'bank_account_holder' => 'Lama',
@@ -222,8 +222,8 @@ class UserManagementTest extends TestCase
 
     public function test_creating_a_user_rejects_a_position_that_does_not_belong_to_the_chosen_company(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
         [$company] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
         $unrelatedPosition = Position::factory()->create();
 
         $this->actingAs($hrd)
@@ -235,9 +235,10 @@ class UserManagementTest extends TestCase
 
     public function test_hrd_can_edit_another_users_role_status_and_assignment(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
         [$company, $position] = $this->makeCompanyWithPosition();
-        [$newCompany, $newPosition] = $this->makeCompanyWithPosition();
+        $otherPosition = Position::factory()->create();
+        $company->positions()->attach($otherPosition);
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
         $target = User::factory()->create([
             'company_id' => $company->id, 'position_id' => $position->id,
             'role' => 'karyawan', 'status' => 'pending',
@@ -249,8 +250,8 @@ class UserManagementTest extends TestCase
                 'email' => $target->email,
                 'phone' => $target->phone,
                 'employee_number' => null,
-                'company_id' => $newCompany->id,
-                'position_id' => $newPosition->id,
+                'company_id' => $company->id,
+                'position_id' => $otherPosition->id,
                 'role' => 'hrd',
                 'status' => 'active',
                 'password' => '',
@@ -261,14 +262,94 @@ class UserManagementTest extends TestCase
         $fresh = $target->fresh();
         $this->assertSame('hrd', $fresh->role);
         $this->assertSame('active', $fresh->status);
-        $this->assertSame($newCompany->id, $fresh->company_id);
-        $this->assertSame($newPosition->id, $fresh->position_id);
+        $this->assertSame($company->id, $fresh->company_id);
+        $this->assertSame($otherPosition->id, $fresh->position_id);
+    }
+
+    public function test_hrd_cannot_move_a_user_into_another_company(): void
+    {
+        [$company, $position] = $this->makeCompanyWithPosition();
+        [$otherCompany, $otherPosition] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+        $target = User::factory()->create(['company_id' => $company->id, 'position_id' => $position->id]);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.users.update', $target), [
+                'name' => $target->name,
+                'email' => $target->email,
+                'phone' => $target->phone,
+                'employee_number' => null,
+                'company_id' => $otherCompany->id,
+                'position_id' => $otherPosition->id,
+                'role' => $target->role,
+                'status' => $target->status,
+                'password' => '',
+                'password_confirmation' => '',
+            ])
+            ->assertSessionHasErrors('company_id');
+
+        $this->assertSame($company->id, $target->fresh()->company_id);
+    }
+
+    public function test_hrd_cannot_view_users_from_another_company(): void
+    {
+        [$company] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+        $outsider = User::factory()->create(['name' => 'Outsider Employee']);
+
+        $this->actingAs($hrd)
+            ->get(route('hrd.users.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('users.data', fn ($data) => ! collect($data)->contains('id', $outsider->id))
+            );
+    }
+
+    public function test_hrd_cannot_edit_a_user_from_another_company(): void
+    {
+        [$company, $position] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+        $outsider = User::factory()->create();
+
+        // Spoofs company_id/position_id to the attacker's own company (so
+        // field validation on the submitted value passes) while still
+        // targeting another company's user by id — this must be rejected
+        // by the resource-ownership check, not just the field validator.
+        $this->actingAs($hrd)
+            ->put(route('hrd.users.update', $outsider), [
+                'name' => 'Diubah Paksa',
+                'email' => $outsider->email,
+                'phone' => $outsider->phone,
+                'employee_number' => null,
+                'company_id' => $company->id,
+                'position_id' => $position->id,
+                'role' => 'admin',
+                'status' => 'active',
+                'password' => '',
+                'password_confirmation' => '',
+            ])
+            ->assertForbidden();
+
+        $this->assertNotSame('Diubah Paksa', $outsider->fresh()->name);
+        $this->assertSame('karyawan', $outsider->fresh()->role);
+    }
+
+    public function test_hrd_cannot_create_a_user_in_another_company(): void
+    {
+        [$company] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+        [$otherCompany, $otherPosition] = $this->makeCompanyWithPosition();
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.users.store'), $this->payload($otherCompany, $otherPosition))
+            ->assertSessionHasErrors('company_id');
+
+        $this->assertSame(0, User::where('email', 'baru@example.com')->count());
     }
 
     public function test_leaving_password_blank_on_edit_keeps_the_existing_password(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
         [$company, $position] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
         $target = User::factory()->create([
             'company_id' => $company->id, 'position_id' => $position->id,
             'password' => 'original-password',
@@ -323,14 +404,28 @@ class UserManagementTest extends TestCase
 
     public function test_hrd_can_delete_another_user(): void
     {
-        $hrd = User::factory()->create(['role' => 'hrd']);
-        $target = User::factory()->create();
+        [$company] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+        $target = User::factory()->create(['company_id' => $company->id]);
 
         $this->actingAs($hrd)
             ->delete(route('hrd.users.destroy', $target))
             ->assertRedirect();
 
         $this->assertModelMissing($target);
+    }
+
+    public function test_hrd_cannot_delete_a_user_from_another_company(): void
+    {
+        [$company] = $this->makeCompanyWithPosition();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+        $outsider = User::factory()->create();
+
+        $this->actingAs($hrd)
+            ->delete(route('hrd.users.destroy', $outsider))
+            ->assertForbidden();
+
+        $this->assertModelExists($outsider);
     }
 
     public function test_an_hrd_cannot_delete_their_own_account(): void

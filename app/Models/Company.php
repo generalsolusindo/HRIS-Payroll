@@ -13,7 +13,7 @@ class Company extends Model
     /** @use HasFactory<CompanyFactory> */
     use HasFactory;
 
-    protected $fillable = ['name', 'code'];
+    protected $fillable = ['name', 'code', 'telegram_chat_id'];
 
     /**
      * @return HasMany<User, $this>

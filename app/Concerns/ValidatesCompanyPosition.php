@@ -8,10 +8,9 @@ use Illuminate\Validation\Validator;
 trait ValidatesCompanyPosition
 {
     /**
-     * Mirrors the check in CreateNewUser — position_id must actually
-     * belong to the selected company_id (the two selects are populated
-     * independently on the client, so nothing guarantees that pairing
-     * without this).
+     * position_id must actually belong to the selected company_id (the
+     * two selects are populated independently on the client, so nothing
+     * guarantees that pairing without this).
      */
     protected function assertPositionBelongsToCompany(Validator $validator, mixed $companyId, mixed $positionId): void
     {

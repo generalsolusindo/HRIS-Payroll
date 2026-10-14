@@ -10,6 +10,7 @@ import {
     Clock,
     History,
     LayoutGrid,
+    Settings,
     ShieldCheck,
     UserCog,
     Users,
@@ -20,6 +21,7 @@ import PayrollPaymentController from '@/actions/App/Http/Controllers/Finance/Pay
 import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/AttendanceDashboardController';
 import AttendanceRangeSummaryController from '@/actions/App/Http/Controllers/Hrd/AttendanceRangeSummaryController';
 import CompanyCalendarDayController from '@/actions/App/Http/Controllers/Hrd/CompanyCalendarDayController';
+import CompanySettingsController from '@/actions/App/Http/Controllers/Hrd/CompanySettingsController';
 import DivisionController from '@/actions/App/Http/Controllers/Hrd/DivisionController';
 import HrdLeaveRequestApprovalController from '@/actions/App/Http/Controllers/Hrd/LeaveRequestApprovalController';
 import OvertimeApprovalController from '@/actions/App/Http/Controllers/Hrd/OvertimeApprovalController';
@@ -151,6 +153,11 @@ const hrdNavItems: NavItem[] = [
         title: 'Audit Log',
         href: PayrollAuditLogController.index(),
         icon: History,
+    },
+    {
+        title: 'Pengaturan Perusahaan',
+        href: CompanySettingsController.index(),
+        icon: Settings,
     },
 ];
 

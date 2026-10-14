@@ -31,6 +31,11 @@ function addDaysIso(days: number): string {
     return date.toISOString().slice(0, 10);
 }
 
+function timeStringToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+}
+
 const DATE_RULES: Record<LeaveType, { min?: string; fixedToday?: boolean }> = {
     late: { fixedToday: true },
     half_day: { min: addDaysIso(1) },
@@ -62,7 +67,7 @@ const KETENTUAN: Record<LeaveType, string[]> = {
     half_day: [
         'Wajib diajukan minimal H-1 (besok atau setelahnya) — tidak bisa untuk hari ini.',
         'Jam mulai bebas, boleh pagi, siang, atau sore.',
-        'Durasi maksimal 4 jam dari jam mulai.',
+        'Durasi maksimal 4 jam dari jam mulai, supaya waktu kerja efektif di kantor tetap minimal 4 jam.',
     ],
     temporary_exit: [
         'Bisa diajukan untuk hari ini atau tanggal mendatang.',
@@ -176,6 +181,21 @@ export function IzinRequestForm({ onSuccess }: { onSuccess?: () => void }) {
 
     // Every field a type actually shows is required — the only input that
     // stays optional for every type is the file attachment.
+    const endTimeAfterStartTime =
+        !showStartTime ||
+        !showEndTime ||
+        startTime === '' ||
+        endTime === '' ||
+        endTime > startTime;
+    // half_day's duration (end - start) must not exceed 4 hours, so that
+    // whatever's left of the 08:30-16:30 workday outside that block still
+    // adds up to at least 4 hours of effective work time.
+    const halfDayDurationValid =
+        type !== 'half_day' ||
+        startTime === '' ||
+        endTime === '' ||
+        endTime <= startTime ||
+        timeStringToMinutes(endTime) - timeStringToMinutes(startTime) <= 240;
     const canSubmit =
         type !== '' &&
         leaveDate !== '' &&
@@ -186,7 +206,9 @@ export function IzinRequestForm({ onSuccess }: { onSuccess?: () => void }) {
         (!showDuration || duration !== '') &&
         (!showContactable || contactable !== null) &&
         (!emergency || emergencyReason.trim() !== '') &&
-        (!showAgreement || agreement);
+        (!showAgreement || agreement) &&
+        endTimeAfterStartTime &&
+        halfDayDurationValid;
 
     function handleSubmit() {
         if (!canSubmit || submitting) {
@@ -326,12 +348,23 @@ export function IzinRequestForm({ onSuccess }: { onSuccess?: () => void }) {
                                 <Input
                                     id="izin-end-time"
                                     type="time"
+                                    min={startTime || undefined}
                                     value={endTime}
                                     onChange={(e) => setEndTime(e.target.value)}
                                 />
-                                <p className="text-xs text-muted-foreground">
-                                    Jam mulai bebas, tapi durasi maksimal 4 jam
-                                    dari jam mulai.
+                                <p
+                                    className={
+                                        !endTimeAfterStartTime ||
+                                        !halfDayDurationValid
+                                            ? 'text-xs text-red-500'
+                                            : 'text-xs text-muted-foreground'
+                                    }
+                                >
+                                    {!endTimeAfterStartTime
+                                        ? 'Jam selesai harus lebih besar dari jam mulai.'
+                                        : !halfDayDurationValid
+                                          ? 'Durasi maksimal 4 jam dari jam mulai.'
+                                          : 'Jam mulai bebas, tapi durasi maksimal 4 jam dari jam mulai.'}
                                 </p>
                             </div>
                         )}

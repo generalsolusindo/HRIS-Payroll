@@ -110,9 +110,14 @@ class LeaveTypeValidator
             $errors['end_time'] = 'Jam selesai wajib diisi.';
         }
 
-        // Jam mulai boleh kapan saja dalam sehari (pagi/siang/sore) — yang
-        // dibatasi hanya durasinya, bukan posisinya, supaya sisa jam kerja
-        // hari itu tetap minimal 4 jam di manapun blok izinnya diletakkan.
+        // Jam kerja kantor 08.30-16.30 (8 jam total). Jam mulai boleh kapan
+        // saja dalam sehari (pagi/siang/sore) — yang dibatasi adalah
+        // durasinya (maksimal 4 jam), supaya total waktu kerja efektif di
+        // kantor (sebelum berangkat izin + setelah kembali, kalau ada)
+        // tetap minimal 4 jam di manapun blok izinnya diletakkan. Jam
+        // mulai 12.00 s/d jam selesai 15.30 misalnya tetap sah: 3,5 jam
+        // sebelumnya (08.30-12.00) + 1 jam setelahnya (15.30-16.30) = 4,5
+        // jam kerja efektif.
         if (! empty($input['start_time']) && ! empty($input['end_time'])) {
             $start = $this->timeToday($input['start_time']);
             $end = $this->timeToday($input['end_time']);
@@ -120,7 +125,7 @@ class LeaveTypeValidator
             if ($end->lessThanOrEqualTo($start)) {
                 $errors['end_time'] = 'Jam selesai harus lebih besar dari jam mulai.';
             } elseif ($start->diffInMinutes($end) > 240) {
-                $errors['end_time'] = 'Durasi Izin Setengah Hari maksimal 4 jam.';
+                $errors['end_time'] = 'Durasi Izin Setengah Hari maksimal 4 jam, supaya waktu kerja efektif di kantor tetap minimal 4 jam.';
             }
         }
 

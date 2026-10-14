@@ -148,19 +148,6 @@ class LeaveTypeValidatorTest extends TestCase
         $this->assertArrayHasKey('leave_date', $errors);
     }
 
-    public function test_half_day_allows_start_time_any_time_of_day()
-    {
-        // No fixed earliest start — only the 4-hour cap constrains it,
-        // so an early-morning block is just as valid as an afternoon one.
-        $errors = $this->validator->validate('half_day', [
-            'leave_date' => today()->addDay()->toDateString(),
-            'start_time' => '08:30',
-            'end_time' => '12:00',
-        ]);
-
-        $this->assertSame([], $errors);
-    }
-
     public function test_half_day_requires_end_time()
     {
         $errors = $this->validator->validate('half_day', [
@@ -180,6 +167,19 @@ class LeaveTypeValidatorTest extends TestCase
         ]);
 
         $this->assertArrayHasKey('end_time', $errors);
+    }
+
+    public function test_half_day_allows_start_time_any_time_of_day()
+    {
+        // No fixed earliest start — only the 4-hour cap constrains it,
+        // so an early-morning block is just as valid as an afternoon one.
+        $errors = $this->validator->validate('half_day', [
+            'leave_date' => today()->addDay()->toDateString(),
+            'start_time' => '08:30',
+            'end_time' => '12:00',
+        ]);
+
+        $this->assertSame([], $errors);
     }
 
     public function test_half_day_allows_exactly_4_hours()
@@ -202,6 +202,20 @@ class LeaveTypeValidatorTest extends TestCase
         ]);
 
         $this->assertArrayHasKey('end_time', $errors);
+    }
+
+    public function test_half_day_allows_a_mid_day_block_leaving_enough_time_before_and_after()
+    {
+        // 12:00-15:30 is 3.5 hours away — 3.5 hours worked before
+        // (08:30-12:00) plus 1 hour after (15:30-16:30) still adds up to
+        // 4.5 hours of effective work time that day.
+        $errors = $this->validator->validate('half_day', [
+            'leave_date' => today()->addDay()->toDateString(),
+            'start_time' => '12:00',
+            'end_time' => '15:30',
+        ]);
+
+        $this->assertSame([], $errors);
     }
 
     // --- Izin Keluar Kantor Sebentar (temporary_exit) ---

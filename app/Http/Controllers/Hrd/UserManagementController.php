@@ -79,9 +79,7 @@ class UserManagementController extends Controller
             'bank_name' => $validated['bank_name'] ?? null,
             'bank_account_number' => $validated['bank_account_number'] ?? null,
             'bank_account_holder' => $validated['bank_account_holder'] ?? null,
-            // The model casts this ('hashed') — hash it here too and
-            // double-hashing would still be safe, but passing it through
-            // plain matches how CreateNewUser does it elsewhere.
+            // The model casts this ('hashed'), so it's safe to pass plain.
             'password' => $validated['password'],
         ]);
         $user->forceFill([

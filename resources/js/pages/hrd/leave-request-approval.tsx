@@ -3,6 +3,7 @@ import { CalendarOff, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import LeaveRequestApprovalController from '@/actions/App/Http/Controllers/Hrd/LeaveRequestApprovalController';
+import LeaveRequestController from '@/actions/App/Http/Controllers/LeaveRequestController';
 import LeaveRequestAttachmentController from '@/actions/App/Http/Controllers/LeaveRequestAttachmentController';
 import { SummaryStat } from '@/components/attendance-summary-stat';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -194,7 +195,21 @@ function PendingLeaveRequestCard({
         leaveRequest.type === 'emergency' || leaveRequest.type === 'sick';
 
     return (
-        <div className="flex flex-col gap-4 rounded-2xl border bg-card p-4">
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={() =>
+                router.visit(LeaveRequestController.show(leaveRequest.id))
+            }
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                    router.visit(
+                        LeaveRequestController.show(leaveRequest.id),
+                    );
+                }
+            }}
+            className="flex cursor-pointer flex-col gap-4 rounded-2xl border bg-card p-4 transition-colors hover:bg-muted/40"
+        >
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex items-start gap-3">
                     <Avatar className="size-11">
@@ -220,7 +235,10 @@ function PendingLeaveRequestCard({
                     </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div
+                    className="flex gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                >
                     <Form
                         {...LeaveRequestApprovalController.approve.form(
                             leaveRequest.id,
@@ -302,7 +320,10 @@ function PendingLeaveRequestCard({
             )}
 
             {leaveRequest.attachments.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <div
+                    className="flex flex-wrap gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                >
                     {leaveRequest.attachments.map((attachment) => (
                         <a
                             key={attachment.id}

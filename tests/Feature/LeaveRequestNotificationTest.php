@@ -46,6 +46,30 @@ class LeaveRequestNotificationTest extends TestCase
         ], $overrides));
     }
 
+    public function test_each_companys_notifications_route_to_its_own_telegram_chat()
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $company = \App\Models\Company::factory()->create(['telegram_chat_id' => '-100999888']);
+        $leaveRequest = $this->makeLeaveRequest(companyId: $company->id);
+        $this->app->make(\App\Services\LeaveRequestNotifier::class)
+            ->notifySubmitted($leaveRequest->load(['user.company', 'user.position']));
+
+        Http::assertSent(fn (HttpRequest $request) => $request['chat_id'] === '-100999888');
+    }
+
+    public function test_a_company_without_its_own_chat_id_falls_back_to_the_global_default()
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $company = \App\Models\Company::factory()->create(['telegram_chat_id' => null]);
+        $leaveRequest = $this->makeLeaveRequest(companyId: $company->id);
+        $this->app->make(\App\Services\LeaveRequestNotifier::class)
+            ->notifySubmitted($leaveRequest->load(['user.company', 'user.position']));
+
+        Http::assertSent(fn (HttpRequest $request) => $request['chat_id'] === '-100123456');
+    }
+
     public function test_submitting_a_leave_request_sends_a_telegram_notification()
     {
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);

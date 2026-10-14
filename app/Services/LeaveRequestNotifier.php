@@ -251,7 +251,11 @@ class LeaveRequestNotifier
     private function sendTelegram(LeaveRequest $leaveRequest, string $text, ?array $replyMarkup = null): void
     {
         $botToken = config('services.telegram.bot_token');
-        $chatId = config('services.telegram.chat_id');
+        // Each company can route its notifications to its own Telegram
+        // group (companies.telegram_chat_id) — falls back to the global
+        // TELEGRAM_CHAT_ID env value for a company that hasn't set one yet.
+        $chatId = $leaveRequest->user->company->telegram_chat_id
+            ?? config('services.telegram.chat_id');
 
         if (! $botToken || ! $chatId) {
             $leaveRequest->forceFill([

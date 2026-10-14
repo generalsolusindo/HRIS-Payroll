@@ -1,10 +1,11 @@
 import { Head } from '@inertiajs/react';
-import { FileText } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 import LeaveRequestAttachmentController from '@/actions/App/Http/Controllers/LeaveRequestAttachmentController';
 import {
     IzinStatusBadge,
     type IzinStatus,
 } from '@/components/izin-status-badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     LEAVE_TYPE_ICONS,
@@ -113,6 +114,17 @@ export default function IzinDetail({ leaveRequest }: Props) {
         <>
             <Head title={`Detail Izin — ${leaveRequest.request_number}`} />
             <div className="flex flex-1 flex-col gap-6 p-4">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="-ml-2 w-fit"
+                    onClick={() => window.history.back()}
+                >
+                    <ArrowLeft className="size-4" />
+                    Kembali
+                </Button>
+
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-2">

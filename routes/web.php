@@ -10,6 +10,7 @@ use App\Http\Controllers\Hrd\AttendanceConfirmationController;
 use App\Http\Controllers\Hrd\AttendanceDashboardController;
 use App\Http\Controllers\Hrd\AttendanceRangeSummaryController;
 use App\Http\Controllers\Hrd\CompanyCalendarDayController;
+use App\Http\Controllers\Hrd\CompanySettingsController;
 use App\Http\Controllers\Hrd\DivisionController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
 use App\Http\Controllers\Hrd\OvertimeApprovalController;
@@ -132,6 +133,9 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::patch('persetujuan-lembur/{overtimeRequest}/reject', [OvertimeApprovalController::class, 'reject'])->name('persetujuan-lembur.reject');
 
     Route::get('audit-log', [PayrollAuditLogController::class, 'index'])->name('audit-log.index');
+
+    Route::get('pengaturan-perusahaan', [CompanySettingsController::class, 'index'])->name('pengaturan-perusahaan.index');
+    Route::put('pengaturan-perusahaan', [CompanySettingsController::class, 'update'])->name('pengaturan-perusahaan.update');
 });
 
 Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('manager.')->group(function () {

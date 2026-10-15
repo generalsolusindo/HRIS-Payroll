@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Manager;
 
+use App\Models\Division;
 use App\Models\LeaveRequest;
-use App\Models\Position;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -229,18 +229,18 @@ class LeaveRequestApprovalTest extends TestCase
         $this->assertNotContains($noMatch->id, $ids);
     }
 
-    public function test_index_filters_by_position()
+    public function test_index_filters_by_division()
     {
         $manager = User::factory()->create(['role' => 'admin']);
-        $positionA = Position::factory()->create();
-        $positionB = Position::factory()->create();
-        $employeeA = User::factory()->create(['company_id' => $manager->company_id, 'position_id' => $positionA->id]);
-        $employeeB = User::factory()->create(['company_id' => $manager->company_id, 'position_id' => $positionB->id]);
+        $divisionA = Division::factory()->create(['company_id' => $manager->company_id]);
+        $divisionB = Division::factory()->create(['company_id' => $manager->company_id]);
+        $employeeA = User::factory()->create(['company_id' => $manager->company_id, 'division_id' => $divisionA->id]);
+        $employeeB = User::factory()->create(['company_id' => $manager->company_id, 'division_id' => $divisionB->id]);
         $reqA = $this->makeLeaveRequest($employeeA);
         $reqB = $this->makeLeaveRequest($employeeB);
 
         $response = $this->actingAs($manager)
-            ->get(route('manager.izin.index', ['position_id' => $positionA->id]))
+            ->get(route('manager.izin.index', ['division_id' => $divisionA->id]))
             ->assertOk();
 
         $ids = collect($response->viewData('page')['props']['leaveRequests'])->pluck('id');

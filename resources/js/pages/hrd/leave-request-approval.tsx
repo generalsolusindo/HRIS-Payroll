@@ -53,7 +53,7 @@ type PendingLeaveRequest = {
     user: {
         name: string;
         company: { name: string };
-        position: { name: string };
+        division: { name: string } | null;
     };
     attachments: Attachment[];
 };
@@ -66,13 +66,13 @@ type Stats = {
     today: number;
 };
 
-type Position = { id: number; name: string };
+type Division = { id: number; name: string };
 
 type Props = {
     leaveRequests: PendingLeaveRequest[];
     stats: Stats;
-    filters: { search?: string; type?: string; position_id?: string };
-    positions: Position[];
+    filters: { search?: string; type?: string; division_id?: string };
+    divisions: Division[];
     leaveTypes: Record<string, string>;
 };
 
@@ -229,7 +229,7 @@ function PendingLeaveRequestCard({
                                 {leaveRequest.user.company.name}
                             </span>
                             <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                                {leaveRequest.user.position.name}
+                                {leaveRequest.user.division?.name ?? '-'}
                             </span>
                         </div>
                     </div>
@@ -356,12 +356,12 @@ export default function LeaveRequestApproval({
     leaveRequests,
     stats,
     filters,
-    positions,
+    divisions,
     leaveTypes,
 }: Props) {
     const [search, setSearch] = useState(filters.search ?? '');
     const [type, setType] = useState(filters.type ?? '');
-    const [positionId, setPositionId] = useState(filters.position_id ?? '');
+    const [divisionId, setDivisionId] = useState(filters.division_id ?? '');
 
     function applyFilters(next: Partial<Props['filters']>) {
         router.get(
@@ -369,7 +369,7 @@ export default function LeaveRequestApproval({
             {
                 search: next.search ?? search,
                 type: next.type ?? type,
-                position_id: next.position_id ?? positionId,
+                division_id: next.division_id ?? divisionId,
             },
             { preserveState: true, preserveScroll: true },
         );
@@ -457,11 +457,11 @@ export default function LeaveRequestApproval({
                     </Select>
 
                     <Select
-                        value={positionId || 'all'}
+                        value={divisionId || 'all'}
                         onValueChange={(value) => {
                             const next = value === 'all' ? '' : value;
-                            setPositionId(next);
-                            applyFilters({ position_id: next });
+                            setDivisionId(next);
+                            applyFilters({ division_id: next });
                         }}
                     >
                         <SelectTrigger className="w-56">
@@ -469,12 +469,12 @@ export default function LeaveRequestApproval({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Semua jabatan</SelectItem>
-                            {positions.map((position) => (
+                            {divisions.map((division) => (
                                 <SelectItem
-                                    key={position.id}
-                                    value={String(position.id)}
+                                    key={division.id}
+                                    value={String(division.id)}
                                 >
-                                    {position.name}
+                                    {division.name}
                                 </SelectItem>
                             ))}
                         </SelectContent>

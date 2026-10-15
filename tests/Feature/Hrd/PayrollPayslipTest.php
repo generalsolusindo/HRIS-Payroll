@@ -22,11 +22,10 @@ class PayrollPayslipTest extends TestCase
     private function makeDraftEntry(): PayrollEntry
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'type' => 'earning', ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $profile = EmployeePayrollProfile::create([
             'user_id' => $employee->id, 'company_id' => $hrd->company_id,
@@ -40,7 +39,7 @@ class PayrollPayslipTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);

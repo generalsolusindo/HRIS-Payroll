@@ -1,0 +1,83 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+
+return new class extends Migration
+{
+    /**
+     * Stage 1 of retiring Position in favor of Division (they were
+     * duplicate org-unit concepts — Position was a bare label shared
+     * across companies via a pivot, Division is company-owned and
+     * already carries salary defaults). This only adds the new column
+     * and backfills it; position_id stays in place as a safety net
+     * until the rest of the app is migrated over in a later stage.
+     */
+    public function up(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->foreignId('division_id')->nullable()->after('position_id')
+                ->constrained()->nullOnDelete();
+        });
+
+        foreach (DB::table('companies')->get() as $company) {
+            $positionIds = DB::table('company_position')
+                ->where('company_id', $company->id)
+                ->pluck('position_id');
+
+            $positions = DB::table('positions')->whereIn('id', $positionIds)->get();
+
+            // Reuse a division that already has the same name instead of
+            // creating a duplicate — some companies (General Solusindo,
+            // in production) already have hand-created divisions whose
+            // names happen to match an existing position.
+            $divisions = DB::table('divisions')->where('company_id', $company->id)->get()->keyBy('id');
+            $divisionIdByName = $divisions->mapWithKeys(fn ($d) => [Str::lower($d->name) => $d->id]);
+
+            $divisionIdByPositionId = [];
+
+            foreach ($positions as $position) {
+                $key = Str::lower($position->name);
+
+                if ($divisionIdByName->has($key)) {
+                    $divisionIdByPositionId[$position->id] = $divisionIdByName[$key];
+
+                    continue;
+                }
+
+                $divisionId = DB::table('divisions')->insertGetId([
+                    'company_id' => $company->id,
+                    'name' => $position->name,
+                    'is_active' => true,
+                    'daily_attendance_allowance' => 0,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $divisionIdByName[$key] = $divisionId;
+                $divisionIdByPositionId[$position->id] = $divisionId;
+            }
+
+            DB::table('users')->where('company_id', $company->id)->orderBy('id')
+                ->each(function ($user) use ($divisionIdByPositionId) {
+                    if (isset($divisionIdByPositionId[$user->position_id])) {
+                        DB::table('users')->where('id', $user->id)
+                            ->update(['division_id' => $divisionIdByPositionId[$user->position_id]]);
+                    }
+                });
+        }
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropConstrainedForeignId('division_id');
+        });
+    }
+};

@@ -106,18 +106,24 @@ const payrollNavItems: NavItem[] = [
         href: PayrollProfileController.index(),
         icon: UserCog,
     },
+    {
+        // Logs attendance-review corrections, salary-profile edits, and
+        // policy-rate changes (see PayrollAuditLogController) — all
+        // payroll-relevant data, not general HRD activity, so it belongs
+        // here rather than in the generic HRD group.
+        title: 'Audit Log',
+        href: PayrollAuditLogController.index(),
+        icon: History,
+    },
 ];
 
+// Org structure & company-wide setup — things configured occasionally,
+// not day-to-day operational screens.
 const hrdNavItems: NavItem[] = [
     {
         title: 'Manajemen User',
         href: UserManagementController.index(),
         icon: Users,
-    },
-    {
-        title: 'Rekap Absensi',
-        href: AttendanceDashboardController.index(),
-        icon: ClipboardList,
     },
     {
         title: 'Divisi',
@@ -130,10 +136,33 @@ const hrdNavItems: NavItem[] = [
         icon: CalendarDays,
     },
     {
+        title: 'Pengaturan Perusahaan',
+        href: CompanySettingsController.index(),
+        icon: Settings,
+    },
+    {
+        title: 'Persetujuan Lembur',
+        href: OvertimeApprovalController.index(),
+        icon: Clock,
+    },
+];
+
+// Day-to-day attendance monitoring/reporting.
+const attendanceNavItems: NavItem[] = [
+    {
+        title: 'Rekap Absensi',
+        href: AttendanceDashboardController.index(),
+        icon: ClipboardList,
+    },
+    {
         title: 'Rekap Periode',
         href: AttendanceRangeSummaryController.index(),
         icon: CalendarRange,
     },
+];
+
+// Izin approval workflow.
+const leaveNavItems: NavItem[] = [
     {
         title: 'Persetujuan Izin',
         href: HrdLeaveRequestApprovalController.index(),
@@ -143,21 +172,6 @@ const hrdNavItems: NavItem[] = [
         title: 'Riwayat Izin',
         href: HrdLeaveRequestApprovalController.riwayat(),
         icon: History,
-    },
-    {
-        title: 'Persetujuan Lembur',
-        href: OvertimeApprovalController.index(),
-        icon: Clock,
-    },
-    {
-        title: 'Audit Log',
-        href: PayrollAuditLogController.index(),
-        icon: History,
-    },
-    {
-        title: 'Pengaturan Perusahaan',
-        href: CompanySettingsController.index(),
-        icon: Settings,
     },
 ];
 
@@ -243,6 +257,12 @@ export function AppSidebar() {
                     />
                 )}
                 {isHrd && <NavMain items={hrdNavItems} groupLabel="HRD" />}
+                {isHrd && (
+                    <NavMain items={attendanceNavItems} groupLabel="Absensi" />
+                )}
+                {isHrd && (
+                    <NavMain items={leaveNavItems} groupLabel="Perizinan" />
+                )}
                 {isManager && (
                     <NavMain items={managerNavItems} groupLabel="Manager" />
                 )}

@@ -45,18 +45,16 @@ class PayrollModelsTest extends TestCase
 
         $division = Division::create([
             'company_id' => $user->company_id,
-            'code' => 'OPS', 'name' => 'Operasional', 'is_active' => true,
+            'name' => 'Operasional', 'is_active' => true,
         ]);
         $this->assertTrue($division->company->is($user->company));
 
         $baseSalary = PayrollComponent::create([
             'company_id' => $user->company_id,
-            'code' => 'BASE', 'name' => 'Gaji Pokok', 'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'code' => 'BASE', 'name' => 'Gaji Pokok', 'type' => 'earning', ]);
         $allowance = PayrollComponent::create([
             'company_id' => $user->company_id,
-            'code' => 'ALLOW', 'name' => 'Tunjangan', 'type' => 'earning', 'category' => 'allowance',
-        ]);
+            'code' => 'ALLOW', 'name' => 'Tunjangan', 'type' => 'earning', ]);
 
         $policy = PayrollPolicy::create([
             'company_id' => $user->company_id, 'code' => 'REGULAR', 'version' => 1,
@@ -95,7 +93,7 @@ class PayrollModelsTest extends TestCase
             ->where('payroll_component_id', $baseSalary->id)->first()->amount);
 
         $period = PayrollPeriod::create([
-            'company_id' => $user->company_id, 'code' => '2026-10', 'name' => 'Oktober 2026',
+            'company_id' => $user->company_id, 'name' => 'Oktober 2026',
             'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
             'attendance_starts_on' => '2026-09-26', 'attendance_ends_on' => '2026-10-25',
         ]);
@@ -127,13 +125,13 @@ class PayrollModelsTest extends TestCase
         PayrollEntryLine::create([
             'payroll_entry_id' => $entry->id, 'payroll_component_id' => $baseSalary->id,
             'line_key' => 'base-salary', 'component_code' => 'BASE', 'component_name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary', 'quantity' => 1, 'rate' => '2500000.0000',
+            'type' => 'earning', 'quantity' => 1, 'rate' => '2500000.0000',
             'amount' => '2500000.00', 'source' => 'salary', 'calculation_snapshot' => ['basis' => 'monthly'],
         ]);
         PayrollEntryLine::create([
             'payroll_entry_id' => $entry->id, 'payroll_component_id' => $allowance->id,
             'line_key' => 'allowance', 'component_code' => 'ALLOW', 'component_name' => 'Tunjangan',
-            'type' => 'earning', 'category' => 'allowance', 'quantity' => 1, 'rate' => '300000.0000',
+            'type' => 'earning', 'quantity' => 1, 'rate' => '300000.0000',
             'amount' => '300000.00', 'source' => 'salary', 'calculation_snapshot' => [],
         ]);
 

@@ -19,14 +19,14 @@ class OvertimeApprovalController extends Controller
     {
         $overtimeRequests = OvertimeRequest::where('status', 'submitted')
             ->where('company_id', $request->user()->company_id)
-            ->with(['user:id,name,company_id,position_id', 'user.company:id,name', 'user.position:id,name'])
+            ->with(['user:id,name,company_id,division_id', 'user.company:id,name', 'user.division:id,name'])
             ->oldest('starts_at')
             ->get()
             ->map(fn (OvertimeRequest $overtimeRequest) => [
                 'id' => $overtimeRequest->id,
                 'user_name' => $overtimeRequest->user->name,
                 'company_name' => $overtimeRequest->user->company->name,
-                'position_name' => $overtimeRequest->user->position->name,
+                'position_name' => $overtimeRequest->user->division?->name ?? '-',
                 'starts_at' => $overtimeRequest->starts_at->toIso8601String(),
                 'ends_at' => $overtimeRequest->ends_at->toIso8601String(),
                 'break_minutes' => $overtimeRequest->break_minutes,

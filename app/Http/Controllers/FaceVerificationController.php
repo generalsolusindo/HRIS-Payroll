@@ -44,7 +44,7 @@ class FaceVerificationController extends Controller
                 return response()->json([
                     'status' => 'service_unavailable',
                     'message' => 'Layanan verifikasi wajah sedang tidak tersedia. Coba lagi sebentar.',
-                    'attempt_id' => $validated['attempt_id'],
+                        'attempt_id' => $validated['attempt_id'],
                     'sequence' => $validated['sequence'],
                     'checked_at' => $checkedAt->toIso8601String(),
                     'expires_at' => null,

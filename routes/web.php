@@ -135,7 +135,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::get('audit-log', [PayrollAuditLogController::class, 'index'])->name('audit-log.index');
 
     Route::get('pengaturan-perusahaan', [CompanySettingsController::class, 'index'])->name('pengaturan-perusahaan.index');
-    Route::put('pengaturan-perusahaan', [CompanySettingsController::class, 'update'])->name('pengaturan-perusahaan.update');
+    Route::put('pengaturan-perusahaan/{company}', [CompanySettingsController::class, 'update'])->name('pengaturan-perusahaan.update');
 });
 
 Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('manager.')->group(function () {

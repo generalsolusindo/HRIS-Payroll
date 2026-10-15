@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import PayrollAuditLogController from '@/actions/App/Http/Controllers/Hrd/PayrollAuditLogController';
 import PayrollComponentController from '@/actions/App/Http/Controllers/Hrd/PayrollComponentController';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 import PayrollPolicyController from '@/actions/App/Http/Controllers/Hrd/PayrollPolicyController';
@@ -28,6 +29,11 @@ const sections = [
         title: 'Profil Gaji',
         href: PayrollProfileController.index(),
         paths: ['/hrd/profil-gaji'],
+    },
+    {
+        title: 'Audit Log',
+        href: PayrollAuditLogController.index(),
+        paths: ['/hrd/audit-log'],
     },
 ];
 

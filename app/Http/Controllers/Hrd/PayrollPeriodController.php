@@ -20,7 +20,6 @@ class PayrollPeriodController extends Controller
             ->get()
             ->map(fn (PayrollPeriod $period) => [
                 'id' => $period->id,
-                'code' => $period->code,
                 'name' => $period->name,
                 'starts_on' => $period->starts_on->toDateString(),
                 'ends_on' => $period->ends_on->toDateString(),

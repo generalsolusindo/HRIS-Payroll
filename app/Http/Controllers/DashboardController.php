@@ -66,7 +66,7 @@ class DashboardController extends Controller
                 'name' => $user->name,
             ],
             'hrdSummary' => null,
-            'isTeknisi' => $user->position?->name === 'Teknisi',
+            'isTeknisi' => $user->division?->name === 'Teknisi',
             'todayAttendance' => $attendance ? [
                 'clock_in_time' => $attendance->clock_in_time,
                 'clock_in_status' => $attendance->clock_in_status,

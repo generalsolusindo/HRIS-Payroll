@@ -4,8 +4,9 @@ namespace App\Http\Requests\Hrd;
 
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
-use App\Concerns\ValidatesCompanyPosition;
+use App\Concerns\ValidatesCompanyDivision;
 use App\Models\Company;
+use App\Models\Division;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,7 +15,7 @@ use Illuminate\Validation\Validator;
 
 class StoreUserRequest extends FormRequest
 {
-    use PasswordValidationRules, ProfileValidationRules, ValidatesCompanyPosition;
+    use PasswordValidationRules, ProfileValidationRules, ValidatesCompanyDivision;
 
     public function authorize(): bool
     {
@@ -29,10 +30,11 @@ class StoreUserRequest extends FormRequest
     {
         return [
             ...$this->profileRules(),
-            'employment_type' => ['nullable', Rule::in(User::EMPLOYMENT_TYPES)],
+            'employment_type' => ['required', Rule::in(User::EMPLOYMENT_TYPES)],
+            'employment_started_on' => ['required', 'date'],
             'phone' => ['nullable', 'string', 'max:20'],
             'company_id' => ['required', Rule::exists(Company::class, 'id')],
-            'position_id' => ['required', 'integer'],
+            'division_id' => ['required', Rule::exists(Division::class, 'id')],
             'role' => ['required', Rule::in(['karyawan', 'hrd', 'admin', 'finance'])],
             'status' => ['required', Rule::in(['pending', 'active', 'rejected'])],
             'bank_name' => ['nullable', 'string', 'max:255'],
@@ -45,19 +47,13 @@ class StoreUserRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            // Role middleware only checks the "hrd" role name, not the
-            // tenant boundary — an HRD must never create a user in a
-            // company other than their own.
-            if ($this->filled('company_id') && (int) $this->input('company_id') !== $this->user()->company_id) {
-                $validator->errors()->add('company_id', 'Anda hanya dapat membuat pengguna pada instansi Anda sendiri.');
-
-                return;
-            }
-
-            $this->assertPositionBelongsToCompany(
+            // HRD manages users across every instansi (not just their
+            // own), so company_id is only checked against the division
+            // chosen alongside it — not against the acting HRD's company.
+            $this->assertDivisionBelongsToCompany(
                 $validator,
                 $this->input('company_id'),
-                $this->input('position_id'),
+                $this->input('division_id'),
             );
         });
     }

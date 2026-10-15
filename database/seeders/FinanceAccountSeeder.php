@@ -11,7 +11,7 @@ class FinanceAccountSeeder extends Seeder
 {
     public function run(): void
     {
-        $company = Company::where('code', 'GS')->firstOrFail();
+        $company = Company::where('name', 'General Solusindo')->firstOrFail();
         $position = Position::where('name', 'Finance')->firstOrFail();
 
         // Password is only set when the account is first created — a

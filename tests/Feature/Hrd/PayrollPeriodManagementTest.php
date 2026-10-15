@@ -16,7 +16,6 @@ class PayrollPeriodManagementTest extends TestCase
     {
         return array_merge([
             'company_id' => $companyId,
-            'code' => '2026-10',
             'name' => 'Oktober 2026',
             'starts_on' => '2026-10-01',
             'ends_on' => '2026-10-31',
@@ -33,17 +32,19 @@ class PayrollPeriodManagementTest extends TestCase
             ->post(route('hrd.periode-gaji.store'), $this->payload($hrd->company_id))
             ->assertSessionDoesntHaveErrors();
 
-        $this->assertDatabaseHas('payroll_periods', ['code' => '2026-10', 'name' => 'Oktober 2026']);
+        $this->assertDatabaseHas('payroll_periods', ['name' => 'Oktober 2026']);
     }
 
-    public function test_period_code_must_be_unique_within_a_company(): void
+    public function test_period_name_must_be_unique_within_a_company(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         PayrollPeriod::create($this->payload($hrd->company_id));
 
         $this->actingAs($hrd)
-            ->post(route('hrd.periode-gaji.store'), $this->payload($hrd->company_id, ['name' => 'Lagi']))
-            ->assertSessionHasErrors('code');
+            ->post(route('hrd.periode-gaji.store'), $this->payload($hrd->company_id, [
+                'starts_on' => '2026-11-01', 'ends_on' => '2026-11-30',
+            ]))
+            ->assertSessionHasErrors('name');
     }
 
     public function test_ends_on_must_not_be_before_starts_on(): void
@@ -77,8 +78,8 @@ class PayrollPeriodManagementTest extends TestCase
             ->post(route('hrd.periode-gaji.store'), $this->payload($otherCompany->id))
             ->assertSessionDoesntHaveErrors();
 
-        $this->assertDatabaseHas('payroll_periods', ['code' => '2026-10', 'company_id' => $hrd->company_id]);
-        $this->assertDatabaseMissing('payroll_periods', ['code' => '2026-10', 'company_id' => $otherCompany->id]);
+        $this->assertDatabaseHas('payroll_periods', ['name' => 'Oktober 2026', 'company_id' => $hrd->company_id]);
+        $this->assertDatabaseMissing('payroll_periods', ['name' => 'Oktober 2026', 'company_id' => $otherCompany->id]);
     }
 
     public function test_karyawan_cannot_access_payroll_period_management(): void

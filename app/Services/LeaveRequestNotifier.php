@@ -119,7 +119,7 @@ class LeaveRequestNotifier
             'No. Pengajuan: '.$this->escape($leaveRequest->request_number),
             'Nama: '.$this->escape($user->name),
             'Departemen: '.$this->escape($user->company->name ?? '-'),
-            'Jabatan: '.$this->escape($user->position->name ?? '-'),
+            'Jabatan: '.$this->escape($user->division?->name ?? '-'),
             'Jenis Izin: '.$this->escape($leaveRequest->typeLabel()),
             'Tanggal Izin: '.$leaveRequest->leave_date->format('d/m/Y'),
             'Alasan: '.$this->escape($leaveRequest->reason),

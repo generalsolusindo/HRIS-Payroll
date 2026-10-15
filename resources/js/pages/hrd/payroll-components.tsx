@@ -24,11 +24,10 @@ import {
 
 type ComponentRow = {
     id: number;
-    code: string;
     name: string;
     type: string;
-    category: string;
     is_active: boolean;
+    is_system_managed: boolean;
 };
 
 type Props = {
@@ -41,17 +40,39 @@ const TYPE_LABELS: Record<string, string> = {
     employer_contribution: 'Kontribusi Perusahaan',
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-    base_salary: 'Gaji Pokok',
-    allowance: 'Tunjangan',
-    incentive: 'Insentif',
-    overtime: 'Lembur',
-    attendance_reward: 'Reward Absensi',
-    attendance_deduction: 'Potongan Absensi',
-    insurance: 'Asuransi/BPJS',
-    tax: 'Pajak',
-    other: 'Lainnya',
-};
+function profileDropdownBadge(component: ComponentRow) {
+    if (component.is_system_managed) {
+        return {
+            label: 'Otomatis oleh Sistem',
+            title: 'Dihitung otomatis dari data absensi/lembur saat payroll diproses — tidak muncul di dropdown Profil Gaji.',
+            className: 'border-muted-foreground/30 text-muted-foreground',
+        };
+    }
+
+    if (component.type === 'earning') {
+        return {
+            label: 'Muncul di Profil Gaji (Penghasilan)',
+            title: 'Bisa dipilih dan diisi manual di bagian "Komponen Gaji Bulanan" pada Profil Gaji.',
+            className:
+                'border-blue-400 text-blue-600 dark:border-blue-400/70 dark:text-blue-400',
+        };
+    }
+
+    if (component.type === 'deduction') {
+        return {
+            label: 'Muncul di Profil Gaji (Potongan)',
+            title: 'Bisa dipilih dan diisi manual di bagian "Potongan Bulanan" pada Profil Gaji.',
+            className:
+                'border-amber-400 text-amber-600 dark:border-amber-400/70 dark:text-amber-400',
+        };
+    }
+
+    return {
+        label: 'Belum ada fiturnya',
+        title: 'Kontribusi Perusahaan belum punya tempat pengisian di mana pun (placeholder untuk fitur BPJS/kontribusi nanti).',
+        className: 'border-muted-foreground/30 text-muted-foreground',
+    };
+}
 
 function ComponentFormFields({
     defaultValues,
@@ -61,27 +82,12 @@ function ComponentFormFields({
     errors: Record<string, string | undefined>;
 }) {
     const [type, setType] = useState(defaultValues?.type ?? 'earning');
-    const [category, setCategory] = useState(
-        defaultValues?.category ?? 'base_salary',
-    );
     const [isActive, setIsActive] = useState(
         defaultValues ? (defaultValues.is_active ? '1' : '0') : '1',
     );
 
     return (
         <div className="grid gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor="code">Kode</Label>
-                <Input
-                    id="code"
-                    name="code"
-                    required
-                    defaultValue={defaultValues?.code}
-                    placeholder="BASE"
-                />
-                <InputError message={errors.code} />
-            </div>
-
             <div className="grid gap-2">
                 <Label htmlFor="name">Nama Komponen</Label>
                 <Input
@@ -110,26 +116,6 @@ function ComponentFormFields({
                     </SelectContent>
                 </Select>
                 <InputError message={errors.type} />
-            </div>
-
-            <div className="grid gap-2">
-                <Label htmlFor="category">Kategori</Label>
-                <input type="hidden" name="category" value={category} />
-                <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger id="category" className="w-full">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {Object.entries(CATEGORY_LABELS).map(
-                            ([value, label]) => (
-                                <SelectItem key={value} value={value}>
-                                    {label}
-                                </SelectItem>
-                            ),
-                        )}
-                    </SelectContent>
-                </Select>
-                <InputError message={errors.category} />
             </div>
 
             <div className="grid gap-2">
@@ -194,8 +180,9 @@ export default function PayrollComponents({ components }: Props) {
                                                 Tambah Komponen Gaji
                                             </DialogTitle>
                                             <DialogDescription>
-                                                Kode harus unik dalam satu
-                                                instansi.
+                                                Pilih Jenis sesuai apakah
+                                                komponen ini menambah atau
+                                                memotong gaji.
                                             </DialogDescription>
                                         </DialogHeader>
                                         <div className="py-2">
@@ -237,7 +224,7 @@ export default function PayrollComponents({ components }: Props) {
                                         Jenis
                                     </th>
                                     <th className="px-4 py-3 font-medium">
-                                        Kategori
+                                        Profil Gaji
                                     </th>
                                     <th className="px-4 py-3 font-medium">
                                         Status
@@ -254,18 +241,26 @@ export default function PayrollComponents({ components }: Props) {
                                             <div className="font-medium">
                                                 {component.name}
                                             </div>
-                                            <div className="font-mono text-xs text-muted-foreground">
-                                                {component.code}
-                                            </div>
                                         </td>
                                         <td className="px-4 py-3">
                                             {TYPE_LABELS[component.type] ??
                                                 component.type}
                                         </td>
                                         <td className="px-4 py-3">
-                                            {CATEGORY_LABELS[
-                                                component.category
-                                            ] ?? component.category}
+                                            {(() => {
+                                                const badge =
+                                                    profileDropdownBadge(
+                                                        component,
+                                                    );
+                                                return (
+                                                    <span
+                                                        title={badge.title}
+                                                        className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
+                                                    >
+                                                        {badge.label}
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="px-4 py-3">
                                             <span

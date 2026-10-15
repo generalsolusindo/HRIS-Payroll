@@ -19,7 +19,6 @@ class CompanyFactory extends Factory
     {
         return [
             'name' => fake()->unique()->company(),
-            'code' => fake()->unique()->lexify('???'),
         ];
     }
 }

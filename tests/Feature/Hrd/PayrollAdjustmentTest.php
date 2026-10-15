@@ -30,11 +30,11 @@ class PayrollAdjustmentTest extends TestCase
         parent::setUp();
         $this->hrd = User::factory()->create(['role' => 'hrd']);
         $employee = User::factory()->create(['company_id' => $this->hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
-        $division = Division::create(['company_id' => $employee->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
-        $component = PayrollComponent::create(['company_id' => $employee->company_id, 'code' => 'BASE', 'name' => 'Gaji pokok', 'type' => 'earning', 'category' => 'base_salary']);
+        $division = Division::create(['company_id' => $employee->company_id, 'name' => 'Operasional']);
+        $component = PayrollComponent::create(['company_id' => $employee->company_id, 'code' => 'BASE', 'name' => 'Gaji pokok', 'type' => 'earning']);
         $profile = EmployeePayrollProfile::create(['user_id' => $employee->id, 'company_id' => $employee->company_id, 'division_id' => $division->id, 'position_id' => $employee->position_id, 'effective_from' => '2026-09-01', 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent']);
         EmployeeSalaryComponent::create(['employee_payroll_profile_id' => $profile->id, 'payroll_component_id' => $component->id, 'amount' => '3000000.01', 'basis' => 'monthly']);
-        $period = PayrollPeriod::create(['company_id' => $employee->company_id, 'code' => '2026-09', 'name' => 'September', 'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30', 'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28']);
+        $period = PayrollPeriod::create(['company_id' => $employee->company_id, 'name' => 'September', 'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30', 'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28']);
         $this->actingAs($this->hrd)->post(route('hrd.periode-gaji.hitung', $period))->assertSessionDoesntHaveErrors();
         $this->run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
         $this->entry = $this->run->entries()->firstOrFail();

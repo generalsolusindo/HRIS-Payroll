@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers\Hrd;
 
-use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\StoreUserRequest;
 use App\Http\Requests\Hrd\UpdateUserRequest;
 use App\Models\Company;
-use App\Models\Position;
+use App\Models\Division;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,15 +17,15 @@ use Inertia\Response;
 
 class UserManagementController extends Controller
 {
-    use ScopesToOwnCompany;
-
     public function index(Request $request): Response
     {
         $search = trim((string) $request->string('search'));
 
+        // HRD manages users across every instansi in the system, not just
+        // their own — see companiesWithDivisions() below for the same
+        // cross-company scope applied to the Instansi dropdown.
         $users = User::query()
-            ->where('company_id', $request->user()->company_id)
-            ->with(['company:id,name', 'position:id,name'])
+            ->with(['company:id,name', 'division:id,name'])
             ->when($search !== '', fn ($query) => $query->where(
                 fn ($q) => $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
@@ -39,13 +38,14 @@ class UserManagementController extends Controller
                 'id' => $user->id,
                 'employee_number' => $user->employee_number,
                 'employment_type' => $user->employment_type,
+                'employment_started_on' => $user->employment_started_on?->toDateString(),
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'role' => $user->role,
                 'status' => $user->status,
                 'company' => ['id' => $user->company->id, 'name' => $user->company->name],
-                'position' => ['id' => $user->position->id, 'name' => $user->position->name],
+                'division' => $user->division ? ['id' => $user->division->id, 'name' => $user->division->name] : null,
                 // bank_account_number is deliberately left out of this list —
                 // it's the one genuinely sensitive field, so it's treated
                 // like the password field: write-only from the edit form,
@@ -57,7 +57,7 @@ class UserManagementController extends Controller
         return Inertia::render('hrd/user-management', [
             'users' => $users,
             'search' => $search,
-            'companies' => $this->companiesWithPositions($request->user()->company_id),
+            'companies' => $this->companiesWithDivisions(),
         ]);
     }
 
@@ -71,8 +71,9 @@ class UserManagementController extends Controller
         // that's allowed to set them, and it does so explicitly.
         $user = new User([
             'company_id' => $validated['company_id'],
-            'position_id' => $validated['position_id'],
+            'division_id' => $validated['division_id'],
             'employment_type' => $validated['employment_type'] ?? null,
+            'employment_started_on' => $validated['employment_started_on'],
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
@@ -94,15 +95,14 @@ class UserManagementController extends Controller
 
     public function update(UpdateUserRequest $request, User $user): RedirectResponse
     {
-        $this->assertOwnCompany($request, $user->company_id);
-
         $validated = $request->validated();
         $isSelf = $user->id === $request->user()->id;
 
         $user->fill([
             'company_id' => $validated['company_id'],
-            'position_id' => $validated['position_id'],
+            'division_id' => $validated['division_id'],
             'employment_type' => $validated['employment_type'] ?? $user->employment_type,
+            'employment_started_on' => $validated['employment_started_on'],
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
@@ -138,7 +138,6 @@ class UserManagementController extends Controller
 
     public function destroy(Request $request, User $user): RedirectResponse
     {
-        $this->assertOwnCompany($request, $user->company_id);
         abort_if($user->id === $request->user()->id, 403, 'Tidak bisa menghapus akun sendiri.');
 
         $name = $user->name;
@@ -150,23 +149,23 @@ class UserManagementController extends Controller
     }
 
     /**
-     * HRD only ever creates/edits users within their own company — the
-     * dropdown this feeds must never offer another tenant's company.
+     * HRD manages users for every instansi in the system (General
+     * Solusindo and Tabinaco share this one HRD role), so this dropdown
+     * lists every company, not just the acting HRD's own.
      *
-     * @return Collection<int, array{id: int<0, max>, name: string, positions: Collection<int, array{id: int<0, max>, name: string}>}>
+     * @return Collection<int, array{id: int<0, max>, name: string, divisions: Collection<int, array{id: int<0, max>, name: string}>}>
      */
-    private function companiesWithPositions(int $companyId)
+    private function companiesWithDivisions()
     {
-        return Company::with(['positions' => fn ($query) => $query->orderBy('name')])
-            ->where('id', $companyId)
+        return Company::with(['divisions' => fn ($query) => $query->where('is_active', true)->orderBy('name')])
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (Company $company) => [
                 'id' => (int) $company->id,
                 'name' => (string) $company->name,
-                'positions' => $company->positions->map(fn (Position $position) => [
-                    'id' => (int) $position->id,
-                    'name' => (string) $position->name,
+                'divisions' => $company->divisions->map(fn (Division $division) => [
+                    'id' => (int) $division->id,
+                    'name' => (string) $division->name,
                 ]),
             ]);
     }

@@ -10,7 +10,6 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $company_id
- * @property string $code
  * @property string $name
  * @property Carbon $starts_on
  * @property Carbon $ends_on
@@ -23,7 +22,7 @@ use Illuminate\Support\Carbon;
 class PayrollPeriod extends Model
 {
     protected $fillable = [
-        'company_id', 'code', 'name', 'starts_on', 'ends_on',
+        'company_id', 'name', 'starts_on', 'ends_on',
         'attendance_starts_on', 'attendance_ends_on', 'payment_due_on',
         'currency', 'status',
     ];

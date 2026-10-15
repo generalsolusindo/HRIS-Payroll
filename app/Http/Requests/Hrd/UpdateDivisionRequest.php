@@ -26,15 +26,13 @@ class UpdateDivisionRequest extends FormRequest
         $division = $this->route('division');
 
         return [
-            'code' => [
-                'required', 'string', 'max:30',
+            'name' => [
+                'required', 'string', 'max:255',
                 Rule::unique(Division::class)
                     ->where(fn ($query) => $query->where('company_id', $division->company_id))
                     ->ignore($division->id),
             ],
-            'name' => ['required', 'string', 'max:255'],
             'is_active' => ['required', 'boolean'],
-            'default_base_salary' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
             'daily_attendance_allowance' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
         ];
     }

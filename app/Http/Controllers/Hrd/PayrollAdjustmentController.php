@@ -50,13 +50,13 @@ class PayrollAdjustmentController extends Controller
             }
             $component = PayrollComponent::firstOrCreate(
                 ['company_id' => $run->period->company_id, 'code' => 'MANUAL_'.strtoupper($data['type'])],
-                ['name' => 'Penyesuaian manual', 'type' => $data['type'], 'category' => 'other', 'is_active' => true],
+                ['name' => 'Penyesuaian manual', 'type' => $data['type'], 'is_active' => true],
             );
             $before = $lockedEntry->only(['gross_amount', 'deduction_amount', 'net_amount']);
             $line = $lockedEntry->lines()->create([
                 'payroll_component_id' => $component->id, 'line_key' => $key,
                 'component_code' => $component->code, 'component_name' => $data['name'],
-                'type' => $data['type'], 'category' => 'other', 'source' => 'manual',
+                'type' => $data['type'], 'source' => 'manual',
                 'quantity' => '1', 'rate' => $amount, 'amount' => $amount,
                 'adjustment_reason' => $data['reason'], 'created_by' => $request->user()->id,
                 'calculation_snapshot' => ['request_hash' => $hash, 'original_amount' => $amount],

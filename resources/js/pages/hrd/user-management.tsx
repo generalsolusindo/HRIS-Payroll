@@ -26,20 +26,21 @@ import {
 } from '@/components/ui/select';
 import type { Auth } from '@/types';
 
-type Position = { id: number; name: string };
-type Company = { id: number; name: string; positions: Position[] };
+type Division = { id: number; name: string };
+type Company = { id: number; name: string; divisions: Division[] };
 
 type UserRow = {
     id: number;
     employee_number: string | null;
     employment_type: string | null;
+    employment_started_on: string | null;
     name: string;
     email: string;
     phone: string | null;
     role: string;
     status: string;
     company: { id: number; name: string };
-    position: { id: number; name: string };
+    division: { id: number; name: string } | null;
     bank_name: string | null;
     bank_account_holder: string | null;
 };
@@ -106,16 +107,16 @@ function UserFormFields({
     const [companyId, setCompanyId] = useState(
         defaultValues ? String(defaultValues.company.id) : '',
     );
-    const [positionId, setPositionId] = useState(
-        defaultValues ? String(defaultValues.position.id) : '',
+    const [divisionId, setDivisionId] = useState(
+        defaultValues?.division ? String(defaultValues.division.id) : '',
     );
     const [role, setRole] = useState(defaultValues?.role ?? 'karyawan');
     const [status, setStatus] = useState(defaultValues?.status ?? 'pending');
 
-    const positions = useMemo(
+    const divisions = useMemo(
         () =>
             companies.find((company) => String(company.id) === companyId)
-                ?.positions ?? [],
+                ?.divisions ?? [],
         [companies, companyId],
     );
 
@@ -175,6 +176,7 @@ function UserFormFields({
                 <select
                     id="employment_type"
                     name="employment_type"
+                    required
                     defaultValue={defaultValues?.employment_type ?? ''}
                     className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
@@ -194,6 +196,19 @@ function UserFormFields({
                 </select>
                 <InputError message={errors.employment_type} />
             </div>
+            <div className="grid gap-2">
+                <Label htmlFor="employment_started_on">
+                    Tanggal Mulai Kerja
+                </Label>
+                <Input
+                    id="employment_started_on"
+                    name="employment_started_on"
+                    type="date"
+                    required
+                    defaultValue={defaultValues?.employment_started_on ?? ''}
+                />
+                <InputError message={errors.employment_started_on} />
+            </div>
 
             <div className="grid gap-2">
                 <Label htmlFor="company_id">Instansi</Label>
@@ -202,7 +217,7 @@ function UserFormFields({
                     value={companyId}
                     onValueChange={(value) => {
                         setCompanyId(value);
-                        setPositionId('');
+                        setDivisionId('');
                     }}
                 >
                     <SelectTrigger id="company_id" className="w-full">
@@ -223,28 +238,28 @@ function UserFormFields({
             </div>
 
             <div className="grid gap-2">
-                <Label htmlFor="position_id">Jabatan</Label>
-                <input type="hidden" name="position_id" value={positionId} />
+                <Label htmlFor="division_id">Jabatan / Divisi</Label>
+                <input type="hidden" name="division_id" value={divisionId} />
                 <Select
-                    value={positionId}
-                    onValueChange={setPositionId}
+                    value={divisionId}
+                    onValueChange={setDivisionId}
                     disabled={!companyId}
                 >
-                    <SelectTrigger id="position_id" className="w-full">
-                        <SelectValue placeholder="-- Pilih Jabatan --" />
+                    <SelectTrigger id="division_id" className="w-full">
+                        <SelectValue placeholder="-- Pilih Jabatan / Divisi --" />
                     </SelectTrigger>
                     <SelectContent>
-                        {positions.map((position) => (
+                        {divisions.map((division) => (
                             <SelectItem
-                                key={position.id}
-                                value={String(position.id)}
+                                key={division.id}
+                                value={String(division.id)}
                             >
-                                {position.name}
+                                {division.name}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
-                <InputError message={errors.position_id} />
+                <InputError message={errors.division_id} />
             </div>
 
             <div className="grid gap-4 rounded-2xl border p-4">
@@ -538,7 +553,7 @@ export default function UserManagement({ users, search, companies }: Props) {
                                         <td className="px-4 py-3">
                                             <div>{user.company.name}</div>
                                             <div className="text-xs text-muted-foreground">
-                                                {user.position.name}
+                                                {user.division?.name ?? '-'}
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">

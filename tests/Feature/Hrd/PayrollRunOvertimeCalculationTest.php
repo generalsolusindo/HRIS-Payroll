@@ -42,10 +42,10 @@ class PayrollRunOvertimeCalculationTest extends TestCase
             'effective_from' => '2026-09-01',
             'rules' => ['overtime' => ['rate_per_hour' => '20000']],
         ]);
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, $base, '3000000');
@@ -57,7 +57,7 @@ class PayrollRunOvertimeCalculationTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);
@@ -69,7 +69,6 @@ class PayrollRunOvertimeCalculationTest extends TestCase
         $this->assertEqualsWithDelta(3_060_000.0, (float) $entry->net_amount, 0.001);
 
         $line = $entry->lines()->where('line_key', 'overtime')->firstOrFail();
-        $this->assertSame('overtime', $line->category);
         $this->assertSame('overtime', $line->source);
         $this->assertSame('earning', $line->type);
         $this->assertEqualsWithDelta(60_000.0, (float) $line->amount, 0.001);
@@ -83,10 +82,10 @@ class PayrollRunOvertimeCalculationTest extends TestCase
             'effective_from' => '2026-09-01',
             'rules' => ['overtime' => ['rate_per_hour' => '20000']],
         ]);
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, $base, '3000000');
@@ -103,7 +102,7 @@ class PayrollRunOvertimeCalculationTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);
@@ -118,10 +117,10 @@ class PayrollRunOvertimeCalculationTest extends TestCase
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         // No policy created at all — defaults to rate 0 via firstOrCreate.
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, $base, '3000000');
@@ -133,7 +132,7 @@ class PayrollRunOvertimeCalculationTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Database\Factories\DivisionFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,24 +11,24 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property int $id
  * @property int $company_id
- * @property string $code
  * @property string $name
  * @property bool $is_active
- * @property string $default_base_salary
  * @property string $daily_attendance_allowance
  */
 class Division extends Model
 {
+    /** @use HasFactory<DivisionFactory> */
+    use HasFactory;
+
     protected $fillable = [
-        'company_id', 'code', 'name', 'is_active',
-        'default_base_salary', 'daily_attendance_allowance',
+        'company_id', 'name', 'is_active',
+        'daily_attendance_allowance',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
-            'default_base_salary' => 'decimal:2',
             'daily_attendance_allowance' => 'decimal:2',
         ];
     }

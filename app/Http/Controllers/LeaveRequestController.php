@@ -37,7 +37,7 @@ class LeaveRequestController extends Controller
     {
         Gate::authorize('view', $leaveRequest);
 
-        $leaveRequest->load(['user:id,name,company_id,position_id', 'user.company:id,name', 'user.position:id,name', 'attachments', 'hrdProcessedBy:id,name', 'processedBy:id,name']);
+        $leaveRequest->load(['user:id,name,company_id,division_id', 'user.company:id,name', 'user.division:id,name', 'attachments', 'hrdProcessedBy:id,name', 'processedBy:id,name']);
 
         return Inertia::render('izin-detail', [
             'leaveRequest' => $leaveRequest,
@@ -69,7 +69,7 @@ class LeaveRequestController extends Controller
             ]);
         }
 
-        $this->notifier->notifySubmitted($leaveRequest->load(['user.company', 'user.position']));
+        $this->notifier->notifySubmitted($leaveRequest->load(['user.company', 'user.division']));
 
         return back();
     }

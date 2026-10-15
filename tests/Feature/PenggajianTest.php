@@ -23,11 +23,10 @@ class PenggajianTest extends TestCase
     private function makePublishedPayslip(User $employee): PayrollPayslip
     {
         $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $employee->company_id]);
-        $division = Division::create(['company_id' => $employee->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $employee->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $employee->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'type' => 'earning', ]);
         $profile = EmployeePayrollProfile::create([
             'user_id' => $employee->id, 'company_id' => $employee->company_id,
             'division_id' => $division->id, 'position_id' => $employee->position_id,
@@ -40,7 +39,7 @@ class PenggajianTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $employee->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $employee->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);

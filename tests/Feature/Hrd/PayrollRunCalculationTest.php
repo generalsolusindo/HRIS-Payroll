@@ -41,15 +41,13 @@ class PayrollRunCalculationTest extends TestCase
     public function test_calculating_a_period_creates_a_run_with_entries_and_lines_for_employees_with_profiles(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'type' => 'earning', ]);
         $allowance = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'ALLOW', 'name' => 'Tunjangan',
-            'type' => 'earning', 'category' => 'allowance',
-        ]);
+            'type' => 'earning', ]);
 
         $budi = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active', 'name' => 'Budi']);
         $this->makeProfile($budi, $division, [[$base, '2500000'], [$allowance, '300000']]);
@@ -58,7 +56,7 @@ class PayrollRunCalculationTest extends TestCase
         User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-10', 'name' => 'Oktober 2026',
+            'company_id' => $hrd->company_id, 'name' => 'Oktober 2026',
             'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
             'attendance_starts_on' => '2026-09-26', 'attendance_ends_on' => '2026-10-25',
         ]);
@@ -82,16 +80,55 @@ class PayrollRunCalculationTest extends TestCase
         $this->assertCount(2, $entry->lines);
     }
 
+    public function test_a_manual_deduction_component_reduces_gross_and_net(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
+        $base = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'type' => 'earning', ]);
+        $loan = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'KASBON', 'name' => 'Potongan Kasbon',
+            'type' => 'deduction', ]);
+
+        $budi = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active', 'name' => 'Budi']);
+        $this->makeProfile($budi, $division, [[$base, '2500000'], [$loan, '200000']]);
+
+        $period = PayrollPeriod::create([
+            'company_id' => $hrd->company_id, 'name' => 'Oktober 2026',
+            'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
+            'attendance_starts_on' => '2026-09-26', 'attendance_ends_on' => '2026-10-25',
+        ]);
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.hitung', $period))
+            ->assertSessionDoesntHaveErrors();
+
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+        $this->assertEqualsWithDelta(2_500_000.0, (float) $run->gross_total, 0.001);
+        $this->assertEqualsWithDelta(200_000.0, (float) $run->deduction_total, 0.001);
+        $this->assertEqualsWithDelta(2_300_000.0, (float) $run->net_total, 0.001);
+
+        $entry = PayrollEntry::where('payroll_run_id', $run->id)->where('user_id', $budi->id)->firstOrFail();
+        $this->assertEqualsWithDelta(2_500_000.0, (float) $entry->gross_amount, 0.001);
+        $this->assertEqualsWithDelta(200_000.0, (float) $entry->deduction_amount, 0.001);
+        $this->assertEqualsWithDelta(2_300_000.0, (float) $entry->net_amount, 0.001);
+
+        $deductionLine = $entry->lines()->where('component_code', 'KASBON')->firstOrFail();
+        $this->assertSame('deduction', $deductionLine->type);
+        $this->assertSame('2500000.00', $entry->lines()->where('component_code', 'BASE')->firstOrFail()->amount);
+    }
+
     public function test_an_employee_without_any_salary_components_is_skipped(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         // Profile exists but has zero salary components attached.
         $this->makeProfile($employee, $division, []);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-10', 'name' => 'Oktober 2026',
+            'company_id' => $hrd->company_id, 'name' => 'Oktober 2026',
             'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
             'attendance_starts_on' => '2026-09-26', 'attendance_ends_on' => '2026-10-25',
         ]);
@@ -107,7 +144,7 @@ class PayrollRunCalculationTest extends TestCase
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-10', 'name' => 'Oktober 2026',
+            'company_id' => $hrd->company_id, 'name' => 'Oktober 2026',
             'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
             'attendance_starts_on' => '2026-09-26', 'attendance_ends_on' => '2026-10-25',
         ]);
@@ -124,17 +161,16 @@ class PayrollRunCalculationTest extends TestCase
     public function test_payment_destination_is_populated_from_the_employees_bank_details_and_encrypted(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'type' => 'earning', ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $employee->update(['bank_name' => 'BCA', 'bank_account_number' => '111222333', 'bank_account_holder' => $employee->name]);
         $this->makeProfile($employee, $division, [[$base, '2500000']]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-10', 'name' => 'Oktober 2026',
+            'company_id' => $hrd->company_id, 'name' => 'Oktober 2026',
             'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
             'attendance_starts_on' => '2026-09-26', 'attendance_ends_on' => '2026-10-25',
         ]);
@@ -150,16 +186,15 @@ class PayrollRunCalculationTest extends TestCase
     public function test_the_run_result_page_shows_entries_grouped_for_drill_down(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'type' => 'earning', ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '2500000']]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-10', 'name' => 'Oktober 2026',
+            'company_id' => $hrd->company_id, 'name' => 'Oktober 2026',
             'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
             'attendance_starts_on' => '2026-09-26', 'attendance_ends_on' => '2026-10-25',
         ]);
@@ -193,7 +228,7 @@ class PayrollRunCalculationTest extends TestCase
     {
         $karyawan = User::factory()->create(['role' => 'karyawan']);
         $period = PayrollPeriod::create([
-            'company_id' => $karyawan->company_id, 'code' => '2026-10', 'name' => 'Oktober 2026',
+            'company_id' => $karyawan->company_id, 'name' => 'Oktober 2026',
             'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
             'attendance_starts_on' => '2026-09-26', 'attendance_ends_on' => '2026-10-25',
         ]);

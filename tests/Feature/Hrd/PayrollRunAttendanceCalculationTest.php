@@ -59,10 +59,10 @@ class PayrollRunAttendanceCalculationTest extends TestCase
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $this->setAttendanceRates($hrd->company_id, '1000', '0', '0');
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '3000000']]);
@@ -74,7 +74,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);
@@ -89,7 +89,6 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $this->assertEqualsWithDelta(2_990_000.0, (float) $entry->net_amount, 0.001);
 
         $line = $entry->lines()->where('line_key', 'attendance-late')->firstOrFail();
-        $this->assertSame('attendance_deduction', $line->category);
         $this->assertSame('attendance', $line->source);
         $this->assertEqualsWithDelta(10_000.0, (float) $line->amount, 0.001);
     }
@@ -98,10 +97,10 @@ class PayrollRunAttendanceCalculationTest extends TestCase
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $this->setAttendanceRates($hrd->company_id, '0', '150000', '0');
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '3000000']]);
@@ -109,7 +108,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         // No attendance and no approved leave on a workday — the generator
         // now marks this absent on its own, no HRD correction required.
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);
@@ -128,10 +127,10 @@ class PayrollRunAttendanceCalculationTest extends TestCase
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $this->setAttendanceRates($hrd->company_id, '0', '0', '100000');
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '3000000']]);
@@ -143,7 +142,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);
@@ -157,7 +156,6 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $this->assertTrue($entry->attendance_snapshot['perfect_attendance']);
 
         $line = $entry->lines()->where('line_key', 'attendance-perfect-reward')->firstOrFail();
-        $this->assertSame('attendance_reward', $line->category);
         $this->assertSame('reward', $line->source);
         $this->assertSame('earning', $line->type);
     }
@@ -166,10 +164,10 @@ class PayrollRunAttendanceCalculationTest extends TestCase
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $this->setAttendanceRates($hrd->company_id, '0', '0', '100000');
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '3000000']]);
@@ -185,7 +183,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-29',
         ]);
@@ -206,12 +204,12 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $hrd = User::factory()->create(['role' => 'hrd']);
         $this->setAttendanceRates($hrd->company_id, '0', '0', '0');
         $division = Division::create([
-            'company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional',
+            'company_id' => $hrd->company_id, 'name' => 'Operasional',
             'daily_attendance_allowance' => '50000',
         ]);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '3000000']]);
@@ -223,7 +221,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);
@@ -231,7 +229,6 @@ class PayrollRunAttendanceCalculationTest extends TestCase
 
         $entry = PayrollEntry::where('user_id', $employee->id)->firstOrFail();
         $line = $entry->lines()->where('line_key', 'attendance-allowance')->firstOrFail();
-        $this->assertSame('allowance', $line->category);
         $this->assertSame('allowance', $line->source);
         $this->assertSame('earning', $line->type);
         $this->assertEqualsWithDelta(50_000.0, (float) $line->amount, 0.001);
@@ -243,12 +240,12 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $hrd = User::factory()->create(['role' => 'hrd']);
         $this->setAttendanceRates($hrd->company_id, '1000', '0', '0');
         $division = Division::create([
-            'company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional',
+            'company_id' => $hrd->company_id, 'name' => 'Operasional',
             'daily_attendance_allowance' => '50000',
         ]);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '3000000']]);
@@ -263,7 +260,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);
@@ -283,10 +280,10 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $this->setAttendanceRates($hrd->company_id, '0', '0', '0');
         // Deliberately not setting daily_attendance_allowance — the column
         // defaults to 0, which must mean "no automatic allowance line".
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '3000000']]);
@@ -298,7 +295,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);
@@ -313,10 +310,10 @@ class PayrollRunAttendanceCalculationTest extends TestCase
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $this->setAttendanceRates($hrd->company_id, '1000', '0', '100000');
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
+            'type' => 'earning',
         ]);
 
         $late = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
@@ -336,7 +333,7 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         ]);
 
         $period = PayrollPeriod::create([
-            'company_id' => $hrd->company_id, 'code' => '2026-09', 'name' => 'September 2026',
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
             'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
             'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
         ]);

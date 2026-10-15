@@ -23,11 +23,10 @@ class StorePayrollPeriodRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'code' => [
-                'required', 'string', 'max:40',
+            'name' => [
+                'required', 'string', 'max:255',
                 Rule::unique(PayrollPeriod::class)->where(fn ($query) => $query->where('company_id', $this->user()->company_id)),
             ],
-            'name' => ['required', 'string', 'max:255'],
             'starts_on' => ['required', 'date'],
             'ends_on' => ['required', 'date', 'after_or_equal:starts_on'],
             'attendance_starts_on' => ['required', 'date'],

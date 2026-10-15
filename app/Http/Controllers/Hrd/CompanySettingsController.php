@@ -6,37 +6,30 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\UpdateCompanySettingsRequest;
 use App\Models\Company;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * HRD only ever sees and edits their own company's settings — there is no
- * multi-company management role in this application (same boundary as
- * PayrollPolicyController/UserManagementController).
+ * HRD manages settings for every instansi in the system (General
+ * Solusindo and Tabinaco share this one HRD role) — same cross-company
+ * scope as UserManagementController, deliberately not tenant isolated
+ * like most other HRD-scoped resources (PayrollPolicyController etc.).
  */
 class CompanySettingsController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(): Response
     {
-        $company = Company::findOrFail($request->user()->company_id);
+        $companies = Company::orderBy('name')->get(['id', 'name', 'telegram_chat_id']);
 
         return Inertia::render('hrd/company-settings', [
-            'company' => [
-                'id' => $company->id,
-                'name' => $company->name,
-                'code' => $company->code,
-                'telegram_chat_id' => $company->telegram_chat_id,
-            ],
+            'companies' => $companies,
         ]);
     }
 
-    public function update(UpdateCompanySettingsRequest $request): RedirectResponse
+    public function update(UpdateCompanySettingsRequest $request, Company $company): RedirectResponse
     {
-        $company = Company::findOrFail($request->user()->company_id);
-
         $company->update($request->validated());
 
-        return back()->with('status', 'Pengaturan perusahaan berhasil disimpan.');
+        return back()->with('status', "Pengaturan {$company->name} berhasil disimpan.");
     }
 }

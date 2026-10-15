@@ -15,8 +15,8 @@ class CompanySeeder extends Seeder
      */
     public function run(): void
     {
-        $generalSolusindo = Company::create(['name' => 'General Solusindo', 'code' => 'GS']);
-        $tabinaco = Company::create(['name' => 'Tabinaco', 'code' => 'TBC']);
+        $generalSolusindo = Company::create(['name' => 'General Solusindo']);
+        $tabinaco = Company::create(['name' => 'Tabinaco']);
 
         $latitude = -7.4433990;
         $longitude = 112.7021927;

@@ -27,7 +27,6 @@ type LatestRun = {
 
 type PeriodRow = {
     id: number;
-    code: string;
     name: string;
     starts_on: string;
     ends_on: string;
@@ -74,12 +73,6 @@ function PeriodFormFields({
 }) {
     return (
         <div className="grid gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor="code">Kode Periode</Label>
-                <Input id="code" name="code" required placeholder="2026-10" />
-                <InputError message={errors.code} />
-            </div>
-
             <div className="grid gap-2">
                 <Label htmlFor="name">Nama Periode</Label>
                 <Input
@@ -200,7 +193,7 @@ export default function PayrollPeriods({ periods }: Props) {
                                                 Tambah Periode Payroll
                                             </DialogTitle>
                                             <DialogDescription>
-                                                Kode harus unik dalam satu
+                                                Nama harus unik dalam satu
                                                 instansi.
                                             </DialogDescription>
                                         </DialogHeader>
@@ -254,9 +247,6 @@ export default function PayrollPeriods({ periods }: Props) {
                                         <td className="px-4 py-3">
                                             <div className="font-medium">
                                                 {period.name}
-                                            </div>
-                                            <div className="font-mono text-xs text-muted-foreground">
-                                                {period.code}
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-xs">

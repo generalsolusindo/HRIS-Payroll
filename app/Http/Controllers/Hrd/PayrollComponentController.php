@@ -19,18 +19,35 @@ class PayrollComponentController extends Controller
 
     public function index(Request $request): Response
     {
+        $components = PayrollComponent::where('company_id', $request->user()->company_id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'type', 'is_active', 'code'])
+            ->map(fn (PayrollComponent $component) => [
+                'id' => $component->id,
+                'name' => $component->name,
+                'type' => $component->type,
+                'is_active' => $component->is_active,
+                // Tells HRD, without exposing the raw internal code, whether
+                // this component shows up in the Profil Gaji dropdown (a
+                // manual earning) or is computed automatically by the
+                // payroll run from attendance/overtime (see SYSTEM_CODES).
+                'is_system_managed' => in_array($component->code, PayrollComponent::SYSTEM_CODES, true),
+            ]);
+
         return Inertia::render('hrd/payroll-components', [
-            'components' => PayrollComponent::where('company_id', $request->user()->company_id)
-                ->orderBy('name')
-                ->get(['id', 'code', 'name', 'type', 'category', 'is_active']),
+            'components' => $components,
         ]);
     }
 
     public function store(StorePayrollComponentRequest $request): RedirectResponse
     {
+        $validated = $request->validated();
+        $companyId = $request->user()->company_id;
+
         $component = PayrollComponent::create([
-            ...$request->validated(),
-            'company_id' => $request->user()->company_id,
+            ...$validated,
+            'company_id' => $companyId,
+            'code' => PayrollComponent::generateCode($companyId, $validated['name']),
         ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Komponen {$component->name} berhasil dibuat."]);

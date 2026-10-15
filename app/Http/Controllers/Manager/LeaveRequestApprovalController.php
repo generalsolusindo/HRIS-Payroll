@@ -35,15 +35,15 @@ class LeaveRequestApprovalController extends Controller
 
         $leaveRequests = $this->filteredLeaveRequestsQuery($request, $companyId)
             ->where('status', self::PENDING_STATUS)
-            ->with(['user:id,name,company_id,position_id', 'user.company:id,name', 'user.position:id,name', 'attachments', 'hrdProcessedBy:id,name'])
+            ->with(['user:id,name,company_id,division_id', 'user.company:id,name', 'user.division:id,name', 'attachments', 'hrdProcessedBy:id,name'])
             ->oldest()
             ->get();
 
         return Inertia::render('manager/leave-request-approval', [
             'leaveRequests' => $leaveRequests,
             'stats' => $this->leaveRequestStats($companyId, self::PENDING_STATUS),
-            'filters' => $request->only('search', 'type', 'position_id'),
-            'positions' => $this->positionsForCompany($companyId),
+            'filters' => $request->only('search', 'type', 'division_id'),
+            'divisions' => $this->divisionsForCompany($companyId),
             'leaveTypes' => $this->leaveTypeOptions(),
         ]);
     }
@@ -61,7 +61,7 @@ class LeaveRequestApprovalController extends Controller
                 $request->filled('status'),
                 fn ($query) => $query->where('status', $request->string('status')->toString()),
             )
-            ->with(['user:id,name,company_id,position_id', 'user.company:id,name', 'user.position:id,name', 'hrdProcessedBy:id,name', 'processedBy:id,name'])
+            ->with(['user:id,name,company_id,division_id', 'user.company:id,name', 'user.division:id,name', 'hrdProcessedBy:id,name', 'processedBy:id,name'])
             ->latest('created_at')
             ->paginate(30)
             ->withQueryString();
@@ -69,8 +69,8 @@ class LeaveRequestApprovalController extends Controller
         return Inertia::render('manager/leave-request-history', [
             'leaveRequests' => $leaveRequests,
             'stats' => $this->leaveRequestStats($companyId, self::PENDING_STATUS),
-            'filters' => $request->only('search', 'type', 'position_id', 'status'),
-            'positions' => $this->positionsForCompany($companyId),
+            'filters' => $request->only('search', 'type', 'division_id', 'status'),
+            'divisions' => $this->divisionsForCompany($companyId),
             'leaveTypes' => $this->leaveTypeOptions(),
         ]);
     }
@@ -111,7 +111,7 @@ class LeaveRequestApprovalController extends Controller
         });
 
         $this->notifier->notifyFinalApproved(
-            $leaveRequest->refresh()->load(['user.company', 'user.position', 'hrdProcessedBy', 'processedBy']),
+            $leaveRequest->refresh()->load(['user.company', 'user.division', 'hrdProcessedBy', 'processedBy']),
         );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Pengajuan disetujui.']);
@@ -142,7 +142,7 @@ class LeaveRequestApprovalController extends Controller
         });
 
         $this->notifier->notifyRejected(
-            $leaveRequest->refresh()->load(['user.company', 'user.position', 'hrdProcessedBy', 'processedBy']),
+            $leaveRequest->refresh()->load(['user.company', 'user.division', 'hrdProcessedBy', 'processedBy']),
             'manager',
         );
 

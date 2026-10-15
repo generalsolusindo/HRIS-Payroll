@@ -1,7 +1,8 @@
 export type User = {
     id: number;
     company_id: number;
-    position_id: number;
+    position_id: number | null;
+    division_id: number | null;
     employee_number: string | null;
     name: string;
     email: string;

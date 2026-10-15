@@ -17,7 +17,7 @@ class PayrollSchemaTest extends TestCase
     {
         $user = User::factory()->create();
         $division = DB::table('divisions')->insertGetId([
-            'company_id' => $user->company_id, 'code' => 'OPS', 'name' => 'Operasional',
+            'company_id' => $user->company_id, 'name' => 'Operasional',
         ]);
         $profile = DB::table('employee_payroll_profiles')->insertGetId([
             'user_id' => $user->id, 'company_id' => $user->company_id,
@@ -30,7 +30,7 @@ class PayrollSchemaTest extends TestCase
             'effective_from' => '2026-10-01', 'rules' => '{}',
         ]);
         $period = DB::table('payroll_periods')->insertGetId([
-            'company_id' => $user->company_id, 'code' => '2026-10', 'name' => 'Oktober 2026',
+            'company_id' => $user->company_id, 'name' => 'Oktober 2026',
             'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
             'attendance_starts_on' => '2026-09-26', 'attendance_ends_on' => '2026-10-25',
         ]);

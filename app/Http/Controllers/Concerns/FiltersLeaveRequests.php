@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Models\Division;
 use App\Models\LeaveRequest;
-use App\Models\Position;
 use App\Services\LeaveTypeValidator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -35,7 +35,7 @@ trait FiltersLeaveRequests
     }
 
     /**
-     * Base query for one company, with the optional search/type/position
+     * Base query for one company, with the optional search/type/division
      * filters every one of the three screens accepts the same way.
      *
      * @return Builder<LeaveRequest>
@@ -48,8 +48,8 @@ trait FiltersLeaveRequests
             ->whereHas('user', function ($query) use ($companyId, $request) {
                 $query->where('company_id', $companyId);
 
-                if ($request->filled('position_id')) {
-                    $query->where('position_id', $request->integer('position_id'));
+                if ($request->filled('division_id')) {
+                    $query->where('division_id', $request->integer('division_id'));
                 }
             })
             ->when(
@@ -66,17 +66,17 @@ trait FiltersLeaveRequests
     }
 
     /**
-     * Positions actually assigned to the given company — the filter
-     * dropdown must never leak another tenant's position list.
+     * Divisions belonging to the given company — the filter dropdown must
+     * never leak another tenant's division list.
      *
      * @return Collection<int, array{id: int<0, max>, name: string}>
      */
-    private function positionsForCompany(int $companyId): Collection
+    private function divisionsForCompany(int $companyId): Collection
     {
-        return Position::whereHas('companies', fn ($query) => $query->where('companies.id', $companyId))
+        return Division::where('company_id', $companyId)
             ->orderBy('name')
             ->get(['id', 'name'])
-            ->map(fn (Position $position) => ['id' => $position->id, 'name' => $position->name]);
+            ->map(fn (Division $division) => ['id' => $division->id, 'name' => $division->name]);
     }
 
     /**
@@ -109,7 +109,7 @@ trait FiltersLeaveRequests
     private function streamLeaveRequestsCsv(Builder $query, string $filename): StreamedResponse
     {
         $leaveRequests = $query
-            ->with(['user:id,name,position_id', 'user.position:id,name', 'hrdProcessedBy:id,name', 'processedBy:id,name'])
+            ->with(['user:id,name,division_id', 'user.division:id,name', 'hrdProcessedBy:id,name', 'processedBy:id,name'])
             ->oldest()
             ->get();
 
@@ -126,7 +126,7 @@ trait FiltersLeaveRequests
                 fputcsv($handle, array_map($this->csvSafe(...), [
                     $leaveRequest->request_number,
                     $leaveRequest->user->name,
-                    $leaveRequest->user->position->name ?? '-',
+                    $leaveRequest->user->division?->name ?? '-',
                     $leaveRequest->typeLabel(),
                     $leaveRequest->leave_date->format('d/m/Y'),
                     $this->leaveRequestStatusLabel($leaveRequest->status),

@@ -19,11 +19,10 @@ class PayrollAuditLogTest extends TestCase
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan']);
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'type' => 'earning', ]);
 
         $this->actingAs($hrd)->put(route('hrd.profil-gaji.update', $employee), [
             'division_id' => $division->id,
@@ -55,11 +54,10 @@ class PayrollAuditLogTest extends TestCase
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan']);
-        $division = Division::create(['company_id' => $hrd->company_id, 'code' => 'OPS', 'name' => 'Operasional']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'type' => 'earning', ]);
         $profile = EmployeePayrollProfile::create([
             'user_id' => $employee->id, 'company_id' => $hrd->company_id,
             'division_id' => $division->id, 'position_id' => $employee->position_id,

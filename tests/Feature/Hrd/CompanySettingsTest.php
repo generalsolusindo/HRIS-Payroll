@@ -11,27 +11,31 @@ class CompanySettingsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_hrd_sees_their_own_companys_settings(): void
+    public function test_hrd_sees_settings_for_every_company(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         Company::whereKey($hrd->company_id)->update(['telegram_chat_id' => '-100111222']);
+        $otherCompany = Company::factory()->create(['telegram_chat_id' => '-100999888']);
 
         $this->actingAs($hrd)
             ->get(route('hrd.pengaturan-perusahaan.index'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('hrd/company-settings')
-                ->where('company.id', $hrd->company_id)
-                ->where('company.telegram_chat_id', '-100111222')
+                ->where('companies', fn ($companies) => collect($companies)->contains(
+                    fn ($company) => $company['id'] === $hrd->company_id && $company['telegram_chat_id'] === '-100111222'
+                ) && collect($companies)->contains(
+                    fn ($company) => $company['id'] === $otherCompany->id && $company['telegram_chat_id'] === '-100999888'
+                ))
             );
     }
 
-    public function test_hrd_can_set_the_telegram_chat_id(): void
+    public function test_hrd_can_set_the_telegram_chat_id_for_their_own_company(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
 
         $this->actingAs($hrd)
-            ->put(route('hrd.pengaturan-perusahaan.update'), [
+            ->put(route('hrd.pengaturan-perusahaan.update', $hrd->company_id), [
                 'telegram_chat_id' => '-100333444',
             ])
             ->assertSessionDoesntHaveErrors()
@@ -40,30 +44,35 @@ class CompanySettingsTest extends TestCase
         $this->assertSame('-100333444', Company::find($hrd->company_id)->telegram_chat_id);
     }
 
+    public function test_hrd_can_set_the_telegram_chat_id_for_another_company(): void
+    {
+        // HRD manages every instansi in the system (General Solusindo and
+        // Tabinaco share this one HRD role) — deliberately not tenant
+        // isolated here, unlike most other HRD-scoped resources.
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherCompany = Company::factory()->create();
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.pengaturan-perusahaan.update', $otherCompany), [
+                'telegram_chat_id' => '-100777666',
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSame('-100777666', $otherCompany->fresh()->telegram_chat_id);
+    }
+
     public function test_hrd_can_clear_the_telegram_chat_id(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         Company::whereKey($hrd->company_id)->update(['telegram_chat_id' => '-100333444']);
 
         $this->actingAs($hrd)
-            ->put(route('hrd.pengaturan-perusahaan.update'), [
+            ->put(route('hrd.pengaturan-perusahaan.update', $hrd->company_id), [
                 'telegram_chat_id' => null,
             ])
             ->assertSessionDoesntHaveErrors();
 
         $this->assertNull(Company::find($hrd->company_id)->telegram_chat_id);
-    }
-
-    public function test_updating_never_touches_another_companys_settings(): void
-    {
-        $hrd = User::factory()->create(['role' => 'hrd']);
-        $otherCompany = Company::factory()->create(['telegram_chat_id' => '-999']);
-
-        $this->actingAs($hrd)->put(route('hrd.pengaturan-perusahaan.update'), [
-            'telegram_chat_id' => '-100555666',
-        ]);
-
-        $this->assertSame('-999', $otherCompany->fresh()->telegram_chat_id);
     }
 
     public function test_karyawan_cannot_view_or_edit_company_settings(): void
@@ -75,7 +84,7 @@ class CompanySettingsTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($karyawan)
-            ->put(route('hrd.pengaturan-perusahaan.update'), ['telegram_chat_id' => '-1'])
+            ->put(route('hrd.pengaturan-perusahaan.update', $karyawan->company_id), ['telegram_chat_id' => '-1'])
             ->assertForbidden();
     }
 

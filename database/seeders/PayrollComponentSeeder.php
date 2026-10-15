@@ -17,11 +17,11 @@ class PayrollComponentSeeder extends Seeder
         foreach (Company::all() as $company) {
             PayrollComponent::firstOrCreate(
                 ['company_id' => $company->id, 'code' => 'BASE'],
-                ['name' => 'Gaji Pokok', 'type' => 'earning', 'category' => 'base_salary', 'is_active' => true],
+                ['name' => 'Gaji Pokok', 'type' => 'earning', 'is_active' => true],
             );
             PayrollComponent::firstOrCreate(
                 ['company_id' => $company->id, 'code' => 'ALLOWANCE'],
-                ['name' => 'Tunjangan', 'type' => 'earning', 'category' => 'allowance', 'is_active' => true],
+                ['name' => 'Tunjangan', 'type' => 'earning', 'is_active' => true],
             );
         }
     }

@@ -53,7 +53,7 @@ class LeaveRequestNotificationTest extends TestCase
         $company = \App\Models\Company::factory()->create(['telegram_chat_id' => '-100999888']);
         $leaveRequest = $this->makeLeaveRequest(companyId: $company->id);
         $this->app->make(\App\Services\LeaveRequestNotifier::class)
-            ->notifySubmitted($leaveRequest->load(['user.company', 'user.position']));
+            ->notifySubmitted($leaveRequest->load(['user.company', 'user.division']));
 
         Http::assertSent(fn (HttpRequest $request) => $request['chat_id'] === '-100999888');
     }
@@ -65,7 +65,7 @@ class LeaveRequestNotificationTest extends TestCase
         $company = \App\Models\Company::factory()->create(['telegram_chat_id' => null]);
         $leaveRequest = $this->makeLeaveRequest(companyId: $company->id);
         $this->app->make(\App\Services\LeaveRequestNotifier::class)
-            ->notifySubmitted($leaveRequest->load(['user.company', 'user.position']));
+            ->notifySubmitted($leaveRequest->load(['user.company', 'user.division']));
 
         Http::assertSent(fn (HttpRequest $request) => $request['chat_id'] === '-100123456');
     }
@@ -107,7 +107,7 @@ class LeaveRequestNotificationTest extends TestCase
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
 
         $employee = User::factory()->create(['name' => 'Budi Santoso']);
-        $employee->load('company', 'position');
+        $employee->load('company', 'division');
 
         $this->actingAs($employee)->post(route('izin.store'), [
             'type' => 'temporary_exit',
@@ -125,7 +125,7 @@ class LeaveRequestNotificationTest extends TestCase
             'No. Pengajuan: '.$leaveRequest->request_number,
             'Nama: Budi Santoso',
             'Departemen: '.$employee->company->name,
-            'Jabatan: '.$employee->position->name,
+            'Jabatan: '.$employee->division->name,
             'Jenis Izin: Izin Keluar Kantor Sebentar',
             'Tanggal Izin: '.today()->format('d/m/Y'),
             'Alasan: Urusan bank.',

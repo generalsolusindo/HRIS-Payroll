@@ -142,12 +142,18 @@ class PayrollRunController extends Controller
                 }
 
                 foreach ($profile->salaryComponents as $component) {
-                    if ($component->payrollComponent->type !== 'earning' || $component->payrollComponent->company_id !== $period->company_id) {
-                        throw ValidationException::withMessages(['period' => 'Profil gaji mengandung komponen bukan pendapatan atau milik perusahaan lain. Perbaiki profil sebelum menghitung.']);
+                    if (! in_array($component->payrollComponent->type, ['earning', 'deduction'], true) || $component->payrollComponent->company_id !== $period->company_id) {
+                        throw ValidationException::withMessages(['period' => 'Profil gaji mengandung komponen bukan pendapatan/potongan atau milik perusahaan lain. Perbaiki profil sebelum menghitung.']);
                     }
                 }
 
-                $salaryGross = $profile->salaryComponents->reduce(fn (string $sum, EmployeeSalaryComponent $component) => bcadd($sum, PayrollMoney::decimal($component->amount), 2), '0.00');
+                $salaryGross = $profile->salaryComponents
+                    ->filter(fn (EmployeeSalaryComponent $component) => $component->payrollComponent->type === 'earning')
+                    ->reduce(fn (string $sum, EmployeeSalaryComponent $component) => bcadd($sum, PayrollMoney::decimal($component->amount), 2), '0.00');
+
+                $salaryManualDeduction = $profile->salaryComponents
+                    ->filter(fn (EmployeeSalaryComponent $component) => $component->payrollComponent->type === 'deduction')
+                    ->reduce(fn (string $sum, EmployeeSalaryComponent $component) => bcadd($sum, PayrollMoney::decimal($component->amount), 2), '0.00');
 
                 $reviews = AttendanceReview::where('user_id', $profile->user_id)
                     ->whereBetween('date', [$period->attendance_starts_on->toDateString(), $period->attendance_ends_on->toDateString()])
@@ -169,6 +175,7 @@ class PayrollRunController extends Controller
                 $gross = bcadd($gross, $this->decimal($overtimeAmount), 2);
                 $gross = bcadd($gross, $this->decimal($attendance['allowance_amount']), 2);
                 $deduction = bcadd($this->decimal($attendance['late_deduction_amount']), $this->decimal($attendance['absence_deduction_amount']), 2);
+                $deduction = bcadd($deduction, $salaryManualDeduction, 2);
                 $net = bcsub($gross, $deduction, 2);
 
                 $entry = PayrollEntry::create([
@@ -178,7 +185,7 @@ class PayrollRunController extends Controller
                     'division_id' => $profile->division_id,
                     'employee_snapshot' => ['name' => $profile->user->name, 'email' => $profile->user->email],
                     'division_name' => $profile->division->name,
-                    'position_name' => $profile->user->position->name,
+                    'position_name' => $profile->user->division?->name ?? '-',
                     'attendance_snapshot' => [
                         'window' => ['starts_on' => $period->attendance_starts_on->toDateString(), 'ends_on' => $period->attendance_ends_on->toDateString()],
                         'late_minutes_total' => $attendance['late_minutes_total'],
@@ -212,7 +219,6 @@ class PayrollRunController extends Controller
                         'component_code' => $component->payrollComponent->code,
                         'component_name' => $component->payrollComponent->name,
                         'type' => $component->payrollComponent->type,
-                        'category' => $component->payrollComponent->category,
                         'quantity' => 1,
                         'rate' => $component->amount,
                         'amount' => $component->amount,
@@ -229,7 +235,6 @@ class PayrollRunController extends Controller
                         'component_code' => $attendanceComponents['late']->code,
                         'component_name' => $attendanceComponents['late']->name,
                         'type' => 'deduction',
-                        'category' => 'attendance_deduction',
                         'quantity' => $attendance['late_minutes_total'],
                         'rate' => PayrollMoney::decimal($lateRate, 4),
                         'amount' => $attendance['late_deduction_amount'],
@@ -251,7 +256,6 @@ class PayrollRunController extends Controller
                         'component_code' => $attendanceComponents['absence']->code,
                         'component_name' => $attendanceComponents['absence']->name,
                         'type' => 'deduction',
-                        'category' => 'attendance_deduction',
                         'quantity' => $attendance['absent_days'],
                         'rate' => PayrollMoney::decimal($absenceRate, 4),
                         'amount' => $attendance['absence_deduction_amount'],
@@ -273,7 +277,6 @@ class PayrollRunController extends Controller
                         'component_code' => $attendanceComponents['reward']->code,
                         'component_name' => $attendanceComponents['reward']->name,
                         'type' => 'earning',
-                        'category' => 'attendance_reward',
                         'quantity' => 1,
                         'rate' => PayrollMoney::decimal($rewardRate, 4),
                         'amount' => $attendance['reward_amount'],
@@ -294,7 +297,6 @@ class PayrollRunController extends Controller
                         'component_code' => $overtimeComponent->code,
                         'component_name' => $overtimeComponent->name,
                         'type' => 'earning',
-                        'category' => 'overtime',
                         'quantity' => PayrollMoney::decimal(bcdiv((string) $overtimeMinutes, '60', 8), 4),
                         'rate' => PayrollMoney::decimal($overtimeRate, 4),
                         'amount' => $overtimeAmount,
@@ -316,7 +318,6 @@ class PayrollRunController extends Controller
                         'component_code' => $allowanceComponent->code,
                         'component_name' => $allowanceComponent->name,
                         'type' => 'earning',
-                        'category' => 'allowance',
                         'quantity' => PayrollMoney::decimal(bcadd((string) $attendance['present_days'], bcdiv((string) $attendance['half_days'], '2', 4), 4), 4),
                         'rate' => PayrollMoney::decimal($allowanceRate, 4),
                         'amount' => $attendance['allowance_amount'],
@@ -547,15 +548,15 @@ class PayrollRunController extends Controller
         return [
             'late' => PayrollComponent::firstOrCreate(
                 ['company_id' => $companyId, 'code' => 'ATTENDANCE_LATE'],
-                ['name' => 'Potongan Keterlambatan', 'type' => 'deduction', 'category' => 'attendance_deduction', 'is_active' => true],
+                ['name' => 'Potongan Keterlambatan', 'type' => 'deduction', 'is_active' => true],
             ),
             'absence' => PayrollComponent::firstOrCreate(
                 ['company_id' => $companyId, 'code' => 'ATTENDANCE_ABSENCE'],
-                ['name' => 'Potongan Alpha', 'type' => 'deduction', 'category' => 'attendance_deduction', 'is_active' => true],
+                ['name' => 'Potongan Alpha', 'type' => 'deduction', 'is_active' => true],
             ),
             'reward' => PayrollComponent::firstOrCreate(
                 ['company_id' => $companyId, 'code' => 'ATTENDANCE_PERFECT'],
-                ['name' => 'Reward Kehadiran Sempurna', 'type' => 'earning', 'category' => 'attendance_reward', 'is_active' => true],
+                ['name' => 'Reward Kehadiran Sempurna', 'type' => 'earning', 'is_active' => true],
             ),
         ];
     }
@@ -564,7 +565,7 @@ class PayrollRunController extends Controller
     {
         return PayrollComponent::firstOrCreate(
             ['company_id' => $companyId, 'code' => 'OVERTIME'],
-            ['name' => 'Lembur', 'type' => 'earning', 'category' => 'overtime', 'is_active' => true],
+            ['name' => 'Lembur', 'type' => 'earning', 'is_active' => true],
         );
     }
 
@@ -572,7 +573,7 @@ class PayrollRunController extends Controller
     {
         return PayrollComponent::firstOrCreate(
             ['company_id' => $companyId, 'code' => 'ATTENDANCE_ALLOWANCE'],
-            ['name' => 'Tunjangan Kehadiran', 'type' => 'earning', 'category' => 'allowance', 'is_active' => true],
+            ['name' => 'Tunjangan Kehadiran', 'type' => 'earning', 'is_active' => true],
         );
     }
 

@@ -49,9 +49,9 @@ class AttendanceRangeSummaryController extends Controller
 
         $employees = User::where('company_id', $request->user()->company_id)
             ->where('role', 'karyawan')->where('status', 'active')
-            ->with('position:id,name')
+            ->with('division:id,name')
             ->orderBy('name')
-            ->get(['id', 'name', 'position_id'])
+            ->get(['id', 'name', 'division_id'])
             ->map(function (User $user) use ($dari, $sampai, $expectedDays) {
                 $reviews = AttendanceReview::where('user_id', $user->id)
                     ->whereBetween('date', [$dari, $sampai])
@@ -63,7 +63,7 @@ class AttendanceRangeSummaryController extends Controller
                 return [
                     'id' => $user->id,
                     'name' => $user->name,
-                    'position' => $user->position->name,
+                    'position' => $user->division?->name ?? '-',
                     'reviewed_days' => $reviews->count(),
                     'expected_days' => $expectedDays,
                     'hadir' => $present->count(),

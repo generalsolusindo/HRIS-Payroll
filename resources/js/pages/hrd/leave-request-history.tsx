@@ -23,7 +23,7 @@ type LeaveRequestRow = {
     status: string;
     user: {
         name: string;
-        position: { name: string };
+        division: { name: string } | null;
     };
     hrd_processed_by: { name: string } | null;
     processed_by: { name: string } | null;
@@ -46,7 +46,7 @@ type Stats = {
     today: number;
 };
 
-type Position = { id: number; name: string };
+type Division = { id: number; name: string };
 
 type Props = {
     leaveRequests: PaginatedLeaveRequests;
@@ -54,10 +54,10 @@ type Props = {
     filters: {
         search?: string;
         type?: string;
-        position_id?: string;
+        division_id?: string;
         status?: string;
     };
-    positions: Position[];
+    divisions: Division[];
     leaveTypes: Record<string, string>;
 };
 
@@ -98,12 +98,12 @@ export default function LeaveRequestHistory({
     leaveRequests,
     stats,
     filters,
-    positions,
+    divisions,
     leaveTypes,
 }: Props) {
     const [search, setSearch] = useState(filters.search ?? '');
     const [type, setType] = useState(filters.type ?? '');
-    const [positionId, setPositionId] = useState(filters.position_id ?? '');
+    const [divisionId, setDivisionId] = useState(filters.division_id ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
 
     function applyFilters(next: Partial<Props['filters']>) {
@@ -112,7 +112,7 @@ export default function LeaveRequestHistory({
             {
                 search: next.search ?? search,
                 type: next.type ?? type,
-                position_id: next.position_id ?? positionId,
+                division_id: next.division_id ?? divisionId,
                 status: next.status ?? status,
             },
             { preserveState: true, preserveScroll: true },
@@ -241,11 +241,11 @@ export default function LeaveRequestHistory({
                     </Select>
 
                     <Select
-                        value={positionId || 'all'}
+                        value={divisionId || 'all'}
                         onValueChange={(value) => {
                             const next = value === 'all' ? '' : value;
-                            setPositionId(next);
-                            applyFilters({ position_id: next });
+                            setDivisionId(next);
+                            applyFilters({ division_id: next });
                         }}
                     >
                         <SelectTrigger className="w-56">
@@ -253,12 +253,12 @@ export default function LeaveRequestHistory({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Semua jabatan</SelectItem>
-                            {positions.map((position) => (
+                            {divisions.map((division) => (
                                 <SelectItem
-                                    key={position.id}
-                                    value={String(position.id)}
+                                    key={division.id}
+                                    value={String(division.id)}
                                 >
-                                    {position.name}
+                                    {division.name}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -307,10 +307,8 @@ export default function LeaveRequestHistory({
                                         <td className="px-4 py-3">
                                             <div>{leaveRequest.user.name}</div>
                                             <div className="text-xs text-muted-foreground">
-                                                {
-                                                    leaveRequest.user.position
-                                                        .name
-                                                }
+                                                                {leaveRequest.user.division?.name ??
+                                                    '-'}
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">

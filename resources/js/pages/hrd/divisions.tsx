@@ -32,10 +32,8 @@ function formatRupiah(value: string): string {
 
 type DivisionRow = {
     id: number;
-    code: string;
     name: string;
     is_active: boolean;
-    default_base_salary: string;
     daily_attendance_allowance: string;
 };
 
@@ -57,18 +55,6 @@ function DivisionFormFields({
     return (
         <div className="grid gap-4">
             <div className="grid gap-2">
-                <Label htmlFor="code">Kode</Label>
-                <Input
-                    id="code"
-                    name="code"
-                    required
-                    defaultValue={defaultValues?.code}
-                    placeholder="OPS"
-                />
-                <InputError message={errors.code} />
-            </div>
-
-            <div className="grid gap-2">
                 <Label htmlFor="name">Nama Divisi</Label>
                 <Input
                     id="name"
@@ -78,27 +64,6 @@ function DivisionFormFields({
                     placeholder="Operasional"
                 />
                 <InputError message={errors.name} />
-            </div>
-
-            <div className="grid gap-2">
-                <Label htmlFor="default_base_salary">
-                    Gaji Pokok Default (Rp)
-                </Label>
-                <Input
-                    id="default_base_salary"
-                    name="default_base_salary"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    required
-                    defaultValue={defaultValues?.default_base_salary ?? '0'}
-                />
-                <p className="text-xs text-muted-foreground">
-                    Terisi otomatis sebagai Gaji Pokok saat HRD mengatur profil
-                    gaji karyawan di divisi ini — tetap bisa diubah manual per
-                    karyawan.
-                </p>
-                <InputError message={errors.default_base_salary} />
             </div>
 
             <div className="grid gap-2">
@@ -186,7 +151,7 @@ export default function Divisions({ divisions }: Props) {
                                                 Tambah Divisi
                                             </DialogTitle>
                                             <DialogDescription>
-                                                Kode harus unik dalam satu
+                                                Nama harus unik dalam satu
                                                 instansi.
                                             </DialogDescription>
                                         </DialogHeader>
@@ -223,13 +188,7 @@ export default function Divisions({ divisions }: Props) {
                             <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground uppercase">
                                 <tr>
                                     <th className="px-4 py-3 font-medium">
-                                        Kode
-                                    </th>
-                                    <th className="px-4 py-3 font-medium">
                                         Nama
-                                    </th>
-                                    <th className="px-4 py-3 font-medium">
-                                        Gaji Pokok Default
                                     </th>
                                     <th className="px-4 py-3 font-medium">
                                         Tunjangan/Hari
@@ -245,16 +204,8 @@ export default function Divisions({ divisions }: Props) {
                             <tbody className="divide-y">
                                 {divisions.map((division) => (
                                     <tr key={division.id}>
-                                        <td className="px-4 py-3 font-mono text-xs">
-                                            {division.code}
-                                        </td>
                                         <td className="px-4 py-3 font-medium">
                                             {division.name}
-                                        </td>
-                                        <td className="px-4 py-3 tabular-nums">
-                                            {formatRupiah(
-                                                division.default_base_salary,
-                                            )}
                                         </td>
                                         <td className="px-4 py-3 tabular-nums">
                                             {formatRupiah(

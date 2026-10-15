@@ -26,10 +26,10 @@ class AttendanceDashboardController extends Controller
         $employees = User::where('role', 'karyawan')
             ->where('status', 'active')
             ->where('company_id', $request->user()->company_id)
-            ->with(['company:id,name', 'position:id,name'])
+            ->with(['company:id,name', 'division:id,name'])
             ->with(['attendances' => fn ($query) => $query->where('tanggal', $date)])
             ->orderBy('name')
-            ->get(['id', 'company_id', 'position_id', 'name'])
+            ->get(['id', 'company_id', 'division_id', 'name'])
             ->map(fn (User $user) => $this->presentEmployee($user, $user->attendances->first()));
 
         return Inertia::render('hrd/attendance-dashboard', [
@@ -47,7 +47,7 @@ class AttendanceDashboardController extends Controller
             'id' => $user->id,
             'name' => $user->name,
             'company' => $user->company->name,
-            'position' => $user->position->name,
+            'position' => $user->division?->name ?? '-',
             'clock_in_time' => $attendance?->clock_in_time,
             'clock_in_status' => $attendance?->clock_in_status,
             'clock_in_late_minutes' => $attendance?->clock_in_late_minutes,

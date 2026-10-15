@@ -46,7 +46,7 @@ type LeaveRequestDetail = {
     user: {
         name: string;
         company: { name: string } | null;
-        position: { name: string } | null;
+        division: { name: string } | null;
     };
     attachments: Attachment[];
 };
@@ -161,7 +161,7 @@ export default function IzinDetail({ leaveRequest }: Props) {
                         />
                         <DetailRow
                             label="Jabatan"
-                            value={leaveRequest.user.position?.name ?? '-'}
+                            value={leaveRequest.user.division?.name ?? '-'}
                         />
                         <DetailRow
                             label="Tanggal Izin"

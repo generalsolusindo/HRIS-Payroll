@@ -21,7 +21,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int $id
  * @property int $company_id
  * @property int $position_id
+ * @property int|null $division_id
  * @property string|null $employment_type
+ * @property Carbon|null $employment_started_on
  * @property string|null $employee_number
  * @property string $name
  * @property string $email
@@ -42,7 +44,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['company_id', 'position_id', 'employee_number', 'employment_type', 'name', 'email', 'phone', 'password', 'bank_name', 'bank_account_number', 'bank_account_holder'])]
+#[Fillable(['company_id', 'position_id', 'division_id', 'employee_number', 'employment_type', 'employment_started_on', 'name', 'email', 'phone', 'password', 'bank_name', 'bank_account_number', 'bank_account_holder'])]
 // face_descriptor is deliberately never mass-assignable or serialized —
 // it's biometric data and must only ever be set via an explicit enrollment
 // code path, never via fill()/create(), and never sent to the frontend
@@ -67,6 +69,9 @@ class User extends Authenticatable implements PasskeyUser
             if ($user->wasChanged('employment_type') && $user->employment_type !== null) {
                 $user->payrollProfiles()->whereNull('effective_until')->update(['employment_type' => $user->employment_type]);
             }
+            if ($user->wasChanged('employment_started_on') && $user->employment_started_on !== null) {
+                $user->payrollProfiles()->whereNull('effective_until')->update(['employment_started_on' => $user->employment_started_on]);
+            }
         });
     }
 
@@ -87,6 +92,18 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Position and Division were duplicate org-unit concepts — this is
+     * the one being kept (see the 2026_10_15_130040 migration). position()
+     * stays in place until the rest of the app has moved over to this.
+     *
+     * @return BelongsTo<Division, $this>
+     */
+    public function division(): BelongsTo
+    {
+        return $this->belongsTo(Division::class);
+    }
+
+    /** 
      * @return HasMany<Attendance, $this>
      */
     public function attendances(): HasMany
@@ -183,6 +200,7 @@ class User extends Authenticatable implements PasskeyUser
     protected function casts(): array
     {
         return [
+            'employment_started_on' => 'date',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',

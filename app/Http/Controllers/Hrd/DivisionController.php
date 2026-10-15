@@ -22,7 +22,7 @@ class DivisionController extends Controller
         return Inertia::render('hrd/divisions', [
             'divisions' => Division::where('company_id', $request->user()->company_id)
                 ->orderBy('name')
-                ->get(['id', 'code', 'name', 'is_active', 'default_base_salary', 'daily_attendance_allowance']),
+                ->get(['id', 'name', 'is_active', 'daily_attendance_allowance']),
         ]);
     }
 

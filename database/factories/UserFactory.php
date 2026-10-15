@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Company;
+use App\Models\Division;
 use App\Models\Position;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -29,6 +30,9 @@ class UserFactory extends Factory
         return [
             'company_id' => Company::factory(),
             'position_id' => Position::factory(),
+            'division_id' => fn (array $attributes) => Division::factory()->create(['company_id' => $attributes['company_id']])->id,
+            'employment_started_on' => fake()->dateTimeBetween('-3 years', '-1 month')->format('Y-m-d'),
+            'employment_type' => 'permanent',
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'phone' => fake()->phoneNumber(),

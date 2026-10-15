@@ -11,7 +11,7 @@ class ManagerAccountSeeder extends Seeder
 {
     public function run(): void
     {
-        $company = Company::where('code', 'GS')->firstOrFail();
+        $company = Company::where('name', 'General Solusindo')->firstOrFail();
         $position = Position::where('name', 'Manager')->firstOrFail();
 
         // Password is only set when the account is first created — a

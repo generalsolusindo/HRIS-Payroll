@@ -13,7 +13,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $component_code
  * @property string $component_name
  * @property string $type earning|deduction|employer_contribution
- * @property string $category
  * @property string $quantity
  * @property string $rate
  * @property string $amount
@@ -26,7 +25,7 @@ class PayrollEntryLine extends Model
 {
     protected $fillable = [
         'payroll_entry_id', 'payroll_component_id', 'line_key',
-        'component_code', 'component_name', 'type', 'category',
+        'component_code', 'component_name', 'type',
         'quantity', 'rate', 'amount', 'source', 'calculation_snapshot',
         'adjustment_reason', 'created_by',
     ];

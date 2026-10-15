@@ -21,38 +21,40 @@ class PayrollComponentManagementTest extends TestCase
 
         $this->actingAs($hrd)
             ->post(route('hrd.komponen-gaji.store'), [
-                'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-                'type' => 'earning', 'category' => 'base_salary', 'is_active' => true,
+                'company_id' => $hrd->company_id, 'name' => 'Gaji Pokok',
+                'type' => 'earning', 'is_active' => true,
             ])
             ->assertSessionDoesntHaveErrors();
 
-        $this->assertDatabaseHas('payroll_components', ['code' => 'BASE', 'name' => 'Gaji Pokok']);
+        // code is generated server-side from the name — HRD never types it.
+        $this->assertDatabaseHas('payroll_components', ['code' => 'GAJI_POKOK', 'name' => 'Gaji Pokok']);
     }
 
-    public function test_component_code_must_be_unique_within_a_company(): void
+    public function test_auto_generated_codes_do_not_collide_when_two_components_share_a_name(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         PayrollComponent::create([
-            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'company_id' => $hrd->company_id, 'code' => 'GAJI_POKOK', 'name' => 'Gaji Pokok',
+            'type' => 'earning', ]);
 
         $this->actingAs($hrd)
             ->post(route('hrd.komponen-gaji.store'), [
-                'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok 2',
-                'type' => 'earning', 'category' => 'base_salary', 'is_active' => true,
+                'company_id' => $hrd->company_id, 'name' => 'Gaji Pokok',
+                'type' => 'earning', 'is_active' => true,
             ])
-            ->assertSessionHasErrors('code');
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('payroll_components', ['code' => 'GAJI_POKOK_2', 'name' => 'Gaji Pokok']);
     }
 
-    public function test_an_invalid_type_or_category_is_rejected(): void
+    public function test_an_invalid_type_is_rejected(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
 
         $this->actingAs($hrd)
             ->post(route('hrd.komponen-gaji.store'), [
-                'company_id' => $hrd->company_id, 'code' => 'X', 'name' => 'X',
-                'type' => 'not-a-real-type', 'category' => 'base_salary', 'is_active' => true,
+                'company_id' => $hrd->company_id, 'name' => 'X',
+                'type' => 'not-a-real-type', 'is_active' => true,
             ])
             ->assertSessionHasErrors('type');
     }
@@ -63,8 +65,7 @@ class PayrollComponentManagementTest extends TestCase
         $employee = User::factory()->create(['company_id' => $hrd->company_id]);
         $component = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'type' => 'earning', ]);
         $profile = EmployeePayrollProfile::create([
             'user_id' => $employee->id, 'company_id' => $hrd->company_id,
             'division_id' => Division::create([
@@ -93,13 +94,12 @@ class PayrollComponentManagementTest extends TestCase
         $otherHrd = User::factory()->create(['role' => 'hrd']);
         $component = PayrollComponent::create([
             'company_id' => $otherHrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'type' => 'earning', ]);
 
         $this->actingAs($hrd)
             ->put(route('hrd.komponen-gaji.update', $component), [
-                'code' => 'BASE', 'name' => 'Diubah', 'type' => 'earning',
-                'category' => 'base_salary', 'is_active' => true,
+                'name' => 'Diubah', 'type' => 'earning',
+                'is_active' => true,
             ])
             ->assertForbidden();
 
@@ -110,14 +110,30 @@ class PayrollComponentManagementTest extends TestCase
         $this->assertSame('Gaji Pokok', $component->fresh()->name);
     }
 
+    public function test_editing_a_component_never_changes_its_code(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $component = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'GAJI_POKOK', 'name' => 'Gaji Pokok',
+            'type' => 'earning', ]);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.komponen-gaji.update', $component), [
+                'name' => 'Gaji Pokok Baru', 'type' => 'earning', 'is_active' => true,
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSame('GAJI_POKOK', $component->fresh()->code);
+        $this->assertSame('Gaji Pokok Baru', $component->fresh()->name);
+    }
+
     public function test_hrd_only_sees_their_own_companys_components(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
         $otherHrd = User::factory()->create(['role' => 'hrd']);
         PayrollComponent::create([
             'company_id' => $otherHrd->company_id, 'code' => 'BASE', 'name' => 'Punya Perusahaan Lain',
-            'type' => 'earning', 'category' => 'base_salary',
-        ]);
+            'type' => 'earning', ]);
 
         $response = $this->actingAs($hrd)->get(route('hrd.komponen-gaji.index'))->assertOk();
 
@@ -132,13 +148,13 @@ class PayrollComponentManagementTest extends TestCase
 
         $this->actingAs($hrd)
             ->post(route('hrd.komponen-gaji.store'), [
-                'company_id' => $otherCompany->id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
-                'type' => 'earning', 'category' => 'base_salary', 'is_active' => true,
+                'company_id' => $otherCompany->id, 'name' => 'Gaji Pokok',
+                'type' => 'earning', 'is_active' => true,
             ])
             ->assertSessionDoesntHaveErrors();
 
-        $this->assertDatabaseHas('payroll_components', ['code' => 'BASE', 'company_id' => $hrd->company_id]);
-        $this->assertDatabaseMissing('payroll_components', ['code' => 'BASE', 'company_id' => $otherCompany->id]);
+        $this->assertDatabaseHas('payroll_components', ['code' => 'GAJI_POKOK', 'company_id' => $hrd->company_id]);
+        $this->assertDatabaseMissing('payroll_components', ['company_id' => $otherCompany->id]);
     }
 
     public function test_karyawan_cannot_access_payroll_component_management(): void

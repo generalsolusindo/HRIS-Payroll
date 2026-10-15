@@ -16,9 +16,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->date('employment_started_on')->nullable()->after('employment_type');
-        });
+        // SQLite doesn't wrap schema changes in a transaction, so a retry
+        // after a failure anywhere later in this migration (or an earlier
+        // one in the same deploy) must not re-attempt an ALTER that
+        // already committed — see the 2026_10_15_130040 migration for the
+        // "duplicate column" failure this guards against.
+        if (! Schema::hasColumn('users', 'employment_started_on')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->date('employment_started_on')->nullable()->after('employment_type');
+            });
+        }
 
         $seen = [];
         DB::table('employee_payroll_profiles')

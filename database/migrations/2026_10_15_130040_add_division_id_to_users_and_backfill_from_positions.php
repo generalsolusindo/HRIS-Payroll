@@ -18,10 +18,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->foreignId('division_id')->nullable()->after('position_id')
-                ->constrained()->nullOnDelete();
-        });
+        // SQLite doesn't wrap schema changes in a transaction (unlike
+        // MySQL's DDL-is-non-transactional-anyway, or Postgres — see
+        // Grammar::$transactions, false by default and never overridden
+        // for SQLite), so if a later step in this same migration throws,
+        // this ALTER TABLE has already committed and won't be rolled
+        // back. Guarding it makes a retry after a prior partial failure
+        // safe instead of erroring on "duplicate column".
+        if (! Schema::hasColumn('users', 'division_id')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->foreignId('division_id')->nullable()->after('position_id')
+                    ->constrained()->nullOnDelete();
+            });
+        }
 
         foreach (DB::table('companies')->get() as $company) {
             $positionIds = DB::table('company_position')

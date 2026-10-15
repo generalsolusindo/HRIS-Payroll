@@ -16,12 +16,20 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Guarded so a retry after a partial failure elsewhere in the
+        // same deploy doesn't re-attempt a drop that already committed —
+        // SQLite doesn't wrap schema changes in a transaction (see the
+        // 2026_10_15_130040 migration for the failure this prevents).
         Schema::table('payroll_components', function (Blueprint $table) {
-            $table->dropColumn('category');
+            if (Schema::hasColumn('payroll_components', 'category')) {
+                $table->dropColumn('category');
+            }
         });
 
         Schema::table('payroll_entry_lines', function (Blueprint $table) {
-            $table->dropColumn('category');
+            if (Schema::hasColumn('payroll_entry_lines', 'category')) {
+                $table->dropColumn('category');
+            }
         });
     }
 

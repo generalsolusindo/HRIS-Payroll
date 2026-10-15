@@ -48,14 +48,30 @@ return new class extends Migration
                     continue;
                 }
 
-                $divisionId = DB::table('divisions')->insertGetId([
+                $newDivision = [
                     'company_id' => $company->id,
                     'name' => $position->name,
                     'is_active' => true,
                     'daily_attendance_allowance' => 0,
                     'created_at' => now(),
                     'updated_at' => now(),
-                ]);
+                ];
+
+                // divisions.code is dropped later by the
+                // 2026_10_15_212738 migration, but on a database that has
+                // never run either migration before (a fresh install, or
+                // one restoring from a pre-this-batch backup), this one
+                // still runs while the column is NOT NULL with no
+                // default — MySQL silently coerces a missing NOT NULL
+                // string column to '', but SQLite enforces it strictly
+                // and this insert fails outright. The value is never read
+                // by anything (the column is dropped moments later in the
+                // same deploy), so any unique placeholder is fine.
+                if (Schema::hasColumn('divisions', 'code')) {
+                    $newDivision['code'] = 'POS'.$position->id;
+                }
+
+                $divisionId = DB::table('divisions')->insertGetId($newDivision);
 
                 $divisionIdByName[$key] = $divisionId;
                 $divisionIdByPositionId[$position->id] = $divisionId;

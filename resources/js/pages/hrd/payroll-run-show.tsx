@@ -7,7 +7,18 @@ import PayrollRunController from '@/actions/App/Http/Controllers/Hrd/PayrollRunC
 import PenggajianController from '@/actions/App/Http/Controllers/PenggajianController';
 import { PayrollAdjustments } from '@/components/payroll-adjustments';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 type Line = {
@@ -71,6 +82,7 @@ type Props = {
         recalculate: boolean;
         adjust: boolean;
         refresh: boolean;
+        cancel: boolean;
     };
     approvals: {
         id: number;
@@ -194,6 +206,7 @@ export default function PayrollRunShow({
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [mobileDetail, setMobileDetail] = useState(false);
     const [recalculating, setRecalculating] = useState(false);
+    const [cancelOpen, setCancelOpen] = useState(false);
     const detailRef = useRef<HTMLHeadingElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const visible = entries.filter(
@@ -309,6 +322,80 @@ export default function PayrollRunShow({
                                     </div>
                                 )}
                             </Form>
+                        )}
+                        {capabilities.cancel && (
+                            <Dialog
+                                open={cancelOpen}
+                                onOpenChange={setCancelOpen}
+                            >
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={() => setCancelOpen(true)}
+                                >
+                                    Batalkan Periode
+                                </Button>
+                                <DialogContent>
+                                    <Form
+                                        {...PayrollRunController.cancel.form(
+                                            run.id,
+                                        )}
+                                        disableWhileProcessing
+                                        onSuccess={() =>
+                                            setCancelOpen(false)
+                                        }
+                                    >
+                                        {({ processing, errors }) => (
+                                            <>
+                                                <DialogHeader>
+                                                    <DialogTitle>
+                                                        Batalkan hasil payroll
+                                                        ini?
+                                                    </DialogTitle>
+                                                    <DialogDescription>
+                                                        Riwayat tetap
+                                                        tersimpan (tidak
+                                                        dihapus) dan tercatat
+                                                        di Audit Log. Setelah
+                                                        dibatalkan, periode
+                                                        ini bisa dihitung
+                                                        ulang dari awal kalau
+                                                        diperlukan.
+                                                    </DialogDescription>
+                                                </DialogHeader>
+                                                <div className="grid gap-2 py-2">
+                                                    <Label htmlFor="cancel-reason">
+                                                        Alasan pembatalan
+                                                    </Label>
+                                                    <Textarea
+                                                        id="cancel-reason"
+                                                        name="reason"
+                                                        required
+                                                        placeholder="Contoh: salah periode, data karyawan keliru, dll."
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.reason
+                                                        }
+                                                    />
+                                                </div>
+                                                <DialogFooter>
+                                                    <Button
+                                                        type="submit"
+                                                        variant="destructive"
+                                                        disabled={processing}
+                                                    >
+                                                        {processing
+                                                            ? 'Membatalkan…'
+                                                            : 'Batalkan'}
+                                                    </Button>
+                                                </DialogFooter>
+                                            </>
+                                        )}
+                                    </Form>
+                                </DialogContent>
+                            </Dialog>
                         )}
                     </div>
                 </div>

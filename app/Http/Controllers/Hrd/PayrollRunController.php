@@ -53,9 +53,14 @@ class PayrollRunController extends Controller
 
         $latestRun = $period->runs()->latest('version')->first();
 
-        if (($refreshDraft && (! $latestRun || $latestRun->status !== 'draft')) || (! $refreshDraft && $latestRun && $latestRun->status !== 'revision_requested')) {
+        // A cancelled run (see cancel()) is treated the same as
+        // revision_requested here — it also frees the period up for a
+        // brand new calculation, it just got there by HRD cancelling
+        // instead of Manager sending it back.
+        $recalculableStatuses = ['revision_requested', 'cancelled'];
+        if (($refreshDraft && (! $latestRun || $latestRun->status !== 'draft')) || (! $refreshDraft && $latestRun && ! in_array($latestRun->status, $recalculableStatuses, true))) {
             throw ValidationException::withMessages([
-                'period' => 'Periode ini sudah punya hasil perhitungan. Hanya bisa dihitung ulang setelah Manager meminta revisi.',
+                'period' => 'Periode ini sudah punya hasil perhitungan. Hanya bisa dihitung ulang setelah Manager meminta revisi atau setelah dibatalkan.',
             ]);
         }
 
@@ -87,15 +92,17 @@ class PayrollRunController extends Controller
         $overtimeComponent = $this->overtimeComponent($period->company_id);
         $allowanceComponent = $this->allowanceComponent($period->company_id);
 
-        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $overtimeRate, $expectedAttendanceDays, $attendanceComponents, $overtimeComponent, $allowanceComponent, $latestRun, $refreshDraft) {
+        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $overtimeRate, $expectedAttendanceDays, $attendanceComponents, $overtimeComponent, $allowanceComponent, $latestRun, $refreshDraft, $recalculableStatuses) {
             PayrollPeriod::whereKey($period->id)->lockForUpdate()->firstOrFail();
             $currentLatest = $period->runs()->latest('version')->first();
-            if ($currentLatest?->id !== $latestRun?->id || ($currentLatest && $currentLatest->status !== ($refreshDraft ? 'draft' : 'revision_requested'))) {
+            $currentLatestOk = $refreshDraft ? $currentLatest?->status === 'draft' : (! $currentLatest || in_array($currentLatest->status, $recalculableStatuses, true));
+            if ($currentLatest?->id !== $latestRun?->id || ! $currentLatestOk) {
                 throw ValidationException::withMessages(['period' => 'Periode telah diproses pengguna lain. Muat ulang halaman.']);
             }
             if ($latestRun) {
                 $latestRun = PayrollRun::whereKey($latestRun->id)->lockForUpdate()->firstOrFail();
-                if ($latestRun->status !== ($refreshDraft ? 'draft' : 'revision_requested')) {
+                $latestRunOk = $refreshDraft ? $latestRun->status === 'draft' : in_array($latestRun->status, $recalculableStatuses, true);
+                if (! $latestRunOk) {
                     throw ValidationException::withMessages(['period' => 'Status payroll telah berubah. Muat ulang halaman.']);
                 }
             }
@@ -110,12 +117,17 @@ class PayrollRunController extends Controller
                 'created_by' => $request->user()->id,
             ]);
 
-            if ($latestRun) {
+            // A cancelled run keeps its 'cancelled' status forever (and the
+            // reason it was cancelled stays legible in the approval trail)
+            // — it must not get relabeled 'superseded', which means
+            // something different (a normal "sent back for revision" cycle).
+            if ($latestRun && $latestRun->status !== 'cancelled') {
+                $fromStatus = $latestRun->status;
                 $latestRun->update(['status' => 'superseded']);
                 PayrollApproval::create([
                     'payroll_run_id' => $latestRun->id,
                     'action' => 'superseded',
-                    'from_status' => $refreshDraft ? 'draft' : 'revision_requested',
+                    'from_status' => $fromStatus,
                     'to_status' => 'superseded',
                     'actor_id' => $request->user()->id,
                     'actor_snapshot' => ['name' => $request->user()->name],
@@ -440,6 +452,52 @@ class PayrollRunController extends Controller
         return back();
     }
 
+    /**
+     * Soft-cancel — never a hard delete. The run row, its entries/lines,
+     * payslips, and the full approval trail all stay exactly as they were;
+     * only the status flips to 'cancelled' and a mandatory reason is
+     * recorded, the same pattern PayrollAdjustmentController already uses
+     * for cancelling a single manual adjustment line. Allowed up through
+     * 'locked' (approved, not yet paid) — once Finance has actually
+     * recorded a payment (partially_paid/paid), the money has already
+     * moved and cancelling the run here would leave that unexplained.
+     */
+    public function cancel(Request $request, PayrollRun $run): RedirectResponse
+    {
+        $this->assertOwnCompany($request, $run->period->company_id);
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($request, $run, $validated) {
+            $locked = PayrollRun::whereKey($run->id)->lockForUpdate()->firstOrFail();
+
+            if (! in_array($locked->status, ['draft', 'submitted', 'revision_requested', 'approved', 'locked'], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Hasil payroll ini sudah ada pembayaran tercatat, atau sudah dibatalkan — tidak bisa dibatalkan lagi.',
+                ]);
+            }
+
+            $fromStatus = $locked->status;
+            $locked->update(['status' => 'cancelled']);
+
+            PayrollApproval::create([
+                'payroll_run_id' => $locked->id,
+                'action' => 'cancelled',
+                'from_status' => $fromStatus,
+                'to_status' => 'cancelled',
+                'actor_id' => $request->user()->id,
+                'actor_snapshot' => ['name' => $request->user()->name],
+                'note' => $validated['reason'],
+            ]);
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Hasil payroll dibatalkan. Periode ini bisa dihitung ulang dari awal kalau diperlukan.']);
+
+        return back();
+    }
+
     public function show(Request $request, PayrollRun $run): Response
     {
         $run->load('period.company', 'entries.division', 'entries.lines', 'entries.payslips', 'approvals.actor');
@@ -454,9 +512,10 @@ class PayrollRunController extends Controller
             'readiness_issues' => (new PayrollReadiness)->issues($run),
             'capabilities' => [
                 'submit' => $isHrd && $run->status === 'draft',
-                'recalculate' => $isHrd && $run->status === 'revision_requested',
+                'recalculate' => $isHrd && in_array($run->status, ['revision_requested', 'cancelled'], true),
                 'adjust' => $isHrd && $run->status === 'draft',
                 'refresh' => $isHrd && $run->status === 'draft',
+                'cancel' => $isHrd && in_array($run->status, ['draft', 'submitted', 'revision_requested', 'approved', 'locked'], true),
             ],
             'divisions' => $run->entries->groupBy('division_id')->map(fn ($entries) => [
                 'id' => $entries->first()->division_id,

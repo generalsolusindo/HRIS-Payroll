@@ -212,6 +212,60 @@ class PayrollRunSubmissionTest extends TestCase
         $this->assertSame('draft', $run->fresh()->status);
     }
 
+    public function test_submission_becomes_ready_at_the_cutoff_hour_on_the_attendance_end_date_not_midnight(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
+        $base = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'BASE3', 'name' => 'Gaji Pokok', 'type' => 'earning',
+        ]);
+        $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
+        $profile = EmployeePayrollProfile::create([
+            'user_id' => $employee->id, 'company_id' => $hrd->company_id,
+            'division_id' => $division->id, 'position_id' => $employee->position_id,
+            'effective_from' => '2026-09-01', 'employment_started_on' => '2026-01-01',
+            'employment_type' => 'permanent',
+        ]);
+        EmployeeSalaryComponent::create([
+            'employee_payroll_profile_id' => $profile->id, 'payroll_component_id' => $base->id,
+            'amount' => '3000000', 'basis' => 'monthly',
+        ]);
+
+        $cutoffDate = Carbon::today();
+        $period = PayrollPeriod::create([
+            'company_id' => $hrd->company_id, 'name' => 'Cutoff Test',
+            'starts_on' => $cutoffDate->copy()->startOfMonth(), 'ends_on' => $cutoffDate->copy()->endOfMonth(),
+            'attendance_starts_on' => $cutoffDate, 'attendance_ends_on' => $cutoffDate,
+        ]);
+
+        AttendanceReview::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'date' => $cutoffDate->toDateString(), 'status' => 'validated', 'classification' => 'present',
+            'source_snapshot' => [], 'schedule_snapshot' => [],
+            'correction_reason' => 'Kehadiran diverifikasi HRD untuk fixture payroll.',
+            'validated_by' => $hrd->id, 'validated_at' => now(),
+        ]);
+
+        $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+
+        try {
+            // Before 15:00 on the cutoff date itself — still blocked, even
+            // though the date has "started".
+            Carbon::setTestNow($cutoffDate->copy()->setTime(14, 59));
+            $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.ajukan', $run))->assertSessionHasErrors('readiness');
+            $this->assertSame('draft', $run->fresh()->status);
+
+            // At/after 15:00 on the cutoff date — ready, no need to wait
+            // for the date to fully end at midnight.
+            Carbon::setTestNow($cutoffDate->copy()->setTime(15, 0));
+            $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.ajukan', $run))->assertSessionDoesntHaveErrors();
+            $this->assertSame('submitted', $run->fresh()->status);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_another_company_cannot_refresh_a_draft(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);
@@ -219,5 +273,101 @@ class PayrollRunSubmissionTest extends TestCase
         $other = User::factory()->create(['role' => 'hrd']);
         $this->actingAs($other)->post(route('hrd.periode-gaji.perbarui-draft', $period))->assertForbidden();
         $this->assertSame(1, $period->runs()->count());
+    }
+
+    public function test_hrd_can_cancel_an_approved_run_with_a_reason(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($hrd);
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+        $run->update(['status' => 'approved']);
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.hasil-payroll.batalkan', $run), ['reason' => 'Salah periode, dibuat ulang.'])
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSame('cancelled', $run->fresh()->status);
+        $this->assertDatabaseHas('payroll_approvals', [
+            'payroll_run_id' => $run->id, 'action' => 'cancelled',
+            'from_status' => 'approved', 'to_status' => 'cancelled', 'note' => 'Salah periode, dibuat ulang.',
+        ]);
+    }
+
+    public function test_cancelling_a_run_requires_a_reason(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($hrd);
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.hasil-payroll.batalkan', $run), [])
+            ->assertSessionHasErrors('reason');
+
+        $this->assertSame('draft', $run->fresh()->status);
+    }
+
+    public function test_a_run_with_a_recorded_payment_cannot_be_cancelled(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($hrd);
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+        $run->update(['status' => 'paid']);
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.hasil-payroll.batalkan', $run), ['reason' => 'Coba batalkan setelah dibayar.'])
+            ->assertSessionHasErrors('status');
+
+        $this->assertSame('paid', $run->fresh()->status);
+    }
+
+    public function test_a_cancelled_run_can_be_recalculated_and_keeps_its_cancelled_status(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($hrd);
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+        $run->update(['status' => 'approved']);
+
+        $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.batalkan', $run), ['reason' => 'Perlu dihitung ulang.']);
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.hitung', $period))
+            ->assertSessionDoesntHaveErrors();
+
+        // The cancelled run must stay 'cancelled' forever — never relabeled
+        // 'superseded', which would hide why it actually stopped being used.
+        $this->assertSame('cancelled', $run->fresh()->status);
+        $this->assertSame(2, PayrollRun::where('payroll_period_id', $period->id)->count());
+        $newRun = PayrollRun::where('payroll_period_id', $period->id)->where('version', 2)->firstOrFail();
+        $this->assertSame('draft', $newRun->status);
+        $this->assertSame($run->id, $newRun->supersedes_run_id);
+    }
+
+    public function test_karyawan_and_manager_cannot_cancel_a_run(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($hrd);
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+
+        $karyawan = User::factory()->create(['role' => 'karyawan']);
+        $this->actingAs($karyawan)->patch(route('hrd.hasil-payroll.batalkan', $run), ['reason' => 'x'])->assertForbidden();
+
+        $manager = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($manager)->patch(route('hrd.hasil-payroll.batalkan', $run), ['reason' => 'x'])->assertForbidden();
+
+        $this->assertSame('draft', $run->fresh()->status);
+    }
+
+    public function test_hrd_cannot_cancel_another_companys_run(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $other = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($other);
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.hasil-payroll.batalkan', $run), ['reason' => 'x'])
+            ->assertForbidden();
+
+        $this->assertSame('draft', $run->fresh()->status);
     }
 }

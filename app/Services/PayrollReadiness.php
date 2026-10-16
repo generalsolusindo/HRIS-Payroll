@@ -11,6 +11,15 @@ use Illuminate\Validation\ValidationException;
 
 class PayrollReadiness
 {
+    /**
+     * Attendance for a period's cutoff date is considered final at this
+     * hour, not at midnight — HRD runs the recap at 15:00 on the cutoff
+     * date itself (even when that date is the last day of the month),
+     * so submission shouldn't have to wait for the date to fully end.
+     * Company-wide for now; no per-company override exists.
+     */
+    private const CUTOFF_HOUR = 15;
+
     /** @return list<string> */
     public function issues(PayrollRun $run): array
     {
@@ -19,7 +28,7 @@ class PayrollReadiness
         if ($run->entries->isEmpty()) {
             $issues[] = 'Belum ada karyawan dalam hasil payroll.';
         }
-        if ($run->period->attendance_ends_on->endOfDay()->isFuture()) {
+        if ($run->period->attendance_ends_on->copy()->setTime(self::CUTOFF_HOUR, 0)->isFuture()) {
             $issues[] = 'Periode absensi belum selesai.';
         }
         $missing = User::where('company_id', $run->period->company_id)->where('role', 'karyawan')->where('status', 'active')

@@ -117,6 +117,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
 
     Route::get('hasil-payroll/{run}', [PayrollRunController::class, 'show'])->name('hasil-payroll.show');
     Route::patch('hasil-payroll/{run}/ajukan', [PayrollRunController::class, 'submit'])->name('hasil-payroll.ajukan');
+    Route::patch('hasil-payroll/{run}/batalkan', [PayrollRunController::class, 'cancel'])->name('hasil-payroll.batalkan');
     Route::post('hasil-payroll/entri/{entry}/penyesuaian', [PayrollAdjustmentController::class, 'store'])->name('hasil-payroll.penyesuaian.store');
     Route::delete('hasil-payroll/penyesuaian/{line}', [PayrollAdjustmentController::class, 'destroy'])->name('hasil-payroll.penyesuaian.destroy');
 

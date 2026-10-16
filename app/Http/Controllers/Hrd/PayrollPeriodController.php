@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers\Hrd;
 
+use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\StorePayrollPeriodRequest;
 use App\Models\PayrollPeriod;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PayrollPeriodController extends Controller
 {
+    use ScopesToOwnCompany;
+
     public function index(Request $request): Response
     {
         $periods = PayrollPeriod::where('company_id', $request->user()->company_id)
@@ -44,6 +48,24 @@ class PayrollPeriodController extends Controller
         ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Periode {$period->name} berhasil dibuat."]);
+
+        return back();
+    }
+
+    public function destroy(Request $request, PayrollPeriod $period): RedirectResponse
+    {
+        $this->assertOwnCompany($request, $period->company_id);
+
+        if ($period->runs()->exists()) {
+            throw ValidationException::withMessages([
+                'period' => "Periode {$period->name} sudah pernah dihitung — tidak bisa dihapus. Hapus hanya berlaku untuk periode yang belum pernah diproses sama sekali.",
+            ]);
+        }
+
+        $name = $period->name;
+        $period->delete();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => "Periode {$name} berhasil dihapus."]);
 
         return back();
     }

@@ -1,5 +1,5 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
-import { CalendarRange, Calculator, Eye, Plus } from 'lucide-react';
+import { CalendarRange, Calculator, Eye, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 import PayrollRunController from '@/actions/App/Http/Controllers/Hrd/PayrollRunController';
@@ -318,6 +318,34 @@ export default function PayrollPeriods({ periods }: Props) {
                                                             ? 'Hitung Ulang'
                                                             : 'Hitung Payroll'}
                                                     </Button>
+                                                )}
+                                                {!period.latest_run && (
+                                                    <Form
+                                                        {...PayrollPeriodController.destroy.form(
+                                                            period.id,
+                                                        )}
+                                                        disableWhileProcessing
+                                                        onBefore={() =>
+                                                            confirm(
+                                                                `Hapus periode ${period.name}? Tindakan ini tidak bisa dibatalkan.`,
+                                                            )
+                                                        }
+                                                    >
+                                                        {({ processing }) => (
+                                                            <Button
+                                                                type="submit"
+                                                                size="icon"
+                                                                variant="outline"
+                                                                className="rounded-full text-destructive hover:text-destructive"
+                                                                aria-label={`Hapus ${period.name}`}
+                                                                disabled={
+                                                                    processing
+                                                                }
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </Button>
+                                                        )}
+                                                    </Form>
                                                 )}
                                             </div>
                                         </td>

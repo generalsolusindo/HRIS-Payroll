@@ -111,6 +111,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
 
     Route::get('periode-gaji', [PayrollPeriodController::class, 'index'])->name('periode-gaji.index');
     Route::post('periode-gaji', [PayrollPeriodController::class, 'store'])->name('periode-gaji.store');
+    Route::delete('periode-gaji/{period}', [PayrollPeriodController::class, 'destroy'])->name('periode-gaji.destroy');
     Route::post('periode-gaji/{period}/perbarui-draft', [PayrollRunController::class, 'refresh'])->name('periode-gaji.perbarui-draft');
     Route::post('periode-gaji/{period}/hitung', [PayrollRunController::class, 'store'])->name('periode-gaji.hitung');
 

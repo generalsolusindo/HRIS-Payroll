@@ -60,9 +60,16 @@ class PayrollPaymentController extends Controller
         abort_unless(in_array($run->status, ['approved', 'locked', 'partially_paid', 'paid'], true), 404);
         $this->assertOwnCompany($request, $run->period->company_id);
 
-        $run->load('period.company', 'entries.division', 'entries.payments');
+        $run->load('period.company', 'entries.division', 'entries.payments', 'approvals.actor');
 
         return Inertia::render('finance/payroll-run-show', [
+            'approvals' => $run->approvals->sortBy('created_at')->values()->map(fn (PayrollApproval $approval) => [
+                'id' => $approval->id,
+                'action' => $approval->action,
+                'actor_name' => $approval->actor !== null ? $approval->actor->name : ($approval->actor_snapshot['name'] ?? 'Sistem'),
+                'note' => $approval->note,
+                'created_at' => $approval->created_at->toIso8601String(),
+            ]),
             'run' => [
                 'id' => $run->id,
                 'version' => $run->version,

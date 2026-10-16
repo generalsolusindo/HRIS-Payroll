@@ -138,6 +138,19 @@ class PayrollPaymentTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_finance_sees_the_full_approval_history_on_the_run_page(): void
+    {
+        [$finance, $run] = $this->makeFinanceAndApprovedRun();
+
+        $response = $this->actingAs($finance)->get(route('finance.payroll.show', $run))->assertOk();
+
+        $actions = collect($response->viewData('page')['props']['approvals'])->pluck('action');
+        // makeApprovedRun() goes through the real HRD-submit then
+        // Manager-approve flow, so both transitions must already be here.
+        $this->assertTrue($actions->contains('submitted'));
+        $this->assertTrue($actions->contains('approved'));
+    }
+
     public function test_finance_can_lock_an_approved_run(): void
     {
         [$finance, $run] = $this->makeFinanceAndApprovedRun();

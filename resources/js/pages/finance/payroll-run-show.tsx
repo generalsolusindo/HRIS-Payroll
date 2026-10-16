@@ -1,5 +1,5 @@
 import { Form, Head, router } from '@inertiajs/react';
-import { ChevronDown, ChevronRight, FileText, Lock } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, History, Lock } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 import PaymentProofController from '@/actions/App/Http/Controllers/Finance/PaymentProofController';
@@ -62,9 +62,18 @@ type Run = {
     };
 };
 
+type Approval = {
+    id: number;
+    action: string;
+    actor_name: string;
+    note: string | null;
+    created_at: string;
+};
+
 type Props = {
     run: Run;
     entries: Entry[];
+    approvals: Approval[];
 };
 
 const RUN_STATUS_LABELS: Record<string, string> = {
@@ -72,6 +81,15 @@ const RUN_STATUS_LABELS: Record<string, string> = {
     locked: 'Terkunci',
     partially_paid: 'Dibayar Sebagian',
     paid: 'Lunas',
+};
+
+const APPROVAL_ACTION_LABELS: Record<string, string> = {
+    submitted: 'Diajukan ke Manager',
+    revision_requested: 'Manager meminta revisi',
+    approved: 'Disetujui Manager',
+    locked: 'Dikunci',
+    superseded: 'Digantikan versi baru',
+    cancelled: 'Dibatalkan',
 };
 
 const METHOD_LABELS: Record<string, string> = {
@@ -344,7 +362,7 @@ function VoidDialog({
     );
 }
 
-export default function PayrollRunShow({ run, entries }: Props) {
+export default function PayrollRunShow({ run, entries, approvals }: Props) {
     const [expandedEntry, setExpandedEntry] = useState<number | null>(null);
     const [payingEntry, setPayingEntry] = useState<Entry | null>(null);
     const [voidingPayment, setVoidingPayment] = useState<Payment | null>(null);
@@ -620,6 +638,34 @@ export default function PayrollRunShow({ run, entries }: Props) {
                     </table>
                 </div>
             </div>
+
+            {approvals.length > 0 && (
+                <details className="rounded-2xl border bg-card p-4">
+                    <summary className="cursor-pointer text-sm font-semibold">
+                        <History className="mr-2 inline size-4" />
+                        Riwayat persetujuan ({approvals.length})
+                    </summary>
+                    <ol className="mt-4 space-y-4">
+                        {approvals.map((item) => (
+                            <li key={item.id} className="border-l-2 pl-3 text-sm">
+                                <p className="font-medium">
+                                    {APPROVAL_ACTION_LABELS[item.action] ??
+                                        item.action}{' '}
+                                    — {item.actor_name}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {formatDateTime(item.created_at)} WIB
+                                </p>
+                                {item.note && (
+                                    <p className="mt-1 break-words text-muted-foreground">
+                                        {item.note}
+                                    </p>
+                                )}
+                            </li>
+                        ))}
+                    </ol>
+                </details>
+            )}
 
             {payingEntry && (
                 <PaymentDialog

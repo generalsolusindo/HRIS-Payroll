@@ -28,7 +28,7 @@ class PayrollProfileController extends Controller
             ->where('status', 'active')
             ->with([
                 'division:id,name',
-                'payrollProfiles' => fn ($query) => $query->latest('effective_from')->limit(1)->with('division:id,name', 'salaryComponents.payrollComponent:id,name,type'),
+                'payrollProfiles' => fn ($query) => $query->latest('effective_from')->limit(1)->with('salaryComponents.payrollComponent:id,name,type'),
             ])
             ->orderBy('name')
             ->get(['id', 'division_id', 'name', 'email'])
@@ -48,9 +48,12 @@ class PayrollProfileController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'position' => $user->division ? ['id' => $user->division->id, 'name' => $user->division->name] : null,
                     'has_profile' => $profile !== null,
-                    'division_name' => $profile?->division?->name,
+                    // Always sourced from the user's own division (set at
+                    // Manajemen User, required there) — never from the
+                    // profile, which may not exist yet for an employee
+                    // who hasn't had their salary set up.
+                    'division_name' => $user->division?->name,
                     'monthly_total' => $monthlyTotal,
                 ];
             });

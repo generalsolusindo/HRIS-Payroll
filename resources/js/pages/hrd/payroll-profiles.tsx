@@ -8,7 +8,6 @@ type EmployeeRow = {
     id: number;
     name: string;
     email: string;
-    position: { id: number; name: string } | null;
     has_profile: boolean;
     division_name: string | null;
     monthly_total: string | null;
@@ -72,9 +71,6 @@ export default function PayrollProfiles({ employees }: Props) {
                                         Karyawan
                                     </th>
                                     <th className="px-4 py-3 font-medium">
-                                        Jabatan
-                                    </th>
-                                    <th className="px-4 py-3 font-medium">
                                         Divisi
                                     </th>
                                     <th className="px-4 py-3 font-medium">
@@ -106,9 +102,6 @@ export default function PayrollProfiles({ employees }: Props) {
                                                     </div>
                                                 </div>
                                             </div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {employee.position?.name ?? '-'}
                                         </td>
                                         <td className="px-4 py-3">
                                             {employee.division_name ?? (

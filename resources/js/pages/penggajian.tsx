@@ -11,8 +11,29 @@ type PayslipRow = {
     published_at: string | null;
 };
 
+type PreviewRow = {
+    id: number;
+    period_name: string;
+    net_amount: string;
+    run_status: string;
+    shared_at: string;
+};
+
 type Props = {
     payslips: PayslipRow[];
+    previews: PreviewRow[];
+};
+
+const RUN_STATUS_LABELS: Record<string, string> = {
+    draft: 'Draft — bisa berubah',
+    submitted: 'Sudah diajukan ke Manager',
+    revision_requested: 'Sedang direvisi HRD',
+    approved: 'Sudah disetujui Manager',
+    locked: 'Sudah disetujui Manager',
+    partially_paid: 'Sudah disetujui Manager',
+    paid: 'Sudah disetujui Manager',
+    superseded: 'Digantikan versi baru',
+    cancelled: 'Dibatalkan',
 };
 
 function formatRupiah(value: string): string {
@@ -35,7 +56,7 @@ function formatDate(value: string | null): string {
     });
 }
 
-export default function Penggajian({ payslips }: Props) {
+export default function Penggajian({ payslips, previews }: Props) {
     return (
         <>
             <Head title="Penggajian" />
@@ -50,6 +71,80 @@ export default function Penggajian({ payslips }: Props) {
                     </p>
                 </div>
 
+                {previews.length > 0 && (
+                    <div className="flex flex-col gap-3">
+                        <div>
+                            <h2 className="text-lg font-semibold">
+                                Pratinjau Gaji
+                            </h2>
+                            <p className="text-xs text-muted-foreground">
+                                Belum final — HRD membagikan ini supaya kamu
+                                bisa cek dulu sebelum diajukan ke Manager.
+                                Kalau ada yang keliru, hubungi HRD langsung.
+                            </p>
+                        </div>
+                        <div className="overflow-x-auto rounded-2xl border border-blue-400/40">
+                            <table className="w-full text-sm">
+                                <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground uppercase">
+                                    <tr>
+                                        <th className="px-4 py-3 font-medium">
+                                            Periode
+                                        </th>
+                                        <th className="px-4 py-3 font-medium">
+                                            Status
+                                        </th>
+                                        <th className="px-4 py-3 font-medium">
+                                            Perkiraan Net
+                                        </th>
+                                        <th className="px-4 py-3 text-right font-medium">
+                                            Aksi
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {previews.map((preview) => (
+                                        <tr key={preview.id}>
+                                            <td className="px-4 py-3 font-medium">
+                                                {preview.period_name}
+                                            </td>
+                                            <td className="px-4 py-3 text-xs text-muted-foreground">
+                                                {RUN_STATUS_LABELS[
+                                                    preview.run_status
+                                                ] ?? preview.run_status}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatRupiah(
+                                                    preview.net_amount,
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <Link
+                                                    href={PenggajianController.pratinjau(
+                                                        preview.id,
+                                                    )}
+                                                >
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="rounded-full"
+                                                    >
+                                                        <Eye className="size-3.5" />
+                                                        Lihat Pratinjau
+                                                    </Button>
+                                                </Link>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {previews.length > 0 && (
+                    <h2 className="text-lg font-semibold">Slip Final</h2>
+                )}
                 {payslips.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-2 rounded-3xl bg-muted/40 py-16 text-center">
                         <Wallet className="size-8 text-muted-foreground" />

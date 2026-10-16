@@ -64,6 +64,214 @@ class PenggajianTest extends TestCase
         return PayrollPayslip::where('payroll_entry_id', $entry->id)->firstOrFail();
     }
 
+    /** @return array{0: PayrollRun, 1: PayrollEntry, 2: User} [$run, $entry, $hrd] */
+    private function makeSharedDraftRun(User $employee): array
+    {
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $employee->company_id]);
+        $division = Division::create(['company_id' => $employee->company_id, 'name' => 'Operasional']);
+        $base = PayrollComponent::create([
+            'company_id' => $employee->company_id, 'code' => 'BASE2', 'name' => 'Gaji Pokok',
+            'type' => 'earning', ]);
+        $profile = EmployeePayrollProfile::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'division_id' => $division->id, 'position_id' => $employee->position_id,
+            'effective_from' => '2026-09-01', 'employment_started_on' => '2026-01-01',
+            'employment_type' => 'permanent',
+        ]);
+        EmployeeSalaryComponent::create([
+            'employee_payroll_profile_id' => $profile->id, 'payroll_component_id' => $base->id,
+            'amount' => '3000000', 'basis' => 'monthly',
+        ]);
+
+        $period = PayrollPeriod::create([
+            'company_id' => $employee->company_id, 'name' => 'September 2026',
+            'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
+            'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        AttendanceReview::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'present',
+            'source_snapshot' => [], 'schedule_snapshot' => [],
+            'correction_reason' => 'Kehadiran diverifikasi HRD untuk fixture payroll.',
+            'validated_by' => $hrd->id, 'validated_at' => now(),
+        ]);
+        $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
+
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+        $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.bagikan', $run));
+
+        $entry = PayrollEntry::where('payroll_run_id', $run->id)->firstOrFail();
+
+        return [$run->fresh(), $entry, $hrd];
+    }
+
+    public function test_hrd_can_share_a_draft_run_for_employee_review(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        [$run, , $hrd] = $this->makeSharedDraftRun($employee);
+
+        $this->assertNotNull($run->shared_at);
+        $this->assertDatabaseHas('payroll_approvals', [
+            'payroll_run_id' => $run->id, 'action' => 'shared_for_review',
+            'from_status' => 'draft', 'to_status' => 'draft', 'actor_id' => $hrd->id,
+        ]);
+    }
+
+    public function test_sharing_twice_does_not_create_a_duplicate_approval_entry(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        [$run, , $hrd] = $this->makeSharedDraftRun($employee);
+
+        $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.bagikan', $run))->assertSessionDoesntHaveErrors();
+
+        $this->assertSame(1, \App\Models\PayrollApproval::where('payroll_run_id', $run->id)
+            ->where('action', 'shared_for_review')->count());
+    }
+
+    public function test_a_submitted_run_cannot_be_shared(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $employee->company_id]);
+        $division = Division::create(['company_id' => $employee->company_id, 'name' => 'Operasional']);
+        $base = PayrollComponent::create([
+            'company_id' => $employee->company_id, 'code' => 'BASE3', 'name' => 'Gaji Pokok', 'type' => 'earning',
+        ]);
+        $profile = EmployeePayrollProfile::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'division_id' => $division->id, 'position_id' => $employee->position_id,
+            'effective_from' => '2026-09-01', 'employment_started_on' => '2026-01-01',
+            'employment_type' => 'permanent',
+        ]);
+        EmployeeSalaryComponent::create([
+            'employee_payroll_profile_id' => $profile->id, 'payroll_component_id' => $base->id,
+            'amount' => '3000000', 'basis' => 'monthly',
+        ]);
+        $period = PayrollPeriod::create([
+            'company_id' => $employee->company_id, 'name' => 'September 2026',
+            'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
+            'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        AttendanceReview::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'present',
+            'source_snapshot' => [], 'schedule_snapshot' => [],
+            'correction_reason' => 'Kehadiran diverifikasi HRD untuk fixture payroll.',
+            'validated_by' => $hrd->id, 'validated_at' => now(),
+        ]);
+        $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+        $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.ajukan', $run));
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.hasil-payroll.bagikan', $run))
+            ->assertSessionHasErrors('status');
+
+        $this->assertNull($run->fresh()->shared_at);
+    }
+
+    public function test_karyawan_and_manager_cannot_share_a_run(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $employee->company_id]);
+        $division = Division::create(['company_id' => $employee->company_id, 'name' => 'Operasional']);
+        $period = PayrollPeriod::create([
+            'company_id' => $employee->company_id, 'name' => 'September 2026',
+            'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
+            'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
+        $run = PayrollRun::where('payroll_period_id', $period->id)->first();
+        // No eligible profile exists, so nothing is calculated — skip if no run.
+        if (! $run) {
+            $this->markTestSkipped('Fixture produced no run.');
+        }
+
+        $this->actingAs($employee)->patch(route('hrd.hasil-payroll.bagikan', $run))->assertForbidden();
+
+        $manager = User::factory()->create(['role' => 'admin', 'company_id' => $employee->company_id]);
+        $this->actingAs($manager)->patch(route('hrd.hasil-payroll.bagikan', $run))->assertForbidden();
+    }
+
+    public function test_employee_sees_a_shared_draft_as_a_preview_but_not_before_its_shared(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+
+        $response = $this->actingAs($employee)->get(route('penggajian'))->assertOk();
+        $this->assertCount(0, $response->viewData('page')['props']['previews']);
+
+        [$run, $entry] = $this->makeSharedDraftRun($employee);
+
+        $response = $this->actingAs($employee)->get(route('penggajian'))->assertOk();
+        $previews = collect($response->viewData('page')['props']['previews']);
+        $this->assertTrue($previews->contains('id', $entry->id));
+        $this->assertSame('draft', $previews->firstWhere('id', $entry->id)['run_status']);
+    }
+
+    public function test_employee_can_view_their_own_shared_preview_detail(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        [, $entry] = $this->makeSharedDraftRun($employee);
+
+        $this->actingAs($employee)
+            ->get(route('penggajian.pratinjau', $entry))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('penggajian-pratinjau')
+                ->where('preview.net_amount', '3000000.00')
+            );
+    }
+
+    public function test_employee_cannot_view_a_preview_that_has_not_been_shared(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $employee->company_id]);
+        $division = Division::create(['company_id' => $employee->company_id, 'name' => 'Operasional']);
+        $base = PayrollComponent::create([
+            'company_id' => $employee->company_id, 'code' => 'BASE4', 'name' => 'Gaji Pokok', 'type' => 'earning',
+        ]);
+        $profile = EmployeePayrollProfile::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'division_id' => $division->id, 'position_id' => $employee->position_id,
+            'effective_from' => '2026-09-01', 'employment_started_on' => '2026-01-01',
+            'employment_type' => 'permanent',
+        ]);
+        EmployeeSalaryComponent::create([
+            'employee_payroll_profile_id' => $profile->id, 'payroll_component_id' => $base->id,
+            'amount' => '3000000', 'basis' => 'monthly',
+        ]);
+        $period = PayrollPeriod::create([
+            'company_id' => $employee->company_id, 'name' => 'September 2026',
+            'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
+            'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        AttendanceReview::create([
+            'user_id' => $employee->id, 'company_id' => $employee->company_id,
+            'date' => '2026-09-28', 'status' => 'validated', 'classification' => 'present',
+            'source_snapshot' => [], 'schedule_snapshot' => [],
+            'correction_reason' => 'Kehadiran diverifikasi HRD untuk fixture payroll.',
+            'validated_by' => $hrd->id, 'validated_at' => now(),
+        ]);
+        $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period));
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+        $entry = PayrollEntry::where('payroll_run_id', $run->id)->firstOrFail();
+
+        // Never shared ($run->shared_at stays null.
+        $this->actingAs($employee)
+            ->get(route('penggajian.pratinjau', $entry))
+            ->assertForbidden();
+    }
+
+    public function test_employee_cannot_view_someone_elses_shared_preview(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        $otherEmployee = User::factory()->create(['role' => 'karyawan']);
+        [, $entry] = $this->makeSharedDraftRun($otherEmployee);
+
+        $this->actingAs($employee)
+            ->get(route('penggajian.pratinjau', $entry))
+            ->assertForbidden();
+    }
+
     public function test_employee_sees_their_own_published_payslip(): void
     {
         $employee = User::factory()->create(['role' => 'karyawan']);

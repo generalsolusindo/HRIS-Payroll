@@ -498,6 +498,51 @@ class PayrollRunController extends Controller
         return back();
     }
 
+    /**
+     * Opens a still-draft run's figures up for the employees in it to
+     * review on their own "Penggajian" page, before HRD submits it to the
+     * Manager — the point is to catch a mistake (wrong attendance, missing
+     * component) while it can still be fixed, not after the numbers are
+     * already on their way up the approval chain. Deliberately opt-in
+     * (HRD reviews it first, then shares) rather than automatic the
+     * moment "Hitung Payroll" runs. Once shared it stays shared — the
+     * employee keeps seeing their live entry figures through the rest of
+     * the run's lifecycle, there is no "unshare".
+     */
+    public function share(Request $request, PayrollRun $run): RedirectResponse
+    {
+        $this->assertOwnCompany($request, $run->period->company_id);
+
+        DB::transaction(function () use ($request, $run) {
+            $locked = PayrollRun::whereKey($run->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== 'draft') {
+                throw ValidationException::withMessages([
+                    'status' => 'Hanya hasil payroll berstatus draft yang bisa dibagikan untuk ditinjau karyawan.',
+                ]);
+            }
+            if ($locked->shared_at !== null) {
+                return;
+            }
+
+            $locked->update(['shared_at' => now()]);
+
+            PayrollApproval::create([
+                'payroll_run_id' => $locked->id,
+                'action' => 'shared_for_review',
+                'from_status' => 'draft',
+                'to_status' => 'draft',
+                'actor_id' => $request->user()->id,
+                'actor_snapshot' => ['name' => $request->user()->name],
+                'note' => null,
+            ]);
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Draft dibagikan — karyawan sekarang bisa meninjau angka gajinya sebelum diajukan ke Manager.']);
+
+        return back();
+    }
+
     public function show(Request $request, PayrollRun $run): Response
     {
         $run->load('period.company', 'entries.division', 'entries.lines', 'entries.payslips', 'approvals.actor');
@@ -516,6 +561,7 @@ class PayrollRunController extends Controller
                 'adjust' => $isHrd && $run->status === 'draft',
                 'refresh' => $isHrd && $run->status === 'draft',
                 'cancel' => $isHrd && in_array($run->status, ['draft', 'submitted', 'revision_requested', 'approved', 'locked'], true),
+                'share' => $isHrd && $run->status === 'draft' && $run->shared_at === null,
             ],
             'divisions' => $run->entries->groupBy('division_id')->map(fn ($entries) => [
                 'id' => $entries->first()->division_id,
@@ -533,6 +579,7 @@ class PayrollRunController extends Controller
                 'reward_total' => (string) $run->reward_total,
                 'net_total' => (string) $run->net_total,
                 'revision_reason' => $run->revision_reason,
+                'shared_at' => $run->shared_at?->toIso8601String(),
                 'period' => [
                     'id' => $run->period->id,
                     'name' => $run->period->name,

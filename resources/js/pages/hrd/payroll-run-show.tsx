@@ -62,6 +62,7 @@ type Run = {
     reward_total: string;
     net_total: string;
     revision_reason: string | null;
+    shared_at: string | null;
     period: {
         id: number;
         name: string;
@@ -83,6 +84,7 @@ type Props = {
         adjust: boolean;
         refresh: boolean;
         cancel: boolean;
+        share: boolean;
     };
     approvals: {
         id: number;
@@ -105,6 +107,7 @@ const RUN_STATUS_LABELS: Record<string, string> = {
 };
 
 const APPROVAL_ACTION_LABELS: Record<string, string> = {
+    shared_for_review: 'Dibagikan untuk ditinjau karyawan',
     submitted: 'Diajukan ke Manager',
     revision_requested: 'Manager meminta revisi',
     approved: 'Disetujui Manager',
@@ -206,6 +209,7 @@ export default function PayrollRunShow({
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [mobileDetail, setMobileDetail] = useState(false);
     const [recalculating, setRecalculating] = useState(false);
+    const [sharing, setSharing] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
     const detailRef = useRef<HTMLHeadingElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
@@ -249,6 +253,29 @@ export default function PayrollRunShow({
         );
     }
 
+    function shareForReview() {
+        if (
+            sharing ||
+            !confirm(
+                'Bagikan draft ini ke karyawan untuk ditinjau sebelum diajukan ke Manager? Mereka akan bisa melihat rincian gajinya sendiri.',
+            )
+        )
+            return;
+        setSharing(true);
+        router.patch(
+            PayrollRunController.share(run.id).url,
+            {},
+            {
+                onError: (errors) =>
+                    toast.error(
+                        Object.values(errors)[0] ??
+                            'Gagal membagikan draft.',
+                    ),
+                onFinish: () => setSharing(false),
+            },
+        );
+    }
+
     function selectEntry(id: number) {
         setSelectedId(id);
         setMobileDetail(true);
@@ -275,8 +302,29 @@ export default function PayrollRunShow({
                         <span className="mt-2 inline-flex rounded-full border bg-card px-2.5 py-1 text-xs font-medium">
                             {RUN_STATUS_LABELS[run.status] ?? run.status}
                         </span>
+                        {run.shared_at && (
+                            <span className="mt-2 ml-2 inline-flex rounded-full border border-blue-400 px-2.5 py-1 text-xs font-medium text-blue-600 dark:border-blue-400/70 dark:text-blue-400">
+                                Dibagikan ke karyawan ·{' '}
+                                {new Date(run.shared_at).toLocaleString(
+                                    'id-ID',
+                                    { timeZone: 'Asia/Jakarta' },
+                                )}{' '}
+                                WIB
+                            </span>
+                        )}
                     </div>
                     <div className="flex flex-wrap gap-2">
+                        {capabilities.share && (
+                            <Button
+                                variant="outline"
+                                disabled={sharing}
+                                onClick={shareForReview}
+                            >
+                                {sharing
+                                    ? 'Membagikan…'
+                                    : 'Bagikan untuk Ditinjau Karyawan'}
+                            </Button>
+                        )}
                         {(capabilities.recalculate || capabilities.refresh) && (
                             <Button
                                 variant="outline"

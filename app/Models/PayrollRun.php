@@ -26,6 +26,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $submitted_at
  * @property Carbon|null $approved_at
  * @property Carbon|null $locked_at
+ * @property Carbon|null $shared_at
  * @property string|null $revision_reason
  */
 class PayrollRun extends Model
@@ -34,7 +35,7 @@ class PayrollRun extends Model
         'payroll_period_id', 'version', 'supersedes_run_id', 'payroll_policy_id',
         'policy_snapshot', 'company_snapshot', 'status', 'employee_count',
         'gross_total', 'deduction_total', 'reward_total', 'employer_contribution_total', 'net_total',
-        'created_by', 'submitted_at', 'approved_at', 'locked_at', 'revision_reason',
+        'created_by', 'submitted_at', 'approved_at', 'locked_at', 'shared_at', 'revision_reason',
     ];
 
     protected function casts(): array
@@ -50,6 +51,7 @@ class PayrollRun extends Model
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
             'locked_at' => 'datetime',
+            'shared_at' => 'datetime',
         ];
     }
 

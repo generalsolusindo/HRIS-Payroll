@@ -50,6 +50,29 @@ class PayrollProfileManagementTest extends TestCase
         $this->assertEqualsWithDelta(2_800_000.0, (float) $profile->salaryComponents->sum('amount'), 0.001);
     }
 
+    public function test_hrd_can_set_a_payroll_profile_for_an_employee_without_a_position(): void
+    {
+        // Manajemen User no longer sets position_id at all (Division
+        // replaced Position) — every employee created through it has a
+        // null position_id, so saving their profile must not require one.
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $employee = User::factory()->create([
+            'company_id' => $hrd->company_id, 'role' => 'karyawan', 'position_id' => null,
+        ]);
+        $base = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'BASE5', 'name' => 'Gaji Pokok',
+            'type' => 'earning', ]);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.profil-gaji.update', $employee), $this->payload([
+                ['payroll_component_id' => $base->id, 'amount' => '2500000'],
+            ]))
+            ->assertSessionDoesntHaveErrors();
+
+        $profile = EmployeePayrollProfile::where('user_id', $employee->id)->firstOrFail();
+        $this->assertNull($profile->position_id);
+    }
+
     public function test_updating_a_profile_removes_components_no_longer_submitted(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);

@@ -20,7 +20,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 /**
  * @property int $id
  * @property int $company_id
- * @property int $position_id
+ * @property int|null $position_id
  * @property int|null $division_id
  * @property string|null $employment_type
  * @property Carbon|null $employment_started_on

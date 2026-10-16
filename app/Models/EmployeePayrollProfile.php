@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
  * @property int $user_id
  * @property int $company_id
  * @property int $division_id
- * @property int $position_id
+ * @property int|null $position_id
  * @property Carbon $effective_from
  * @property Carbon|null $effective_until
  * @property Carbon $employment_started_on

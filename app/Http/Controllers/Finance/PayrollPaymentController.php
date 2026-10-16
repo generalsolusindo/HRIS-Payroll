@@ -95,6 +95,7 @@ class PayrollPaymentController extends Controller
                     'paid_amount' => $paid,
                     'remaining_amount' => bccomp($entry->net_amount, $paid, 2) > 0 ? bcsub($entry->net_amount, $paid, 2) : '0.00',
                     'has_destination' => $entry->payment_destination !== null,
+                    'destination' => $entry->payment_destination,
                     'payments' => $entry->payments->sortByDesc('created_at')->values()->map(fn (PayrollPayment $payment) => [
                         'id' => $payment->id,
                         'amount' => (string) $payment->amount,

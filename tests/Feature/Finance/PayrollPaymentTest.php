@@ -151,6 +151,18 @@ class PayrollPaymentTest extends TestCase
         $this->assertTrue($actions->contains('approved'));
     }
 
+    public function test_finance_sees_the_employees_bank_destination_on_the_run_page(): void
+    {
+        [$finance, $run] = $this->makeFinanceAndApprovedRun();
+
+        $response = $this->actingAs($finance)->get(route('finance.payroll.show', $run))->assertOk();
+
+        $entry = collect($response->viewData('page')['props']['entries'])->first();
+        $this->assertSame('BCA', $entry['destination']['bank_name']);
+        $this->assertSame('111222333', $entry['destination']['account_number']);
+        $this->assertSame('Pemilik Rekening', $entry['destination']['account_holder']);
+    }
+
     public function test_finance_can_lock_an_approved_run(): void
     {
         [$finance, $run] = $this->makeFinanceAndApprovedRun();

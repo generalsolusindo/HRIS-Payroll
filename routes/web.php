@@ -150,7 +150,7 @@ Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('ma
     Route::patch('izin/{leaveRequest}/reject', [ManagerLeaveRequestApprovalController::class, 'reject'])->name('izin.reject');
 
     Route::get('payroll', [PayrollRunApprovalController::class, 'index'])->name('payroll.index');
-    Route::get('payroll/{run}', [PayrollRunController::class, 'show'])->name('payroll.show');
+    Route::get('payroll/{run}', [PayrollRunApprovalController::class, 'show'])->name('payroll.show');
     Route::patch('payroll/{run}/approve', [PayrollRunApprovalController::class, 'approve'])->name('payroll.approve');
     Route::patch('payroll/{run}/revisi', [PayrollRunApprovalController::class, 'requestRevision'])->name('payroll.revisi');
 });

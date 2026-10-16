@@ -204,8 +204,26 @@ class PayrollRunApprovalTest extends TestCase
             ->get(route('manager.payroll.show', $run))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->component('hrd/payroll-run-show')
+                ->component('manager/payroll-run-show')
                 ->where('run.id', $run->id)
+                ->where('capabilities.approve', true)
+                ->where('capabilities.requestRevision', true)
+                ->has('entries')
+                ->has('approvals')
+            );
+    }
+
+    public function test_approve_and_revision_capabilities_are_false_once_the_run_moves_on(): void
+    {
+        [$manager, $run] = $this->makeManagerAndSubmittedRun();
+        $this->actingAs($manager)->patch(route('manager.payroll.approve', $run), ['note' => null]);
+
+        $this->actingAs($manager)
+            ->get(route('manager.payroll.show', $run))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('capabilities.approve', false)
+                ->where('capabilities.requestRevision', false)
             );
     }
 

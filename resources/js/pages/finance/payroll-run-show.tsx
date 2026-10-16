@@ -36,6 +36,12 @@ type Payment = {
     created_at: string;
 };
 
+type Destination = {
+    bank_name: string | null;
+    account_number: string | null;
+    account_holder: string | null;
+};
+
 type Entry = {
     id: number;
     name: string;
@@ -44,6 +50,7 @@ type Entry = {
     paid_amount: string;
     remaining_amount: string;
     has_destination: boolean;
+    destination: Destination | null;
     payments: Payment[];
 };
 
@@ -205,6 +212,32 @@ function PaymentDialog({
                     </DialogHeader>
 
                     <div className="grid gap-4 py-2">
+                        <div className="rounded-xl border bg-muted/30 p-3 text-sm">
+                            <p className="text-xs font-medium text-muted-foreground uppercase">
+                                Tujuan transfer
+                            </p>
+                            {entry.destination ? (
+                                <div className="mt-1.5 space-y-0.5">
+                                    <p className="font-medium">
+                                        {entry.destination.bank_name ?? '—'}
+                                    </p>
+                                    <p className="font-mono text-sm">
+                                        {entry.destination.account_number ??
+                                            '—'}
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                        a.n.{' '}
+                                        {entry.destination.account_holder ??
+                                            '—'}
+                                    </p>
+                                </div>
+                            ) : (
+                                <p className="mt-1.5 text-muted-foreground">
+                                    Belum ada data rekening — lengkapi dulu
+                                    di Manajemen User.
+                                </p>
+                            )}
+                        </div>
                         <div className="grid gap-2">
                             <Label htmlFor="amount">Nominal</Label>
                             <Input
@@ -250,6 +283,11 @@ function PaymentDialog({
                                 onChange={(e) => setReference(e.target.value)}
                                 placeholder="Nomor transaksi bank"
                             />
+                            <p className="text-xs text-muted-foreground">
+                                Nomor referensi/transaksi dari bank — buat
+                                memudahkan cocokkan catatan ini dengan
+                                mutasi rekening nanti.
+                            </p>
                             <InputError message={errors.reference} />
                         </div>
 

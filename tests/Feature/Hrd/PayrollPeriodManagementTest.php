@@ -47,6 +47,23 @@ class PayrollPeriodManagementTest extends TestCase
             ->assertSessionHasErrors('name');
     }
 
+    public function test_a_different_name_for_the_same_date_range_is_rejected(): void
+    {
+        // The DB has its own unique constraint on (company_id, starts_on,
+        // ends_on) — this must surface as a normal validation error, not
+        // a raw SQL exception, when the name differs but the dates match.
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        PayrollPeriod::create($this->payload($hrd->company_id));
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.store'), $this->payload($hrd->company_id, [
+                'name' => 'Oktober 2026 (revisi)',
+            ]))
+            ->assertSessionHasErrors('starts_on');
+
+        $this->assertSame(1, PayrollPeriod::where('company_id', $hrd->company_id)->count());
+    }
+
     public function test_ends_on_must_not_be_before_starts_on(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);

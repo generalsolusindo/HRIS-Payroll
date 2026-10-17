@@ -113,6 +113,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::get('periode-gaji', [PayrollPeriodController::class, 'index'])->name('periode-gaji.index');
     Route::post('periode-gaji', [PayrollPeriodController::class, 'store'])->name('periode-gaji.store');
     Route::delete('periode-gaji/{period}', [PayrollPeriodController::class, 'destroy'])->name('periode-gaji.destroy');
+    Route::post('periode-gaji/{period}/minta-hapus', [PayrollPeriodController::class, 'requestDeletion'])->name('periode-gaji.minta-hapus');
     Route::post('periode-gaji/{period}/perbarui-draft', [PayrollRunController::class, 'refresh'])->name('periode-gaji.perbarui-draft');
     Route::post('periode-gaji/{period}/hitung', [PayrollRunController::class, 'store'])->name('periode-gaji.hitung');
 
@@ -153,6 +154,8 @@ Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('ma
     Route::get('payroll/{run}', [PayrollRunApprovalController::class, 'show'])->name('payroll.show');
     Route::patch('payroll/{run}/approve', [PayrollRunApprovalController::class, 'approve'])->name('payroll.approve');
     Route::patch('payroll/{run}/revisi', [PayrollRunApprovalController::class, 'requestRevision'])->name('payroll.revisi');
+    Route::patch('payroll/hapus-periode/{deletionRequest}/approve', [PayrollRunApprovalController::class, 'approvePeriodDeletion'])->name('payroll.hapus-periode.approve');
+    Route::patch('payroll/hapus-periode/{deletionRequest}/reject', [PayrollRunApprovalController::class, 'rejectPeriodDeletion'])->name('payroll.hapus-periode.reject');
 });
 
 Route::middleware(['auth', 'active', 'role:finance'])->prefix('finance')->name('finance.')->group(function () {

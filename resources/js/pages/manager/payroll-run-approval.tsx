@@ -1,5 +1,5 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
-import { Eye, Wallet } from 'lucide-react';
+import { Archive, Eye, Trash2, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import PayrollRunApprovalController from '@/actions/App/Http/Controllers/Manager/PayrollRunApprovalController';
@@ -35,6 +35,21 @@ type PendingRun = {
 
 type Props = {
     runs: PendingRun[];
+    deletionRequests: PendingDeletionRequest[];
+};
+
+type PendingDeletionRequest = {
+    id: number;
+    reason: string;
+    requested_at: string;
+    requester_name: string;
+    period: {
+        id: number;
+        name: string;
+        starts_on: string;
+        ends_on: string;
+        run_count: number;
+    };
 };
 
 function formatRupiah(value: string): string {
@@ -239,7 +254,64 @@ function PendingRunCard({ run }: { run: PendingRun }) {
     );
 }
 
-export default function PayrollRunApproval({ runs }: Props) {
+export default function PayrollRunApproval({ runs, deletionRequests }: Props) {
+    function approveDeletion(request: PendingDeletionRequest) {
+        if (
+            !window.confirm(
+                `Arsipkan periode ${request.period.name}? Periode akan hilang dari daftar aktif HRD, tetapi histori payroll, pembayaran, dan slip tetap tersimpan.`,
+            )
+        ) {
+            return;
+        }
+
+        router.patch(
+            PayrollRunApprovalController.approvePeriodDeletion(
+                request.id,
+            ).url,
+            {},
+            {
+                onSuccess: () =>
+                    toast.success('Periode berhasil diarsipkan.'),
+                onError: (errors) => {
+                    const message = Object.values(errors)[0];
+                    toast.error(
+                        typeof message === 'string'
+                            ? message
+                            : 'Gagal menyetujui permintaan.',
+                    );
+                },
+            },
+        );
+    }
+
+    function rejectDeletion(request: PendingDeletionRequest) {
+        const decision_note = window.prompt(
+            `Alasan menolak permintaan penghapusan ${request.period.name}:`,
+        );
+
+        if (!decision_note?.trim()) {
+            return;
+        }
+
+        router.patch(
+            PayrollRunApprovalController.rejectPeriodDeletion(
+                request.id,
+            ).url,
+            { decision_note: decision_note.trim() },
+            {
+                onSuccess: () => toast.success('Permintaan penghapusan ditolak.'),
+                onError: (errors) => {
+                    const message = Object.values(errors)[0];
+                    toast.error(
+                        typeof message === 'string'
+                            ? message
+                            : 'Gagal menolak permintaan.',
+                    );
+                },
+            },
+        );
+    }
+
     return (
         <>
             <Head title="Persetujuan Payroll" />
@@ -254,6 +326,72 @@ export default function PayrollRunApproval({ runs }: Props) {
                         keputusan akhir.
                     </p>
                 </div>
+
+                <section className="flex flex-col gap-3">
+                    <div>
+                        <h2 className="text-lg font-semibold">
+                            Permintaan penghapusan periode
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                            Persetujuan akan mengarsipkan periode dari daftar
+                            aktif HRD. Data payroll dan riwayat keuangan tidak
+                            dihapus permanen.
+                        </p>
+                    </div>
+                    {deletionRequests.length === 0 ? (
+                        <div className="rounded-2xl bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
+                            Tidak ada permintaan penghapusan periode yang
+                            menunggu persetujuan.
+                        </div>
+                    ) : (
+                        deletionRequests.map((request) => (
+                            <div
+                                key={request.id}
+                                className="flex flex-col gap-4 rounded-2xl border border-destructive/20 bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 font-semibold">
+                                        <Archive className="size-4 text-destructive" />
+                                        {request.period.name}
+                                    </div>
+                                    <div className="mt-1 text-xs text-muted-foreground">
+                                        {formatDate(request.period.starts_on)}
+                                        {' – '}
+                                        {formatDate(request.period.ends_on)}
+                                        {' · '}
+                                        {request.period.run_count} versi payroll
+                                        {' · Diminta oleh '}
+                                        {request.requester_name}
+                                    </div>
+                                    <p className="mt-2 text-sm">
+                                        {request.reason}
+                                    </p>
+                                </div>
+                                <div className="flex shrink-0 gap-2">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="rounded-full"
+                                        onClick={() => rejectDeletion(request)}
+                                    >
+                                        Tolak
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="destructive"
+                                        className="rounded-full"
+                                        onClick={() => approveDeletion(request)}
+                                    >
+                                        <Trash2 className="size-3.5" />
+                                        Setujui Pengarsipan
+                                    </Button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </section>
 
                 {runs.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-2 rounded-3xl bg-muted/40 py-16 text-center">

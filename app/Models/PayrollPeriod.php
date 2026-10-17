@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $attendance_starts_on
  * @property Carbon $attendance_ends_on
  * @property Carbon|null $payment_due_on
+ * @property Carbon|null $archived_at
  * @property string $currency
  * @property string $status open|closed
  */
@@ -25,6 +26,7 @@ class PayrollPeriod extends Model
         'company_id', 'name', 'starts_on', 'ends_on',
         'attendance_starts_on', 'attendance_ends_on', 'payment_due_on',
         'currency', 'status',
+        'archived_at',
     ];
 
     protected function casts(): array
@@ -35,6 +37,7 @@ class PayrollPeriod extends Model
             'attendance_starts_on' => 'date',
             'attendance_ends_on' => 'date',
             'payment_due_on' => 'date',
+            'archived_at' => 'datetime',
         ];
     }
 
@@ -52,5 +55,13 @@ class PayrollPeriod extends Model
     public function runs(): HasMany
     {
         return $this->hasMany(PayrollRun::class);
+    }
+
+    /**
+     * @return HasMany<PayrollPeriodDeletionRequest, $this>
+     */
+    public function deletionRequests(): HasMany
+    {
+        return $this->hasMany(PayrollPeriodDeletionRequest::class);
     }
 }

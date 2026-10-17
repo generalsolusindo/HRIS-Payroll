@@ -3,6 +3,7 @@ import { CalendarRange, Calculator, Eye, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 import PayrollRunController from '@/actions/App/Http/Controllers/Hrd/PayrollRunController';
+import { toast } from 'sonner';
 import InputError from '@/components/input-error';
 import { show as showPayrollRun } from '@/routes/hrd/hasil-payroll';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,11 @@ type PeriodRow = {
     ends_on: string;
     status: string;
     latest_run: LatestRun | null;
+    can_request_deletion: boolean;
+    deletion_request: {
+        status: 'pending' | 'approved' | 'rejected';
+        reason: string;
+    } | null;
 };
 
 type Props = {
@@ -152,6 +158,35 @@ export default function PayrollPeriods({ periods }: Props) {
             return;
         }
         router.post(PayrollRunController.store(periodId).url);
+    }
+
+    function requestDeletion(period: PeriodRow) {
+        const reason = window.prompt(
+            `Alasan meminta pengarsipan periode ${period.name}:`,
+        );
+
+        if (!reason?.trim()) {
+            return;
+        }
+
+        router.post(
+            PayrollPeriodController.requestDeletion(period.id).url,
+            { reason: reason.trim() },
+            {
+                onSuccess: () =>
+                    toast.success(
+                        'Permintaan dikirim dan menunggu persetujuan Manager.',
+                    ),
+                onError: (errors) => {
+                    const message = Object.values(errors)[0];
+                    toast.error(
+                        typeof message === 'string'
+                            ? message
+                            : 'Gagal mengirim permintaan pengarsipan.',
+                    );
+                },
+            },
+        );
     }
 
     return (
@@ -302,9 +337,46 @@ export default function PayrollPeriods({ periods }: Props) {
                                                         </Button>
                                                     </Link>
                                                 )}
-                                                {(!period.latest_run ||
-                                                    period.latest_run.status ===
-                                                        'revision_requested') && (
+                                                {period.latest_run &&
+                                                    period.can_request_deletion &&
+                                                    (period.deletion_request
+                                                        ?.status ===
+                                                    'pending' ? (
+                                                        <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                                                            Menunggu Manager
+                                                        </span>
+                                                    ) : (
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="rounded-full text-destructive hover:text-destructive"
+                                                            onClick={() =>
+                                                                requestDeletion(
+                                                                    period,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Trash2 className="size-3.5" />
+                                                            {period.deletion_request
+                                                                ?.status ===
+                                                            'rejected'
+                                                                ? 'Ajukan Lagi'
+                                                                : 'Minta Hapus'}
+                                                        </Button>
+                                                    ))}
+                                                {period.latest_run &&
+                                                    !period.can_request_deletion &&
+                                                    !period.deletion_request && (
+                                                        <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                                                            Payroll sudah disetujui/dibayar
+                                                        </span>
+                                                    )}
+                                                {period.deletion_request
+                                                    ?.status !== 'pending' &&
+                                                    (!period.latest_run ||
+                                                        period.latest_run.status ===
+                                                            'revision_requested') && (
                                                     <Button
                                                         type="button"
                                                         size="sm"

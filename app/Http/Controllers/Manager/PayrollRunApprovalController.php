@@ -7,6 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Models\PayrollApproval;
 use App\Models\PayrollEntry;
 use App\Models\PayrollEntryLine;
+use App\Models\PayrollPeriod;
+use App\Models\PayrollPeriodDeletionRequest;
 use App\Models\PayrollRun;
 use App\Services\PayrollReadiness;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +25,9 @@ class PayrollRunApprovalController extends Controller
     public function index(Request $request): Response
     {
         $runs = PayrollRun::where('status', 'submitted')
-            ->whereHas('period', fn ($query) => $query->where('company_id', $request->user()->company_id))
+            ->whereHas('period', fn ($query) => $query
+                ->where('company_id', $request->user()->company_id)
+                ->whereNull('archived_at'))
             ->with('period.company')
             ->oldest('submitted_at')
             ->get()
@@ -44,7 +48,30 @@ class PayrollRunApprovalController extends Controller
                 ],
             ]);
 
-        return Inertia::render('manager/payroll-run-approval', ['runs' => $runs]);
+        $deletionRequests = PayrollPeriodDeletionRequest::where('status', 'pending')
+            ->whereHas('period', fn ($query) => $query->where('company_id', $request->user()->company_id))
+            ->with(['period', 'requester'])
+            ->oldest('requested_at')
+            ->get()
+            ->map(fn (PayrollPeriodDeletionRequest $deletionRequest) => [
+                'id' => $deletionRequest->id,
+                'reason' => $deletionRequest->reason,
+                'requested_at' => $deletionRequest->requested_at->toIso8601String(),
+                'requester_name' => $deletionRequest->requester?->name
+                    ?? ($deletionRequest->requested_by_snapshot['name'] ?? 'HRD'),
+                'period' => [
+                    'id' => $deletionRequest->period->id,
+                    'name' => $deletionRequest->period->name,
+                    'starts_on' => $deletionRequest->period->starts_on->toDateString(),
+                    'ends_on' => $deletionRequest->period->ends_on->toDateString(),
+                    'run_count' => $deletionRequest->period->runs()->count(),
+                ],
+            ]);
+
+        return Inertia::render('manager/payroll-run-approval', [
+            'runs' => $runs,
+            'deletionRequests' => $deletionRequests,
+        ]);
     }
 
     /**
@@ -146,12 +173,84 @@ class PayrollRunApprovalController extends Controller
         return back();
     }
 
+    public function approvePeriodDeletion(Request $request, PayrollPeriodDeletionRequest $deletionRequest): RedirectResponse
+    {
+        $this->assertOwnCompany($request, $deletionRequest->period->company_id);
+
+        DB::transaction(function () use ($request, $deletionRequest) {
+            $lockedRequest = PayrollPeriodDeletionRequest::whereKey($deletionRequest->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $period = PayrollPeriod::whereKey($lockedRequest->payroll_period_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedRequest->status !== 'pending' || $period->archived_at !== null) {
+                throw ValidationException::withMessages([
+                    'status' => 'Permintaan ini sudah diproses atau periode telah diarsipkan.',
+                ]);
+            }
+
+            $period->forceFill(['archived_at' => now()])->save();
+            $lockedRequest->fill([
+                'status' => 'approved',
+                'decided_by' => $request->user()->id,
+                'decided_by_snapshot' => ['name' => $request->user()->name],
+                'decided_at' => now(),
+            ])->save();
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Periode disetujui untuk diarsipkan. Riwayat payroll tetap tersimpan.']);
+
+        return back();
+    }
+
+    public function rejectPeriodDeletion(Request $request, PayrollPeriodDeletionRequest $deletionRequest): RedirectResponse
+    {
+        $this->assertOwnCompany($request, $deletionRequest->period->company_id);
+        $validated = $request->validate([
+            'decision_note' => ['required', 'string', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($request, $deletionRequest, $validated) {
+            $lockedRequest = PayrollPeriodDeletionRequest::whereKey($deletionRequest->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedRequest->status !== 'pending') {
+                throw ValidationException::withMessages([
+                    'status' => 'Permintaan ini sudah diproses.',
+                ]);
+            }
+
+            $lockedRequest->fill([
+                'status' => 'rejected',
+                'decided_by' => $request->user()->id,
+                'decided_by_snapshot' => ['name' => $request->user()->name],
+                'decision_note' => $validated['decision_note'],
+                'decided_at' => now(),
+            ])->save();
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Permintaan penghapusan ditolak.']);
+
+        return back();
+    }
+
     /**
      * @param  array<string, mixed>  $extraAttributes
      */
     private function transition(Request $request, PayrollRun $run, string $expectedStatus, string $toStatus, string $action, ?string $note, array $extraAttributes): void
     {
         DB::transaction(function () use ($request, $run, $expectedStatus, $toStatus, $action, $note, $extraAttributes) {
+            $period = PayrollPeriod::whereKey($run->payroll_period_id)->lockForUpdate()->firstOrFail();
+
+            if ($period->archived_at !== null || $period->deletionRequests()->where('status', 'pending')->exists()) {
+                throw ValidationException::withMessages([
+                    'period' => 'Periode sedang menunggu keputusan penghapusan atau sudah diarsipkan.',
+                ]);
+            }
+
             $locked = PayrollRun::whereKey($run->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status !== $expectedStatus) {

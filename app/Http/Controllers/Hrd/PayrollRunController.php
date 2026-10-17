@@ -51,6 +51,12 @@ class PayrollRunController extends Controller
     {
         $this->assertOwnCompany($request, $period->company_id);
 
+        if ($period->archived_at !== null || $period->deletionRequests()->where('status', 'pending')->exists()) {
+            throw ValidationException::withMessages([
+                'period' => 'Periode sedang menunggu keputusan penghapusan atau sudah diarsipkan.',
+            ]);
+        }
+
         $latestRun = $period->runs()->latest('version')->first();
 
         // A cancelled run (see cancel()) is treated the same as
@@ -93,7 +99,10 @@ class PayrollRunController extends Controller
         $allowanceComponent = $this->allowanceComponent($period->company_id);
 
         $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $overtimeRate, $expectedAttendanceDays, $attendanceComponents, $overtimeComponent, $allowanceComponent, $latestRun, $refreshDraft, $recalculableStatuses) {
-            PayrollPeriod::whereKey($period->id)->lockForUpdate()->firstOrFail();
+            $lockedPeriod = PayrollPeriod::whereKey($period->id)->lockForUpdate()->firstOrFail();
+            if ($lockedPeriod->archived_at !== null || $lockedPeriod->deletionRequests()->where('status', 'pending')->exists()) {
+                throw ValidationException::withMessages(['period' => 'Periode sedang menunggu keputusan penghapusan atau sudah diarsipkan.']);
+            }
             $currentLatest = $period->runs()->latest('version')->first();
             $currentLatestOk = $refreshDraft ? $currentLatest?->status === 'draft' : (! $currentLatest || in_array($currentLatest->status, $recalculableStatuses, true));
             if ($currentLatest?->id !== $latestRun?->id || ! $currentLatestOk) {
@@ -422,6 +431,10 @@ class PayrollRunController extends Controller
     public function submit(Request $request, PayrollRun $run): RedirectResponse
     {
         $this->assertOwnCompany($request, $run->period->company_id);
+
+        if ($run->period->archived_at !== null || $run->period->deletionRequests()->where('status', 'pending')->exists()) {
+            throw ValidationException::withMessages(['period' => 'Periode sedang menunggu keputusan penghapusan atau sudah diarsipkan.']);
+        }
 
         DB::transaction(function () use ($request, $run) {
             $locked = PayrollRun::whereKey($run->id)->lockForUpdate()->firstOrFail();

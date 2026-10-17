@@ -8,6 +8,7 @@ use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
+use App\Models\PayrollPeriodDeletionRequest;
 use App\Models\PayrollRun;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -121,6 +122,27 @@ class PayrollRunApprovalTest extends TestCase
             'from_status' => 'submitted', 'to_status' => 'approved',
             'actor_id' => $manager->id, 'note' => 'Sudah dicek, OK.',
         ]);
+    }
+
+    public function test_manager_cannot_approve_a_run_while_period_deletion_is_pending(): void
+    {
+        [$manager, $run] = $this->makeManagerAndSubmittedRun();
+        $hrd = User::factory()->create([
+            'company_id' => $manager->company_id,
+            'role' => 'hrd',
+        ]);
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.minta-hapus', $run->period), [
+                'reason' => 'Periode ini dibuat untuk simulasi.',
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $this->actingAs($manager)
+            ->patch(route('manager.payroll.approve', $run), ['note' => null])
+            ->assertSessionHasErrors('period');
+
+        $this->assertSame('submitted', $run->fresh()->status);
     }
 
     public function test_manager_cannot_approve_another_companys_run(): void

@@ -15,6 +15,40 @@ class PayrollPeriodManagementTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function createCalculatedPeriod(User $hrd): PayrollPeriod
+    {
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
+        $component = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok', 'type' => 'earning',
+        ]);
+        $employee = User::factory()->create([
+            'company_id' => $hrd->company_id,
+            'role' => 'karyawan',
+            'status' => 'active',
+        ]);
+        $profile = EmployeePayrollProfile::create([
+            'user_id' => $employee->id,
+            'company_id' => $hrd->company_id,
+            'division_id' => $division->id,
+            'position_id' => $employee->position_id,
+            'effective_from' => '2026-10-01',
+            'employment_started_on' => '2026-01-01',
+            'employment_type' => 'permanent',
+        ]);
+        $profile->salaryComponents()->create([
+            'payroll_component_id' => $component->id,
+            'amount' => '2500000',
+            'basis' => 'monthly',
+        ]);
+        $period = PayrollPeriod::create($this->payload($hrd->company_id));
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.hitung', $period))
+            ->assertSessionDoesntHaveErrors();
+
+        return $period->refresh();
+    }
+
     private function payload(int $companyId, array $overrides = []): array
     {
         return array_merge([
@@ -147,6 +181,83 @@ class PayrollPeriodManagementTest extends TestCase
             ->assertSessionHasErrors('period');
 
         $this->assertModelExists($period);
+    }
+
+    public function test_a_calculated_period_is_archived_only_after_manager_approval_and_its_run_is_preserved(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $manager = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'admin']);
+        $period = $this->createCalculatedPeriod($hrd);
+        $run = $period->runs()->firstOrFail();
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.minta-hapus', $period), ['reason' => 'Periode dibuat untuk simulasi.'])
+            ->assertSessionDoesntHaveErrors();
+
+        $request = $period->deletionRequests()->firstOrFail();
+        $this->assertSame('pending', $request->status);
+        $this->assertNull($period->fresh()->archived_at);
+
+        $this->actingAs($manager)
+            ->patch(route('manager.payroll.hapus-periode.approve', $request))
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSame('approved', $request->fresh()->status);
+        $this->assertNotNull($period->fresh()->archived_at);
+        $this->assertModelExists($run);
+
+        $response = $this->actingAs($hrd)->get(route('hrd.periode-gaji.index'))->assertOk();
+        $this->assertCount(0, $response->viewData('page')['props']['periods']);
+    }
+
+    public function test_manager_can_reject_a_period_deletion_request_with_a_reason(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $manager = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'admin']);
+        $period = $this->createCalculatedPeriod($hrd);
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.minta-hapus', $period), ['reason' => 'Periode duplikat.'])
+            ->assertSessionDoesntHaveErrors();
+        $request = $period->deletionRequests()->firstOrFail();
+
+        $this->actingAs($manager)
+            ->patch(route('manager.payroll.hapus-periode.reject', $request), [
+                'decision_note' => 'Periode masih dibutuhkan untuk proses payroll.',
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSame('rejected', $request->fresh()->status);
+        $this->assertNull($period->fresh()->archived_at);
+    }
+
+    public function test_an_uncalculated_period_cannot_request_manager_approved_deletion(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = PayrollPeriod::create($this->payload($hrd->company_id));
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.minta-hapus', $period), ['reason' => 'Tidak diperlukan.'])
+            ->assertSessionHasErrors('period');
+
+        $this->assertDatabaseMissing('payroll_period_deletion_requests', [
+            'payroll_period_id' => $period->id,
+        ]);
+    }
+
+    public function test_a_period_cannot_be_archived_after_payroll_is_approved(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->createCalculatedPeriod($hrd);
+        $period->runs()->firstOrFail()->update(['status' => 'approved']);
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.minta-hapus', $period), ['reason' => 'Periode duplikat.'])
+            ->assertSessionHasErrors('period');
+
+        $this->assertDatabaseMissing('payroll_period_deletion_requests', [
+            'payroll_period_id' => $period->id,
+        ]);
     }
 
     public function test_hrd_cannot_delete_another_companys_period(): void

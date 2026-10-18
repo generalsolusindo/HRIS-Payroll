@@ -2,18 +2,25 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Bell,
     Briefcase,
+    CalendarCheck,
     Camera,
     CheckCircle2,
     ChevronRight,
     ClipboardList,
     CalendarOff,
     MapPin,
+    Trash2,
     Users,
+    Wallet,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { toast } from 'sonner';
 import AttendanceDashboardController from '@/actions/App/Http/Controllers/Hrd/AttendanceDashboardController';
 import UserManagementController from '@/actions/App/Http/Controllers/Hrd/UserManagementController';
+import FinancePayrollPaymentController from '@/actions/App/Http/Controllers/Finance/PayrollPaymentController';
+import ManagerLeaveRequestApprovalController from '@/actions/App/Http/Controllers/Manager/LeaveRequestApprovalController';
+import ManagerPayrollRunApprovalController from '@/actions/App/Http/Controllers/Manager/PayrollRunApprovalController';
 import { AttendanceCaptureScreen } from '@/components/attendance-capture-screen';
 import { AttendanceStatCard } from '@/components/attendance-stat-card';
 import { AttendanceSuccessScreen } from '@/components/attendance-success-screen';
@@ -70,9 +77,21 @@ type HrdSummary = {
     pending_users: number;
 } | null;
 
+type ManagerSummary = {
+    pending_leave: number;
+    pending_payroll: number;
+    pending_period_deletion: number;
+} | null;
+
+type FinanceSummary = {
+    pending_payment: number;
+} | null;
+
 type Props = {
     user: { name: string };
-    hrdSummary: HrdSummary;
+    hrdSummary?: HrdSummary;
+    managerSummary?: ManagerSummary;
+    financeSummary?: FinanceSummary;
     isTeknisi?: boolean;
     todayAttendance?: TodayAttendance;
     officeLocations?: OfficeLocation[];
@@ -297,9 +316,190 @@ function HrdDashboard({
     );
 }
 
+function DashboardLinkCard({
+    href,
+    icon,
+    title,
+    description,
+}: {
+    href: string;
+    icon: ReactNode;
+    title: string;
+    description: string;
+}) {
+    return (
+        <Link
+            href={href}
+            className="flex items-center gap-4 rounded-3xl border p-4 text-left transition hover:bg-muted/40"
+        >
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted">
+                {icon}
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">{title}</span>
+                <span className="block text-xs text-muted-foreground">
+                    {description}
+                </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
+    );
+}
+
+function ManagerDashboard({
+    userName,
+    summary,
+}: {
+    userName: string;
+    summary: NonNullable<ManagerSummary>;
+}) {
+    return (
+        <>
+            <Head title="Dashboard" />
+            <div className="flex flex-1 flex-col gap-4 p-4">
+                <div className="mx-auto flex w-full max-w-xl flex-col gap-4 lg:max-w-5xl">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Avatar className="size-11">
+                                <AvatarFallback className="bg-brand-navy/8 font-semibold text-brand-navy dark:bg-brand-navy/35 dark:text-foreground">
+                                    {initialsOf(userName)}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <div className="text-sm text-muted-foreground">
+                                    {greeting()},
+                                </div>
+                                <div className="font-semibold">
+                                    {userName}
+                                </div>
+                            </div>
+                        </div>
+                        <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                            <Bell className="size-4" />
+                        </span>
+                    </div>
+
+                    <div>
+                        <h1 className="text-xl font-bold tracking-tight">
+                            Menunggu Persetujuan
+                        </h1>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Ringkasan yang butuh keputusan kamu.
+                        </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <DashboardLinkCard
+                            href={ManagerLeaveRequestApprovalController.index().url}
+                            icon={
+                                <CalendarCheck className="size-5 text-muted-foreground" />
+                            }
+                            title="Persetujuan Izin"
+                            description={
+                                summary.pending_leave > 0
+                                    ? `${summary.pending_leave} izin menunggu persetujuan`
+                                    : 'Tidak ada izin menunggu'
+                            }
+                        />
+                        <DashboardLinkCard
+                            href={ManagerPayrollRunApprovalController.index().url}
+                            icon={
+                                <Wallet className="size-5 text-muted-foreground" />
+                            }
+                            title="Persetujuan Payroll"
+                            description={
+                                summary.pending_payroll > 0
+                                    ? `${summary.pending_payroll} hasil payroll menunggu persetujuan`
+                                    : 'Tidak ada hasil payroll menunggu'
+                            }
+                        />
+                        {summary.pending_period_deletion > 0 && (
+                            <DashboardLinkCard
+                                href={
+                                    ManagerPayrollRunApprovalController.index()
+                                        .url
+                                }
+                                icon={
+                                    <Trash2 className="size-5 text-muted-foreground" />
+                                }
+                                title="Permintaan Hapus Periode"
+                                description={`${summary.pending_period_deletion} periode menunggu persetujuan hapus`}
+                            />
+                        )}
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+}
+
+function FinanceDashboard({
+    userName,
+    summary,
+}: {
+    userName: string;
+    summary: NonNullable<FinanceSummary>;
+}) {
+    return (
+        <>
+            <Head title="Dashboard" />
+            <div className="flex flex-1 flex-col gap-4 p-4">
+                <div className="mx-auto flex w-full max-w-xl flex-col gap-4 lg:max-w-5xl">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Avatar className="size-11">
+                                <AvatarFallback className="bg-brand-navy/8 font-semibold text-brand-navy dark:bg-brand-navy/35 dark:text-foreground">
+                                    {initialsOf(userName)}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <div className="text-sm text-muted-foreground">
+                                    {greeting()},
+                                </div>
+                                <div className="font-semibold">
+                                    {userName}
+                                </div>
+                            </div>
+                        </div>
+                        <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                            <Bell className="size-4" />
+                        </span>
+                    </div>
+
+                    <div>
+                        <h1 className="text-xl font-bold tracking-tight">
+                            Pembayaran Payroll
+                        </h1>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Ringkasan yang butuh kamu proses.
+                        </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <DashboardLinkCard
+                            href={FinancePayrollPaymentController.index().url}
+                            icon={
+                                <Wallet className="size-5 text-muted-foreground" />
+                            }
+                            title="Catat Pembayaran"
+                            description={
+                                summary.pending_payment > 0
+                                    ? `${summary.pending_payment} periode menunggu dibayar`
+                                    : 'Tidak ada periode menunggu dibayar'
+                            }
+                        />
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+}
+
 export default function Dashboard({
     user,
     hrdSummary,
+    managerSummary,
+    financeSummary,
     isTeknisi = false,
     todayAttendance = null,
     officeLocations = [],
@@ -335,9 +535,10 @@ export default function Dashboard({
     }, [todayAttendance]);
 
     useEffect(() => {
-        // HRD never clocks in, so there's nothing for this chip to show —
-        // skip asking for a location permission it has no use for.
-        if (hrdSummary || screen !== 'home') {
+        // HRD/Manager/Finance never clock in, so there's nothing for this
+        // chip to show — skip asking for a location permission none of
+        // them have any use for.
+        if (hrdSummary || managerSummary || financeSummary || screen !== 'home') {
             return;
         }
 
@@ -364,6 +565,18 @@ export default function Dashboard({
 
     if (hrdSummary) {
         return <HrdDashboard userName={user.name} summary={hrdSummary} />;
+    }
+
+    if (managerSummary) {
+        return (
+            <ManagerDashboard userName={user.name} summary={managerSummary} />
+        );
+    }
+
+    if (financeSummary) {
+        return (
+            <FinanceDashboard userName={user.name} summary={financeSummary} />
+        );
     }
 
     function handleStart(type: 'masuk' | 'pulang') {

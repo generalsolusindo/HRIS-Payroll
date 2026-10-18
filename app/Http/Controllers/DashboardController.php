@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\CompanyCalendarDay;
+use App\Models\LeaveRequest;
+use App\Models\PayrollPeriodDeletionRequest;
+use App\Models\PayrollRun;
 use App\Models\User;
 use App\Services\CompanyWorkCalendar;
 use Illuminate\Support\Carbon;
@@ -15,11 +18,12 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
 
-        if ($user->role === 'hrd') {
-            return $this->hrdDashboard($user);
-        }
-
-        return $this->employeeDashboard($user);
+        return match ($user->role) {
+            'hrd' => $this->hrdDashboard($user),
+            'admin' => $this->managerDashboard($user),
+            'finance' => $this->financeDashboard($user),
+            default => $this->employeeDashboard($user),
+        };
     }
 
     /**
@@ -54,6 +58,44 @@ class DashboardController extends Controller
                 'belum_absen' => $totalKaryawan - $sudahAbsen,
                 'telat' => $telat,
                 'pending_users' => User::where('status', 'pending')->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * Manager only approves things here — it never clocks in — so the
+     * dashboard is a count of what's waiting on their decision instead of
+     * the employee clock-in widget.
+     */
+    private function managerDashboard(User $user): Response
+    {
+        return Inertia::render('dashboard', [
+            'user' => ['name' => $user->name],
+            'managerSummary' => [
+                'pending_leave' => LeaveRequest::where('status', 'pending_manager')
+                    ->whereHas('user', fn ($query) => $query->where('company_id', $user->company_id))
+                    ->count(),
+                'pending_payroll' => PayrollRun::where('status', 'submitted')
+                    ->whereHas('period', fn ($query) => $query->where('company_id', $user->company_id)->whereNull('archived_at'))
+                    ->count(),
+                'pending_period_deletion' => PayrollPeriodDeletionRequest::where('status', 'pending')
+                    ->whereHas('period', fn ($query) => $query->where('company_id', $user->company_id))
+                    ->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * Finance only records payments — same reasoning as Manager above.
+     */
+    private function financeDashboard(User $user): Response
+    {
+        return Inertia::render('dashboard', [
+            'user' => ['name' => $user->name],
+            'financeSummary' => [
+                'pending_payment' => PayrollRun::whereIn('status', ['approved', 'locked', 'partially_paid'])
+                    ->whereHas('period', fn ($query) => $query->where('company_id', $user->company_id))
+                    ->count(),
             ],
         ]);
     }

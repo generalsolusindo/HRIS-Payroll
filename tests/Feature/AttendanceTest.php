@@ -108,7 +108,10 @@ class AttendanceTest extends TestCase
 
     public function test_employee_cannot_clock_in_on_a_company_holiday(): void
     {
-        $user = $this->makeUser();
+        // false: the test's own holiday override below is for this exact
+        // date, which can otherwise collide with makeUser()'s "today is a
+        // workday" row once the real calendar reaches this hardcoded date.
+        $user = $this->makeUser(false);
         $date = CarbonImmutable::parse('2026-10-19', 'Asia/Jakarta');
         CompanyCalendarDay::create([
             'company_id' => $user->company_id,
@@ -171,7 +174,10 @@ class AttendanceTest extends TestCase
     public function test_a_holiday_can_exempt_a_specific_employee_who_still_has_to_work(): void
     {
         $date = CarbonImmutable::parse('2026-10-19', 'Asia/Jakarta');
-        $exempted = $this->makeUser();
+        // false: this test's own holiday override below is for this exact
+        // date, which can otherwise collide with makeUser()'s "today is a
+        // workday" row once the real calendar reaches this hardcoded date.
+        $exempted = $this->makeUser(false);
         $everyoneElse = User::factory()->withEnrolledFace()->create(['company_id' => $exempted->company_id]);
         CompanyCalendarDay::create([
             'company_id' => $exempted->company_id,

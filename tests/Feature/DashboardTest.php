@@ -3,6 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Attendance;
+use App\Models\LeaveRequest;
+use App\Models\PayrollPeriod;
+use App\Models\PayrollPeriodDeletionRequest;
+use App\Models\PayrollPolicy;
+use App\Models\PayrollRun;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -67,6 +72,66 @@ class DashboardTest extends TestCase
                 ->where('hrdSummary.telat', 1)
                 ->where('hrdSummary.pending_users', 1)
                 ->missing('todayAttendance')
+            );
+    }
+
+    public function test_manager_gets_an_approval_summary_instead_of_the_clock_in_dashboard(): void
+    {
+        $manager = User::factory()->withEnrolledFace()->create(['role' => 'admin']);
+        $employee = User::factory()->create(['company_id' => $manager->company_id, 'role' => 'karyawan', 'status' => 'active']);
+        LeaveRequest::create([
+            'request_number' => 'REQ-DASH-1', 'user_id' => $employee->id, 'type' => 'sick',
+            'leave_date' => today(), 'status' => 'pending_manager',
+        ]);
+        $period = PayrollPeriod::create([
+            'company_id' => $manager->company_id, 'name' => 'Oktober 2026',
+            'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
+            'attendance_starts_on' => '2026-10-01', 'attendance_ends_on' => '2026-10-17',
+        ]);
+        $policy = PayrollPolicy::create([
+            'company_id' => $manager->company_id, 'code' => 'REGULAR', 'version' => 1,
+            'effective_from' => '2026-10-01', 'rules' => [],
+        ]);
+        PayrollRun::create(['payroll_period_id' => $period->id, 'payroll_policy_id' => $policy->id, 'version' => 1, 'status' => 'submitted', 'policy_snapshot' => [], 'company_snapshot' => []]);
+        PayrollPeriodDeletionRequest::create([
+            'payroll_period_id' => $period->id, 'requested_by' => $manager->id,
+            'requested_by_snapshot' => ['name' => $manager->name], 'status' => 'pending',
+            'reason' => 'Dibuat keliru.', 'requested_at' => now(),
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('managerSummary.pending_leave', 1)
+                ->where('managerSummary.pending_payroll', 1)
+                ->where('managerSummary.pending_period_deletion', 1)
+                ->missing('todayAttendance')
+                ->missing('hrdSummary')
+            );
+    }
+
+    public function test_finance_gets_a_pending_payment_summary_instead_of_the_clock_in_dashboard(): void
+    {
+        $finance = User::factory()->withEnrolledFace()->create(['role' => 'finance']);
+        $period = PayrollPeriod::create([
+            'company_id' => $finance->company_id, 'name' => 'Oktober 2026',
+            'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
+            'attendance_starts_on' => '2026-10-01', 'attendance_ends_on' => '2026-10-17',
+        ]);
+        $policy = PayrollPolicy::create([
+            'company_id' => $finance->company_id, 'code' => 'REGULAR', 'version' => 1,
+            'effective_from' => '2026-10-01', 'rules' => [],
+        ]);
+        PayrollRun::create(['payroll_period_id' => $period->id, 'payroll_policy_id' => $policy->id, 'version' => 1, 'status' => 'approved', 'policy_snapshot' => [], 'company_snapshot' => []]);
+
+        $this->actingAs($finance)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('financeSummary.pending_payment', 1)
+                ->missing('todayAttendance')
+                ->missing('hrdSummary')
             );
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Manager;
 
 use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
+use App\Models\Company;
 use App\Models\PayrollApproval;
 use App\Models\PayrollEntry;
 use App\Models\PayrollEntryLine;
@@ -243,6 +244,7 @@ class PayrollRunApprovalController extends Controller
     private function transition(Request $request, PayrollRun $run, string $expectedStatus, string $toStatus, string $action, ?string $note, array $extraAttributes): void
     {
         DB::transaction(function () use ($request, $run, $expectedStatus, $toStatus, $action, $note, $extraAttributes) {
+            Company::whereKey($run->period->company_id)->lockForUpdate()->firstOrFail();
             $period = PayrollPeriod::whereKey($run->payroll_period_id)->lockForUpdate()->firstOrFail();
 
             if ($period->archived_at !== null || $period->deletionRequests()->where('status', 'pending')->exists()) {

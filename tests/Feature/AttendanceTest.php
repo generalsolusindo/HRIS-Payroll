@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Attendance;
 use App\Models\Company;
+use App\Models\CompanyCalendarDay;
 use App\Models\OfficeLocation;
 use App\Models\User;
 use App\Models\WorkSchedule;
@@ -34,7 +35,7 @@ class AttendanceTest extends TestCase
         $this->app->instance(FaceDescriptorExtractor::class, $extractor);
     }
 
-    private function makeUser(): User
+    private function makeUser(bool $workdayToday = true): User
     {
         $company = Company::factory()->create();
 
@@ -53,6 +54,15 @@ class AttendanceTest extends TestCase
             'jam_pulang' => '17:00:00',
             'toleransi_telat_menit' => 15,
         ]);
+
+        if ($workdayToday) {
+            CompanyCalendarDay::create([
+                'company_id' => $company->id,
+                'date' => today()->toDateString(),
+                'type' => 'workday',
+                'description' => 'Override hari kerja untuk fixture tes.',
+            ]);
+        }
 
         return User::factory()->withEnrolledFace()->create(['company_id' => $company->id]);
     }
@@ -82,6 +92,105 @@ class AttendanceTest extends TestCase
         $this->assertSame('tepat_waktu', $attendance->clock_in_status);
         $this->assertNotNull($attendance->clock_in_time);
         Storage::disk('attendance_photos')->assertExists($attendance->clock_in_photo_path);
+    }
+
+    public function test_employee_cannot_clock_in_on_sunday_by_default(): void
+    {
+        $user = $this->makeUser(false);
+        $this->travelTo(CarbonImmutable::parse('2026-10-18 08:00:00', 'Asia/Jakarta'));
+
+        $this->actingAs($user)
+            ->post(route('absen.masuk'), $this->payload())
+            ->assertSessionHasErrors('photo');
+
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_employee_cannot_clock_in_on_a_company_holiday(): void
+    {
+        $user = $this->makeUser();
+        $date = CarbonImmutable::parse('2026-10-19', 'Asia/Jakarta');
+        CompanyCalendarDay::create([
+            'company_id' => $user->company_id,
+            'date' => $date->toDateString(),
+            'type' => 'holiday',
+            'description' => 'Libur perusahaan',
+        ]);
+        $this->travelTo($date->setTime(8, 0));
+
+        $this->actingAs($user)
+            ->post(route('absen.masuk'), $this->payload())
+            ->assertSessionHasErrors('photo');
+
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_company_workday_override_allows_clock_in_on_sunday(): void
+    {
+        $user = $this->makeUser(false);
+        $date = CarbonImmutable::parse('2026-10-18', 'Asia/Jakarta');
+        CompanyCalendarDay::create([
+            'company_id' => $user->company_id,
+            'date' => $date->toDateString(),
+            'type' => 'workday',
+            'description' => 'Operasional khusus',
+        ]);
+        $this->travelTo($date->setTime(8, 0));
+
+        $this->actingAs($user)
+            ->post(route('absen.masuk'), $this->payload())
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseCount('attendances', 1);
+    }
+
+    public function test_a_workday_override_restricted_to_specific_employees_blocks_everyone_else(): void
+    {
+        $date = CarbonImmutable::parse('2026-10-18', 'Asia/Jakarta');
+        $allowed = $this->makeUser(false);
+        $notAllowed = User::factory()->withEnrolledFace()->create(['company_id' => $allowed->company_id]);
+        CompanyCalendarDay::create([
+            'company_id' => $allowed->company_id,
+            'date' => $date->toDateString(),
+            'type' => 'workday',
+            'allowed_user_ids' => [$allowed->id],
+        ]);
+        $this->travelTo($date->setTime(8, 0));
+
+        $this->actingAs($allowed)
+            ->post(route('absen.masuk'), $this->payload())
+            ->assertSessionDoesntHaveErrors();
+
+        $this->actingAs($notAllowed)
+            ->post(route('absen.masuk'), $this->payload())
+            ->assertSessionHasErrors('photo');
+
+        $this->assertDatabaseCount('attendances', 1);
+    }
+
+    public function test_a_holiday_can_exempt_a_specific_employee_who_still_has_to_work(): void
+    {
+        $date = CarbonImmutable::parse('2026-10-19', 'Asia/Jakarta');
+        $exempted = $this->makeUser();
+        $everyoneElse = User::factory()->withEnrolledFace()->create(['company_id' => $exempted->company_id]);
+        CompanyCalendarDay::create([
+            'company_id' => $exempted->company_id,
+            'date' => $date->toDateString(),
+            'type' => 'holiday',
+            'description' => 'Libur perusahaan',
+            'allowed_user_ids' => [$exempted->id],
+        ]);
+        $this->travelTo($date->setTime(8, 0));
+
+        $this->actingAs($exempted)
+            ->post(route('absen.masuk'), $this->payload())
+            ->assertSessionDoesntHaveErrors();
+
+        $this->actingAs($everyoneElse)
+            ->post(route('absen.masuk'), $this->payload())
+            ->assertSessionHasErrors('photo');
+
+        $this->assertDatabaseCount('attendances', 1);
     }
 
     public function test_employee_clocking_in_late_is_marked_telat()

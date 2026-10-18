@@ -93,6 +93,8 @@ class PayrollAuditLogTest extends TestCase
             'late_deduction_per_minute' => '2000',
             'absence_deduction_per_day' => '150000',
             'perfect_attendance_reward' => '100000',
+            'allowance_per_day' => '50000',
+            'transport_per_day' => '12000',
             'overtime_rate_per_hour' => '25000',
         ]);
 

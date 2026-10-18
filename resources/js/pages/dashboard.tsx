@@ -6,6 +6,7 @@ import {
     CheckCircle2,
     ChevronRight,
     ClipboardList,
+    CalendarOff,
     MapPin,
     Users,
 } from 'lucide-react';
@@ -47,6 +48,19 @@ type WorkSchedule = {
     jam_pulang: string;
 } | null;
 
+type AttendanceDay = {
+    type: 'workday' | 'rest_day' | 'holiday';
+    label: string;
+    description: string | null;
+};
+
+type UpcomingDayOff = {
+    type: 'rest_day' | 'holiday';
+    description: string | null;
+    starts_on: string;
+    ends_on: string;
+};
+
 type HrdSummary = {
     tanggal: string;
     total_karyawan: number;
@@ -63,6 +77,8 @@ type Props = {
     todayAttendance?: TodayAttendance;
     officeLocations?: OfficeLocation[];
     workSchedule?: WorkSchedule;
+    attendanceDay?: AttendanceDay;
+    upcomingDaysOff?: UpcomingDayOff[];
 };
 
 type SuccessData = {
@@ -99,6 +115,18 @@ function formatToday(): string {
         month: 'long',
         year: 'numeric',
     });
+}
+
+function formatDateRange(startsOn: string, endsOn: string): string {
+    const format = (value: string) =>
+        new Date(`${value}T00:00:00`).toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'short',
+        });
+
+    return startsOn === endsOn
+        ? format(startsOn)
+        : `${format(startsOn)} – ${format(endsOn)}`;
 }
 
 function currentMonthName(): string {
@@ -276,6 +304,8 @@ export default function Dashboard({
     todayAttendance = null,
     officeLocations = [],
     workSchedule = null,
+    attendanceDay,
+    upcomingDaysOff = [],
 }: Props) {
     const { faceVerificationEnabled } = usePage<{
         faceVerificationEnabled: boolean;
@@ -530,6 +560,21 @@ export default function Dashboard({
                                     <CheckCircle2 className="size-4 text-emerald-500" />
                                     Absensi hari ini selesai
                                 </div>
+                            ) : attendanceDay &&
+                              attendanceDay.type !== 'workday' &&
+                              !hasClockedIn ? (
+                                <div className="flex items-start gap-3 rounded-3xl border bg-muted/40 p-4 text-sm">
+                                    <CalendarOff className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+                                    <div>
+                                        <div className="font-semibold">
+                                            {attendanceDay.label}
+                                        </div>
+                                        <div className="mt-1 text-muted-foreground">
+                                            {attendanceDay.description ||
+                                                'Absensi dinonaktifkan untuk tanggal ini.'}
+                                        </div>
+                                    </div>
+                                </div>
                             ) : (
                                 <button
                                     type="button"
@@ -640,6 +685,37 @@ export default function Dashboard({
                                     </Link>
                                 </div>
                             </div>
+
+                            {upcomingDaysOff.length > 0 && (
+                                <div className="rounded-3xl border p-4">
+                                    <h2 className="flex items-center gap-2 text-sm font-semibold">
+                                        <CalendarOff className="size-4 text-muted-foreground" />
+                                        Libur Mendatang
+                                    </h2>
+                                    <div className="mt-3 flex flex-col gap-3">
+                                        {upcomingDaysOff.map((dayOff) => (
+                                            <div
+                                                key={`${dayOff.starts_on}-${dayOff.ends_on}`}
+                                                className="text-sm"
+                                            >
+                                                <div className="font-medium">
+                                                    {dayOff.description ||
+                                                        (dayOff.type ===
+                                                        'holiday'
+                                                            ? 'Hari libur'
+                                                            : 'Hari istirahat')}
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {formatDateRange(
+                                                        dayOff.starts_on,
+                                                        dayOff.ends_on,
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

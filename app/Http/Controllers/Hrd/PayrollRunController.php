@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Hrd;
 use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceReview;
+use App\Models\Company;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\OvertimeRequest;
@@ -17,6 +18,7 @@ use App\Models\PayrollPolicy;
 use App\Models\PayrollRun;
 use App\Models\User;
 use App\Services\AttendanceReviewGenerator;
+use App\Services\CompanyWorkCalendar;
 use App\Services\PayrollMoney;
 use App\Services\PayrollReadiness;
 use App\Services\PayrollTotals;
@@ -89,16 +91,18 @@ class PayrollRunController extends Controller
 
         $rules = $policy->rules['attendance'] ?? [];
         $lateRate = PayrollMoney::decimal((string) ($rules['late_deduction_per_minute'] ?? '0'));
-        $absenceRate = PayrollMoney::decimal((string) ($rules['absence_deduction_per_day'] ?? '0'));
         $rewardRate = PayrollMoney::decimal((string) ($rules['perfect_attendance_reward'] ?? '0'));
+        $allowanceRate = PayrollMoney::decimal((string) ($rules['allowance_per_day'] ?? '0'));
+        $transportRate = PayrollMoney::decimal((string) ($rules['transport_per_day'] ?? '0'));
         $overtimeRate = PayrollMoney::decimal((string) ($policy->rules['overtime']['rate_per_hour'] ?? '0'));
         $expectedAttendanceDays = (int) $period->attendance_starts_on->diffInDays($period->attendance_ends_on) + 1;
 
         $attendanceComponents = $this->attendanceComponents($period->company_id);
         $overtimeComponent = $this->overtimeComponent($period->company_id);
         $allowanceComponent = $this->allowanceComponent($period->company_id);
+        $transportComponent = $this->transportComponent($period->company_id);
 
-        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $absenceRate, $rewardRate, $overtimeRate, $expectedAttendanceDays, $attendanceComponents, $overtimeComponent, $allowanceComponent, $latestRun, $refreshDraft, $recalculableStatuses) {
+        $result = DB::transaction(function () use ($period, $policy, $request, $lateRate, $rewardRate, $allowanceRate, $transportRate, $overtimeRate, $expectedAttendanceDays, $attendanceComponents, $overtimeComponent, $allowanceComponent, $transportComponent, $latestRun, $refreshDraft, $recalculableStatuses) {
             $lockedPeriod = PayrollPeriod::whereKey($period->id)->lockForUpdate()->firstOrFail();
             if ($lockedPeriod->archived_at !== null || $lockedPeriod->deletionRequests()->where('status', 'pending')->exists()) {
                 throw ValidationException::withMessages(['period' => 'Periode sedang menunggu keputusan penghapusan atau sudah diarsipkan.']);
@@ -181,9 +185,38 @@ class PayrollRunController extends Controller
                     ->orderBy('date')
                     ->get();
 
-                $allowanceRate = PayrollMoney::decimal((string) $profile->division->daily_attendance_allowance);
-                $attendance = $this->summarizeAttendance($reviews, $expectedAttendanceDays, $lateRate, $absenceRate, $rewardRate, $allowanceRate);
+                $attendance = $this->summarizeAttendance(
+                    $reviews,
+                    $expectedAttendanceDays,
+                    $lateRate,
+                    $rewardRate,
+                    $allowanceRate,
+                    $transportRate,
+                    app(CompanyWorkCalendar::class),
+                    $period->company_id,
+                    $profile->user_id,
+                );
                 $totalUnresolvedDays += $attendance['unresolved_days'];
+
+                // Potongan Alpha = Gaji Pokok ÷ Hari Kerja periode ini ×
+                // Jumlah Hari Alpha — the office's fixed formula, so it's
+                // proportional to each employee's own base salary and the
+                // period's actual working-day count, not one flat company
+                // rate. An employee without a "Gaji Pokok" earning
+                // component on their profile simply gets no alpha
+                // deduction computed (HRD still sees the missing profile
+                // elsewhere) rather than this silently erroring out.
+                $baseSalaryComponent = $profile->salaryComponents->first(
+                    fn (EmployeeSalaryComponent $component) => $component->payrollComponent->type === 'earning'
+                        && strtolower($component->payrollComponent->name) === 'gaji pokok',
+                );
+                $baseSalary = $baseSalaryComponent ? PayrollMoney::decimal($baseSalaryComponent->amount) : '0.00';
+                $absenceDeductionAmount = null;
+                $absenceDeductionRatePerDay = null;
+                if ($attendance['absent_days'] > 0 && $attendance['workdays'] > 0 && bccomp($baseSalary, '0', 2) > 0) {
+                    $absenceDeductionRatePerDay = bcdiv($baseSalary, (string) $attendance['workdays'], 4);
+                    $absenceDeductionAmount = PayrollMoney::decimal(bcmul($absenceDeductionRatePerDay, (string) $attendance['absent_days'], 4));
+                }
 
                 $overtimeMinutes = (int) OvertimeRequest::where('user_id', $profile->user_id)
                     ->where('status', 'approved')
@@ -195,8 +228,25 @@ class PayrollRunController extends Controller
                 $gross = bcadd($salaryGross, $this->decimal($attendance['reward_amount']), 2);
                 $gross = bcadd($gross, $this->decimal($overtimeAmount), 2);
                 $gross = bcadd($gross, $this->decimal($attendance['allowance_amount']), 2);
-                $deduction = bcadd($this->decimal($attendance['late_deduction_amount']), $this->decimal($attendance['absence_deduction_amount']), 2);
-                $deduction = bcadd($deduction, $salaryManualDeduction, 2);
+                $gross = bcadd($gross, $this->decimal($attendance['transport_amount']), 2);
+
+                // A near-total-absence month can make Gaji Pokok ÷ Hari
+                // Kerja × Hari Alpha alone exceed take-home pay. Rather
+                // than block the whole run over this automatic formula
+                // result, the alpha deduction is capped so it never pushes
+                // net pay below zero by itself — other deductions (telat,
+                // potongan manual) still apply normally and can still
+                // produce a negative net, which stays blocked below since
+                // those are deliberate HRD decisions, not a formula artifact.
+                $otherDeduction = bcadd($this->decimal($attendance['late_deduction_amount']), $salaryManualDeduction, 2);
+                $maxAbsenceDeduction = bcsub($gross, $otherDeduction, 2);
+                $absenceDeductionCapped = false;
+                if ($absenceDeductionAmount !== null && bccomp($absenceDeductionAmount, $maxAbsenceDeduction, 2) > 0) {
+                    $absenceDeductionAmount = bccomp($maxAbsenceDeduction, '0', 2) > 0 ? $maxAbsenceDeduction : '0.00';
+                    $absenceDeductionCapped = true;
+                }
+
+                $deduction = bcadd($otherDeduction, $this->decimal($absenceDeductionAmount), 2);
                 $net = bcsub($gross, $deduction, 2);
 
                 $entry = PayrollEntry::create([
@@ -269,7 +319,7 @@ class PayrollRunController extends Controller
                     ]);
                 }
 
-                if ($attendance['absence_deduction_amount'] !== null) {
+                if ($absenceDeductionAmount !== null) {
                     PayrollEntryLine::create([
                         'payroll_entry_id' => $entry->id,
                         'payroll_component_id' => $attendanceComponents['absence']->id,
@@ -278,14 +328,16 @@ class PayrollRunController extends Controller
                         'component_name' => $attendanceComponents['absence']->name,
                         'type' => 'deduction',
                         'quantity' => $attendance['absent_days'],
-                        'rate' => PayrollMoney::decimal($absenceRate, 4),
-                        'amount' => $attendance['absence_deduction_amount'],
+                        'rate' => PayrollMoney::decimal($absenceDeductionRatePerDay, 4),
+                        'amount' => $absenceDeductionAmount,
                         'source' => 'attendance',
                         'calculation_snapshot' => [
+                            'formula' => 'gaji_pokok / hari_kerja * jumlah_hari_alpha',
+                            'base_salary' => $baseSalary,
+                            'work_days' => $attendance['workdays'],
                             'absent_days' => $attendance['absent_days'],
-                            'rate_per_day' => $absenceRate,
-                            'policy_id' => $policy->id,
-                            'policy_version' => $policy->version,
+                            'rate_per_day' => $absenceDeductionRatePerDay,
+                            'capped_to_avoid_negative_net' => $absenceDeductionCapped,
                         ],
                     ]);
                 }
@@ -348,6 +400,28 @@ class PayrollRunController extends Controller
                             'half_days' => $attendance['half_days'],
                             'rate_per_day' => $allowanceRate,
                             'division_id' => $profile->division_id,
+                        ],
+                    ]);
+                }
+
+                if ($attendance['transport_amount'] !== null) {
+                    PayrollEntryLine::create([
+                        'payroll_entry_id' => $entry->id,
+                        'payroll_component_id' => $transportComponent->id,
+                        'line_key' => 'attendance-transport',
+                        'component_code' => $transportComponent->code,
+                        'component_name' => $transportComponent->name,
+                        'type' => 'earning',
+                        'quantity' => PayrollMoney::decimal(bcadd((string) $attendance['present_days'], bcdiv((string) $attendance['half_days'], '2', 4), 4), 4),
+                        'rate' => PayrollMoney::decimal($transportRate, 4),
+                        'amount' => $attendance['transport_amount'],
+                        'source' => 'allowance',
+                        'calculation_snapshot' => [
+                            'present_days' => $attendance['present_days'],
+                            'half_days' => $attendance['half_days'],
+                            'rate_per_day' => $transportRate,
+                            'policy_id' => $policy->id,
+                            'policy_version' => $policy->version,
                         ],
                     ]);
                 }
@@ -437,6 +511,7 @@ class PayrollRunController extends Controller
         }
 
         DB::transaction(function () use ($request, $run) {
+            Company::whereKey($run->period->company_id)->lockForUpdate()->firstOrFail();
             $locked = PayrollRun::whereKey($run->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status !== 'draft') {
@@ -667,15 +742,15 @@ class PayrollRunController extends Controller
         return [
             'late' => PayrollComponent::firstOrCreate(
                 ['company_id' => $companyId, 'code' => 'ATTENDANCE_LATE'],
-                ['name' => 'Potongan Keterlambatan', 'type' => 'deduction', 'is_active' => true],
+                ['name' => 'Potongan Keterlambatan', 'type' => 'deduction', 'calculation_mode' => 'system', 'calculation_rule' => 'built_in', 'is_active' => true],
             ),
             'absence' => PayrollComponent::firstOrCreate(
                 ['company_id' => $companyId, 'code' => 'ATTENDANCE_ABSENCE'],
-                ['name' => 'Potongan Alpha', 'type' => 'deduction', 'is_active' => true],
+                ['name' => 'Potongan Alpha', 'type' => 'deduction', 'calculation_mode' => 'system', 'calculation_rule' => 'built_in', 'is_active' => true],
             ),
             'reward' => PayrollComponent::firstOrCreate(
                 ['company_id' => $companyId, 'code' => 'ATTENDANCE_PERFECT'],
-                ['name' => 'Reward Kehadiran Sempurna', 'type' => 'earning', 'is_active' => true],
+                ['name' => 'Reward Kehadiran Sempurna', 'type' => 'earning', 'calculation_mode' => 'system', 'calculation_rule' => 'built_in', 'is_active' => true],
             ),
         ];
     }
@@ -684,7 +759,7 @@ class PayrollRunController extends Controller
     {
         return PayrollComponent::firstOrCreate(
             ['company_id' => $companyId, 'code' => 'OVERTIME'],
-            ['name' => 'Lembur', 'type' => 'earning', 'is_active' => true],
+            ['name' => 'Lembur', 'type' => 'earning', 'calculation_mode' => 'system', 'calculation_rule' => 'built_in', 'is_active' => true],
         );
     }
 
@@ -692,7 +767,15 @@ class PayrollRunController extends Controller
     {
         return PayrollComponent::firstOrCreate(
             ['company_id' => $companyId, 'code' => 'ATTENDANCE_ALLOWANCE'],
-            ['name' => 'Tunjangan Kehadiran', 'type' => 'earning', 'is_active' => true],
+            ['name' => 'Tunjangan Kehadiran', 'type' => 'earning', 'calculation_mode' => 'system', 'calculation_rule' => 'built_in', 'is_active' => true],
+        );
+    }
+
+    private function transportComponent(int $companyId): PayrollComponent
+    {
+        return PayrollComponent::firstOrCreate(
+            ['company_id' => $companyId, 'code' => 'ATTENDANCE_TRANSPORT'],
+            ['name' => 'Tunjangan Transport', 'type' => 'earning', 'calculation_mode' => 'system', 'calculation_rule' => 'built_in', 'is_active' => true],
         );
     }
 
@@ -708,37 +791,48 @@ class PayrollRunController extends Controller
      * @param  Collection<int, AttendanceReview>  $reviews
      * @return array{
      *     late_minutes_total: int, present_days: int, half_days: int,
-     *     absent_days: int, unresolved_days: int,
+     *     absent_days: int, unresolved_days: int, workdays: int,
      *     perfect_attendance: bool, late_deduction_amount: string|null,
-     *     absence_deduction_amount: string|null, reward_amount: string|null,
-     *     allowance_amount: string|null,
+     *     reward_amount: string|null,
+     *     allowance_amount: string|null, transport_amount: string|null,
      *     days: array<int, array<string, mixed>>,
      * }
      */
-    private function summarizeAttendance(Collection $reviews, int $expectedAttendanceDays, string $lateRate, string $absenceRate, string $rewardRate, string $allowanceRate): array
+    private function summarizeAttendance(Collection $reviews, int $expectedAttendanceDays, string $lateRate, string $rewardRate, string $allowanceRate, string $transportRate, CompanyWorkCalendar $calendar, int $companyId, int $userId): array
     {
         $lateMinutesTotal = 0;
         $presentDays = 0;
         $halfDays = 0;
         $absentDays = 0;
         $unresolvedDays = 0;
+        $workdays = 0;
         $days = [];
 
         foreach ($reviews as $review) {
-            if ($review->classification === 'present') {
-                $lateMinutesTotal += $review->late_minutes;
+            $dayType = $calendar->dayType($companyId, $review->date, $userId);
+            if ($dayType === 'workday') {
+                $workdays++;
+            }
+
+            if ($dayType === 'workday' && $review->classification === 'present') {
+                if (! $review->isLateDeductionExcused()) {
+                    $lateMinutesTotal += $review->late_minutes;
+                }
                 $presentDays++;
-            } elseif ($review->classification === 'half_day') {
-                $lateMinutesTotal += $review->late_minutes;
+            } elseif ($dayType === 'workday' && $review->classification === 'half_day') {
+                if (! $review->isLateDeductionExcused()) {
+                    $lateMinutesTotal += $review->late_minutes;
+                }
                 $halfDays++;
-            } elseif ($review->classification === 'absent') {
+            } elseif ($dayType === 'workday' && $review->classification === 'absent') {
                 $absentDays++;
-            } elseif ($review->classification === 'unresolved') {
+            } elseif ($dayType === 'workday' && $review->classification === 'unresolved') {
                 $unresolvedDays++;
             }
 
             $days[] = [
                 'date' => $review->date->toDateString(),
+                'calendar_day_type' => $dayType,
                 'attendance_review_id' => $review->id,
                 'attendance_review_version' => $review->version,
                 'classification' => $review->classification,
@@ -750,7 +844,7 @@ class PayrollRunController extends Controller
             ];
         }
 
-        $perfectAttendance = $reviews->count() === $expectedAttendanceDays
+        $perfectAttendance = $workdays > 0 && $reviews->count() === $expectedAttendanceDays
             && $lateMinutesTotal === 0 && $halfDays === 0 && $absentDays === 0 && $unresolvedDays === 0;
 
         $allowanceAmount = null;
@@ -758,6 +852,15 @@ class PayrollRunController extends Controller
             $allowanceAmount = bcadd(
                 PayrollMoney::multiply($allowanceRate, $presentDays),
                 PayrollMoney::multiply($allowanceRate, $halfDays, 2),
+                2,
+            );
+        }
+
+        $transportAmount = null;
+        if (($presentDays > 0 || $halfDays > 0) && $transportRate > 0) {
+            $transportAmount = bcadd(
+                PayrollMoney::multiply($transportRate, $presentDays),
+                PayrollMoney::multiply($transportRate, $halfDays, 2),
                 2,
             );
         }
@@ -771,11 +874,11 @@ class PayrollRunController extends Controller
             'perfect_attendance' => $perfectAttendance,
             'late_deduction_amount' => ($lateMinutesTotal > 0 && $lateRate > 0)
                 ? PayrollMoney::multiply($lateRate, $lateMinutesTotal) : null,
-            'absence_deduction_amount' => ($absentDays > 0 && $absenceRate > 0)
-                ? PayrollMoney::multiply($absenceRate, $absentDays) : null,
             'reward_amount' => ($perfectAttendance && $rewardRate > 0)
                 ? PayrollMoney::decimal($rewardRate) : null,
             'allowance_amount' => $allowanceAmount,
+            'transport_amount' => $transportAmount,
+            'workdays' => $workdays,
             'days' => $days,
         ];
     }

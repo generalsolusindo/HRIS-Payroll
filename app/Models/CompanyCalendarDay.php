@@ -11,18 +11,20 @@ use Illuminate\Support\Carbon;
  * @property int $company_id
  * @property Carbon $date
  * @property string $type workday|rest_day|holiday
+ * @property array<int, int>|null $allowed_user_ids
  * @property string|null $description
  * @property int|null $work_schedule_id
  * @property array<string, mixed>|null $schedule_snapshot
  */
 class CompanyCalendarDay extends Model
 {
-    protected $fillable = ['company_id', 'date', 'type', 'description', 'work_schedule_id', 'schedule_snapshot'];
+    protected $fillable = ['company_id', 'date', 'type', 'allowed_user_ids', 'description', 'work_schedule_id', 'schedule_snapshot'];
 
     protected function casts(): array
     {
         return [
             'date' => 'date:Y-m-d',
+            'allowed_user_ids' => 'array',
             'schedule_snapshot' => 'array',
         ];
     }

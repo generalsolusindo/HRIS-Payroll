@@ -1,5 +1,12 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
-import { CalendarRange, Calculator, Eye, Plus, Trash2 } from 'lucide-react';
+import {
+    CalendarRange,
+    Calculator,
+    Eye,
+    Pencil,
+    Plus,
+    Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 import PayrollRunController from '@/actions/App/Http/Controllers/Hrd/PayrollRunController';
@@ -31,8 +38,12 @@ type PeriodRow = {
     name: string;
     starts_on: string;
     ends_on: string;
+    attendance_starts_on: string;
+    attendance_ends_on: string;
+    payment_due_on: string | null;
     status: string;
     latest_run: LatestRun | null;
+    can_edit_dates: boolean;
     can_request_deletion: boolean;
     deletion_request: {
         status: 'pending' | 'approved' | 'rejected';
@@ -73,73 +84,92 @@ function formatRupiah(value: string): string {
 }
 
 function PeriodFormFields({
+    defaultValues,
     errors,
 }: {
+    defaultValues?: PeriodRow;
     errors: Record<string, string | undefined>;
 }) {
+    const idSuffix = defaultValues ? `-${defaultValues.id}` : '';
+
     return (
         <div className="grid gap-4">
             <div className="grid gap-2">
-                <Label htmlFor="name">Nama Periode</Label>
+                <Label htmlFor={`name${idSuffix}`}>Nama Periode</Label>
                 <Input
-                    id="name"
+                    id={`name${idSuffix}`}
                     name="name"
                     required
                     placeholder="Oktober 2026"
+                    defaultValue={defaultValues?.name}
                 />
                 <InputError message={errors.name} />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                    <Label htmlFor="starts_on">Mulai</Label>
+                    <Label htmlFor={`starts_on${idSuffix}`}>Mulai</Label>
                     <Input
-                        id="starts_on"
+                        id={`starts_on${idSuffix}`}
                         name="starts_on"
                         type="date"
                         required
+                        defaultValue={defaultValues?.starts_on}
                     />
                     <InputError message={errors.starts_on} />
                 </div>
                 <div className="grid gap-2">
-                    <Label htmlFor="ends_on">Selesai</Label>
-                    <Input id="ends_on" name="ends_on" type="date" required />
+                    <Label htmlFor={`ends_on${idSuffix}`}>Selesai</Label>
+                    <Input
+                        id={`ends_on${idSuffix}`}
+                        name="ends_on"
+                        type="date"
+                        required
+                        defaultValue={defaultValues?.ends_on}
+                    />
                     <InputError message={errors.ends_on} />
                 </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                    <Label htmlFor="attendance_starts_on">
+                    <Label htmlFor={`attendance_starts_on${idSuffix}`}>
                         Cutoff Absensi Mulai
                     </Label>
                     <Input
-                        id="attendance_starts_on"
+                        id={`attendance_starts_on${idSuffix}`}
                         name="attendance_starts_on"
                         type="date"
                         required
+                        defaultValue={defaultValues?.attendance_starts_on}
                     />
                     <InputError message={errors.attendance_starts_on} />
                 </div>
                 <div className="grid gap-2">
-                    <Label htmlFor="attendance_ends_on">
+                    <Label htmlFor={`attendance_ends_on${idSuffix}`}>
                         Cutoff Absensi Selesai
                     </Label>
                     <Input
-                        id="attendance_ends_on"
+                        id={`attendance_ends_on${idSuffix}`}
                         name="attendance_ends_on"
                         type="date"
                         required
+                        defaultValue={defaultValues?.attendance_ends_on}
                     />
                     <InputError message={errors.attendance_ends_on} />
                 </div>
             </div>
 
             <div className="grid gap-2">
-                <Label htmlFor="payment_due_on">
+                <Label htmlFor={`payment_due_on${idSuffix}`}>
                     Rencana Tanggal Bayar (opsional)
                 </Label>
-                <Input id="payment_due_on" name="payment_due_on" type="date" />
+                <Input
+                    id={`payment_due_on${idSuffix}`}
+                    name="payment_due_on"
+                    type="date"
+                    defaultValue={defaultValues?.payment_due_on ?? undefined}
+                />
                 <InputError message={errors.payment_due_on} />
             </div>
         </div>
@@ -148,6 +178,9 @@ function PeriodFormFields({
 
 export default function PayrollPeriods({ periods }: Props) {
     const [createOpen, setCreateOpen] = useState(false);
+    const [editingPeriod, setEditingPeriod] = useState<PeriodRow | null>(
+        null,
+    );
 
     function calculate(periodId: number) {
         if (
@@ -319,6 +352,22 @@ export default function PayrollPeriods({ periods }: Props) {
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex justify-end gap-2">
+                                                {period.can_edit_dates && (
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="rounded-full"
+                                                        onClick={() =>
+                                                            setEditingPeriod(
+                                                                period,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Pencil className="size-3.5" />
+                                                        Edit Tanggal
+                                                    </Button>
+                                                )}
                                                 {period.latest_run && (
                                                     <Link
                                                         href={showPayrollRun(
@@ -428,6 +477,57 @@ export default function PayrollPeriods({ periods }: Props) {
                     </div>
                 )}
             </div>
+
+            <Dialog
+                open={editingPeriod !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setEditingPeriod(null);
+                    }
+                }}
+            >
+                <DialogContent className="max-h-[90vh] overflow-y-auto">
+                    {editingPeriod && (
+                        <Form
+                            {...PayrollPeriodController.update.form(
+                                editingPeriod.id,
+                            )}
+                            key={editingPeriod.id}
+                            disableWhileProcessing
+                            onSuccess={() => setEditingPeriod(null)}
+                        >
+                            {({ processing, errors }) => (
+                                <>
+                                    <DialogHeader>
+                                        <DialogTitle>
+                                            Edit Tanggal — {editingPeriod.name}
+                                        </DialogTitle>
+                                        <DialogDescription>
+                                            {editingPeriod.latest_run
+                                                ? 'Sudah ada draft hasil payroll untuk periode ini — hitung ulang draft setelah menyimpan perubahan tanggal.'
+                                                : 'Hanya bisa diubah selama periode belum diajukan ke Manager.'}
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="py-2">
+                                        <PeriodFormFields
+                                            defaultValues={editingPeriod}
+                                            errors={errors}
+                                        />
+                                    </div>
+                                    <DialogFooter>
+                                        <Button
+                                            type="submit"
+                                            disabled={processing}
+                                        >
+                                            Simpan Perubahan
+                                        </Button>
+                                    </DialogFooter>
+                                </>
+                            )}
+                        </Form>
+                    )}
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

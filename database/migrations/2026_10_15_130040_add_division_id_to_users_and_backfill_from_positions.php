@@ -61,10 +61,17 @@ return new class extends Migration
                     'company_id' => $company->id,
                     'name' => $position->name,
                     'is_active' => true,
-                    'daily_attendance_allowance' => 0,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
+
+                // daily_attendance_allowance was dropped (replaced by a
+                // flat company-wide rate) by a later migration — on a
+                // database that has already moved past that point, this
+                // column no longer exists at all.
+                if (Schema::hasColumn('divisions', 'daily_attendance_allowance')) {
+                    $newDivision['daily_attendance_allowance'] = 0;
+                }
 
                 // divisions.code is dropped later by the
                 // 2026_10_15_212738 migration, but on a database that has

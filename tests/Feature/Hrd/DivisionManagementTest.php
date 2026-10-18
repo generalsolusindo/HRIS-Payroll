@@ -18,7 +18,7 @@ class DivisionManagementTest extends TestCase
         return array_merge([
             'name' => 'Operasional',
             'is_active' => true,
-            'daily_attendance_allowance' => '25000',
+            'base_salary' => '3000000',
         ], $overrides);
     }
 
@@ -32,7 +32,7 @@ class DivisionManagementTest extends TestCase
 
         $this->assertDatabaseHas('divisions', [
             'name' => 'Operasional', 'company_id' => $hrd->company_id,
-            'daily_attendance_allowance' => '25000.00',
+            'base_salary' => '3000000.00',
         ]);
     }
 
@@ -42,7 +42,7 @@ class DivisionManagementTest extends TestCase
         Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
 
         $this->actingAs($hrd)
-            ->post(route('hrd.divisi.store'), $this->payload(['daily_attendance_allowance' => '40000']))
+            ->post(route('hrd.divisi.store'), $this->payload(['base_salary' => '4000000']))
             ->assertSessionHasErrors('name');
     }
 
@@ -53,14 +53,14 @@ class DivisionManagementTest extends TestCase
 
         $this->actingAs($hrd)
             ->put(route('hrd.divisi.update', $division), $this->payload([
-                'name' => 'Operasional Baru', 'is_active' => false, 'daily_attendance_allowance' => '35000',
+                'name' => 'Operasional Baru', 'is_active' => false, 'base_salary' => '3500000',
             ]))
             ->assertSessionDoesntHaveErrors();
 
         $fresh = $division->fresh();
         $this->assertSame('Operasional Baru', $fresh->name);
         $this->assertFalse($fresh->is_active);
-        $this->assertSame('35000.00', $fresh->daily_attendance_allowance);
+        $this->assertSame('3500000.00', $fresh->base_salary);
     }
 
     public function test_hrd_cannot_edit_or_delete_another_companys_division(): void

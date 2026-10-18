@@ -86,6 +86,19 @@ class PayrollProfileController extends Controller
 
         $division = Division::findOrFail($user->division_id);
 
+        // Lets a brand new profile prefill its "Gaji Pokok" row from the
+        // division's default — found by name rather than a fixed code,
+        // since HRD names/creates this earning component freely (there is
+        // no reserved "base salary" code the way SYSTEM_CODES reserves
+        // attendance/overtime ones). If HRD never named a component
+        // exactly "Gaji Pokok", there's simply nothing to prefill.
+        $baseSalaryComponentId = PayrollComponent::where('company_id', $user->company_id)
+            ->where('is_active', true)
+            ->where('type', 'earning')
+            ->where('calculation_mode', 'profile')
+            ->whereRaw('LOWER(name) = ?', ['gaji pokok'])
+            ->value('id');
+
         return Inertia::render('hrd/payroll-profile-edit', [
             'employee' => [
                 'id' => $user->id,
@@ -97,8 +110,10 @@ class PayrollProfileController extends Controller
                 'division' => [
                     'id' => $division->id,
                     'name' => $division->name,
+                    'base_salary' => (string) $division->base_salary,
                 ],
             ],
+            'baseSalaryComponentId' => $baseSalaryComponentId,
             'profile' => $profile ? [
                 'effective_from' => $profile->effective_from->toDateString(),
                 'employment_type' => $profile->employment_type,

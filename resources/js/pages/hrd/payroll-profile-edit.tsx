@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
-type Division = { id: number; name: string };
+type Division = { id: number; name: string; base_salary: string };
 type AvailableComponent = { id: number; name: string };
 
 type ProfileComponent = { payroll_component_id: number; amount: string };
@@ -39,6 +39,7 @@ type Props = {
         division: Division;
     };
     profile: Profile;
+    baseSalaryComponentId: number | null;
     availableEarningComponents: AvailableComponent[];
     availableDeductionComponents: AvailableComponent[];
 };
@@ -210,14 +211,34 @@ function ComponentRowsSection({
 export default function PayrollProfileEdit({
     employee,
     profile,
+    baseSalaryComponentId,
     availableEarningComponents,
     availableDeductionComponents,
 }: Props) {
-    const [earningRows, setEarningRows] = useState<Row[]>(() =>
-        profile && profile.earningComponents.length > 0
-            ? rowsFrom(profile.earningComponents)
-            : [{ rowId: nextRowId++, componentId: '', amount: '' }],
-    );
+    const [earningRows, setEarningRows] = useState<Row[]>(() => {
+        if (profile && profile.earningComponents.length > 0) {
+            return rowsFrom(profile.earningComponents);
+        }
+
+        // Brand new profile — prefill Gaji Pokok from the division's
+        // default so HRD doesn't have to type it in for every new hire.
+        // Still just a normal editable row: HRD can change or remove it.
+        if (
+            !profile &&
+            baseSalaryComponentId !== null &&
+            Number(employee.division.base_salary) > 0
+        ) {
+            return [
+                {
+                    rowId: nextRowId++,
+                    componentId: String(baseSalaryComponentId),
+                    amount: employee.division.base_salary,
+                },
+            ];
+        }
+
+        return [{ rowId: nextRowId++, componentId: '', amount: '' }];
+    });
     const [deductionRows, setDeductionRows] = useState<Row[]>(() =>
         profile ? rowsFrom(profile.deductionComponents) : [],
     );

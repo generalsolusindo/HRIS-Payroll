@@ -39,8 +39,9 @@ class PayrollPolicyManagementTest extends TestCase
         $this->actingAs($hrd)
             ->put(route('hrd.kebijakan-absensi.update', $policy), [
                 'late_deduction_per_minute' => '2000',
-                'absence_deduction_per_day' => '150000',
                 'perfect_attendance_reward' => '100000',
+                'allowance_per_day' => '50000',
+                'transport_per_day' => '12000',
                 'overtime_rate_per_hour' => '25000',
             ])
             ->assertSessionDoesntHaveErrors()
@@ -48,8 +49,9 @@ class PayrollPolicyManagementTest extends TestCase
 
         $rules = $policy->fresh()->rules['attendance'];
         $this->assertSame('2000.00', $rules['late_deduction_per_minute']);
-        $this->assertSame('150000.00', $rules['absence_deduction_per_day']);
         $this->assertSame('100000.00', $rules['perfect_attendance_reward']);
+        $this->assertSame('50000.00', $rules['allowance_per_day']);
+        $this->assertSame('12000.00', $rules['transport_per_day']);
         $this->assertSame('25000.00', $policy->fresh()->rules['overtime']['rate_per_hour']);
     }
 
@@ -64,7 +66,6 @@ class PayrollPolicyManagementTest extends TestCase
         $this->actingAs($hrd)
             ->put(route('hrd.kebijakan-absensi.update', $policy), [
                 'late_deduction_per_minute' => '-1',
-                'absence_deduction_per_day' => '150000',
                 'perfect_attendance_reward' => '100000',
             ])
             ->assertSessionHasErrors('late_deduction_per_minute');
@@ -82,8 +83,9 @@ class PayrollPolicyManagementTest extends TestCase
         $this->actingAs($hrd)
             ->put(route('hrd.kebijakan-absensi.update', $policy), [
                 'late_deduction_per_minute' => '2000',
-                'absence_deduction_per_day' => '150000',
                 'perfect_attendance_reward' => '100000',
+                'allowance_per_day' => '50000',
+                'transport_per_day' => '12000',
                 'overtime_rate_per_hour' => '25000',
             ])
             ->assertForbidden();
@@ -106,7 +108,6 @@ class PayrollPolicyManagementTest extends TestCase
         $this->actingAs($karyawan)
             ->put(route('hrd.kebijakan-absensi.update', $policy), [
                 'late_deduction_per_minute' => '1',
-                'absence_deduction_per_day' => '1',
                 'perfect_attendance_reward' => '1',
             ])
             ->assertForbidden();

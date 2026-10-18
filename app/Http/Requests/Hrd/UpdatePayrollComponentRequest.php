@@ -11,9 +11,8 @@ class UpdatePayrollComponentRequest extends FormRequest
     public function authorize(): bool
     {
         // Company ownership of the target component is checked in the
-        // controller (ScopesToOwnCompany); company_id itself is never
-        // reassignable from the client — a component stays in the company
-        // it was created in.
+        // controller (ScopesToOwnCompany); the component's code is never
+        // accepted from the client here — see PayrollComponent::update().
         return true;
     }
 

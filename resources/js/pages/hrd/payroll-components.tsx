@@ -224,7 +224,7 @@ export default function PayrollComponents({ components }: Props) {
                                         Jenis
                                     </th>
                                     <th className="px-4 py-3 font-medium">
-                                        Profil Gaji
+                                        Cara Hitung
                                     </th>
                                     <th className="px-4 py-3 font-medium">
                                         Status

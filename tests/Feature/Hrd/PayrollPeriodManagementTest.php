@@ -260,6 +260,60 @@ class PayrollPeriodManagementTest extends TestCase
         ]);
     }
 
+    public function test_hrd_can_edit_dates_of_a_never_calculated_period(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = PayrollPeriod::create($this->payload($hrd->company_id));
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.periode-gaji.update', $period), $this->payload($hrd->company_id, [
+                'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-10-27',
+            ]))
+            ->assertSessionDoesntHaveErrors();
+
+        $fresh = $period->fresh();
+        $this->assertSame('2026-09-28', $fresh->attendance_starts_on->toDateString());
+        $this->assertSame('2026-10-27', $fresh->attendance_ends_on->toDateString());
+    }
+
+    public function test_hrd_can_edit_dates_while_the_only_run_is_still_a_draft(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->createCalculatedPeriod($hrd);
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.periode-gaji.update', $period), $this->payload($hrd->company_id, [
+                'attendance_ends_on' => '2026-10-26',
+            ]))
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSame('2026-10-26', $period->fresh()->attendance_ends_on->toDateString());
+    }
+
+    public function test_dates_cannot_be_edited_once_the_run_has_been_submitted(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->createCalculatedPeriod($hrd);
+        $period->runs()->firstOrFail()->update(['status' => 'submitted']);
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.periode-gaji.update', $period), $this->payload($hrd->company_id))
+            ->assertSessionHasErrors('period');
+
+        $this->assertSame('2026-10-25', $period->fresh()->attendance_ends_on->toDateString());
+    }
+
+    public function test_hrd_cannot_edit_another_companys_period_dates(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $otherHrd = User::factory()->create(['role' => 'hrd']);
+        $period = PayrollPeriod::create($this->payload($otherHrd->company_id));
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.periode-gaji.update', $period), $this->payload($otherHrd->company_id))
+            ->assertForbidden();
+    }
+
     public function test_hrd_cannot_delete_another_companys_period(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);

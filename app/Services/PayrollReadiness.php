@@ -40,6 +40,7 @@ class PayrollReadiness
         for ($date = $run->period->attendance_starts_on->copy(); $date->lte($run->period->attendance_ends_on); $date = $date->addDay()) {
             $expectedDates[] = $date->toDateString();
         }
+        $calendar = app(CompanyWorkCalendar::class);
         $totals = ['earning' => '0.00', 'deduction' => '0.00', 'net' => '0.00'];
         foreach ($run->entries as $entry) {
             $name = $entry->employee_snapshot['name'] ?? 'Karyawan';
@@ -54,6 +55,10 @@ class PayrollReadiness
                 ->whereDate('tanggal', '<=', $run->period->attendance_ends_on->toDateString())
                 ->whereNotNull('clock_in_time')->whereNull('clock_out_time')->get();
             foreach ($missingOut as $attendance) {
+                if (! $calendar->isWorkday($run->period->company_id, $attendance->tanggal, $entry->user_id)) {
+                    continue;
+                }
+
                 $confirmed = $reviews->first(fn (AttendanceReview $review) => $review->date->toDateString() === $attendance->tanggal->toDateString());
                 // Approved leave/non-working days override an incidental clock-in.
                 if ($confirmed && in_array($confirmed->classification, ['sick', 'leave', 'permission', 'business_trip', 'rest_day', 'holiday'], true)) {
@@ -66,6 +71,19 @@ class PayrollReadiness
                 }
             }
             foreach ($days as $day) {
+                $currentDayType = $calendar->dayType($run->period->company_id, $day['date'], $entry->user_id);
+                if (($day['calendar_day_type'] ?? null) !== $currentDayType) {
+                    $issues[] = "$name: kalender kerja berubah sejak payroll dihitung. Hitung ulang draft.";
+                    break;
+                }
+
+                // Off-day reviews are informational only. They must exist in
+                // the period snapshot, but attendance corrections/punches on
+                // those dates must neither block payroll nor affect its totals.
+                if ($currentDayType !== 'workday') {
+                    continue;
+                }
+
                 $review = $reviews->get($day['attendance_review_id'] ?? 0);
                 if (! $review || $review->version !== ($day['attendance_review_version'] ?? null)
                     || $review->status !== 'validated' || $review->classification === 'unresolved'
@@ -76,7 +94,11 @@ class PayrollReadiness
                     break;
                 }
             }
-            $expectedLate = $reviews->whereIn('classification', ['present', 'half_day'])->sum('late_minutes');
+            $expectedLate = $reviews
+                ->filter(fn (AttendanceReview $review) => $calendar->isWorkday($run->period->company_id, $review->date, $entry->user_id))
+                ->whereIn('classification', ['present', 'half_day'])
+                ->reject(fn (AttendanceReview $review) => $review->isLateDeductionExcused())
+                ->sum('late_minutes');
             if ($expectedLate !== ($entry->attendance_snapshot['late_minutes_total'] ?? 0)) {
                 $issues[] = "$name: total menit telat berubah. Perbarui draft payroll.";
             }

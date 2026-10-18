@@ -112,6 +112,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
 
     Route::get('periode-gaji', [PayrollPeriodController::class, 'index'])->name('periode-gaji.index');
     Route::post('periode-gaji', [PayrollPeriodController::class, 'store'])->name('periode-gaji.store');
+    Route::patch('periode-gaji/{period}', [PayrollPeriodController::class, 'update'])->name('periode-gaji.update');
     Route::delete('periode-gaji/{period}', [PayrollPeriodController::class, 'destroy'])->name('periode-gaji.destroy');
     Route::post('periode-gaji/{period}/minta-hapus', [PayrollPeriodController::class, 'requestDeletion'])->name('periode-gaji.minta-hapus');
     Route::post('periode-gaji/{period}/perbarui-draft', [PayrollRunController::class, 'refresh'])->name('periode-gaji.perbarui-draft');
@@ -131,6 +132,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
 
     Route::get('kalender-kerja', [CompanyCalendarDayController::class, 'index'])->name('kalender-kerja.index');
     Route::post('kalender-kerja', [CompanyCalendarDayController::class, 'store'])->name('kalender-kerja.store');
+    Route::patch('kalender-kerja/{day}', [CompanyCalendarDayController::class, 'update'])->name('kalender-kerja.update');
     Route::delete('kalender-kerja/{day}', [CompanyCalendarDayController::class, 'destroy'])->name('kalender-kerja.destroy');
 
     Route::get('persetujuan-lembur', [OvertimeApprovalController::class, 'index'])->name('persetujuan-lembur.index');

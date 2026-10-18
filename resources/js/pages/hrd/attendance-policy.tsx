@@ -17,15 +17,17 @@ import { Label } from '@/components/ui/label';
 type Policy = {
     id: number;
     late_deduction_per_minute: string;
-    absence_deduction_per_day: string;
     perfect_attendance_reward: string;
+    allowance_per_day: string;
+    transport_per_day: string;
     overtime_rate_per_hour: string;
 };
 
 type RateKey =
     | 'late_deduction_per_minute'
-    | 'absence_deduction_per_day'
     | 'perfect_attendance_reward'
+    | 'allowance_per_day'
+    | 'transport_per_day'
     | 'overtime_rate_per_hour';
 const rateFields: {
     key: RateKey;
@@ -40,18 +42,25 @@ const rateFields: {
         unit: 'Rp / menit',
     },
     {
-        key: 'absence_deduction_per_day',
-        label: 'Potongan alpha',
-        description:
-            'Nominal tetap untuk setiap hari yang ditetapkan alpha oleh HRD.',
-        unit: 'Rp / hari',
-    },
-    {
         key: 'perfect_attendance_reward',
         label: 'Reward kehadiran sempurna',
         description:
             'Diberikan jika seluruh tanggal periode sudah direkap, tanpa telat, alpha, atau hari belum jelas.',
         unit: 'Rp / periode',
+    },
+    {
+        key: 'allowance_per_day',
+        label: 'Tunjangan kehadiran',
+        description:
+            'Dihitung dari hari hadir tervalidasi — hari penuh dapat tarif penuh, setengah hari dapat separuh tarif.',
+        unit: 'Rp / hari',
+    },
+    {
+        key: 'transport_per_day',
+        label: 'Tunjangan transport',
+        description:
+            'Dihitung dari hari hadir tervalidasi — hari penuh dapat tarif penuh, setengah hari dapat separuh tarif.',
+        unit: 'Rp / hari',
     },
     {
         key: 'overtime_rate_per_hour',
@@ -61,6 +70,28 @@ const rateFields: {
         unit: 'Rp / jam',
     },
 ];
+
+function FixedRule({
+    title,
+    description,
+}: {
+    title: string;
+    description: string;
+}) {
+    return (
+        <div className="flex flex-wrap items-start justify-between gap-2 py-4">
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {description}
+                </p>
+            </div>
+            <span className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                Otomatis
+            </span>
+        </div>
+    );
+}
 
 function PendingRule({
     title,
@@ -178,10 +209,9 @@ export default function AttendancePolicy({ policy }: { policy: Policy }) {
                                                 Komponen dari data absensi
                                             </h2>
                                             <p className="mt-3 text-xs text-muted-foreground">
-                                                Isi 0 untuk menonaktifkan tarif.
-                                                Simpan perubahan hanya
-                                                memengaruhi empat tarif di
-                                                bawah.
+                                                Isi 0 untuk menonaktifkan
+                                                tarif. Simpan perubahan hanya
+                                                memengaruhi tarif di bawah.
                                             </p>
                                             <div className="divide-y">
                                                 {rateFields.map((field) => (
@@ -272,17 +302,17 @@ export default function AttendancePolicy({ policy }: { policy: Policy }) {
                                                 </p>
                                             </div>
                                             <div className="mt-5 divide-y border-t">
-                                                <PendingRule
-                                                    title="Uang transport, makan & dinas luar per hari"
-                                                    description="Perhitungan otomatis berdasarkan hari kehadiran belum tersedia. Komponen pendapatan tetap dapat dikelola melalui profil gaji."
+                                                <FixedRule
+                                                    title="Potongan alpha"
+                                                    description="Gaji Pokok ÷ Hari Kerja periode × Jumlah Hari Alpha — rumus tetap kantor, dihitung otomatis per karyawan dari Gaji Pokok di Profil Gaji masing-masing dan jumlah hari kerja riil periode tersebut. Tidak bisa diisi manual di sini."
                                                 />
                                                 <PendingRule
                                                     title="Toleransi & potongan telat per kejadian"
                                                     description="Saat ini potongan dihitung per menit. Tidak ada perubahan jam masuk atau toleransi absensi melalui halaman ini."
                                                 />
                                                 <PendingRule
-                                                    title="Alpha proporsional & lembur bertingkat"
-                                                    description="Saat ini alpha memakai tarif harian tetap dan lembur memakai tarif per jam, belum formula bertingkat."
+                                                    title="Lembur bertingkat"
+                                                    description="Saat ini lembur memakai satu tarif tetap per jam, belum formula bertingkat."
                                                 />
                                             </div>
                                         </section>

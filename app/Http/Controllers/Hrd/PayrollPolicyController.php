@@ -39,8 +39,9 @@ class PayrollPolicyController extends Controller
             'policy' => [
                 'id' => $policy->id,
                 'late_deduction_per_minute' => (string) ($attendanceRules['late_deduction_per_minute'] ?? '0'),
-                'absence_deduction_per_day' => (string) ($attendanceRules['absence_deduction_per_day'] ?? '0'),
                 'perfect_attendance_reward' => (string) ($attendanceRules['perfect_attendance_reward'] ?? '0'),
+                'allowance_per_day' => (string) ($attendanceRules['allowance_per_day'] ?? '0'),
+                'transport_per_day' => (string) ($attendanceRules['transport_per_day'] ?? '0'),
                 'overtime_rate_per_hour' => (string) ($overtimeRules['rate_per_hour'] ?? '0'),
             ],
         ]);
@@ -64,8 +65,9 @@ class PayrollPolicyController extends Controller
         $after = [
             'attendance' => [
                 'late_deduction_per_minute' => PayrollMoney::decimal((string) $validated['late_deduction_per_minute']),
-                'absence_deduction_per_day' => PayrollMoney::decimal((string) $validated['absence_deduction_per_day']),
                 'perfect_attendance_reward' => PayrollMoney::decimal((string) $validated['perfect_attendance_reward']),
+                'allowance_per_day' => PayrollMoney::decimal((string) $validated['allowance_per_day']),
+                'transport_per_day' => PayrollMoney::decimal((string) $validated['transport_per_day']),
             ],
             'overtime' => [
                 'rate_per_hour' => PayrollMoney::decimal((string) $validated['overtime_rate_per_hour']),

@@ -4,6 +4,7 @@ namespace Tests\Feature\Hrd;
 
 use App\Models\Attendance;
 use App\Models\AttendanceReview;
+use App\Models\CompanyCalendarDay;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -77,6 +78,26 @@ class PayrollRunSubmissionTest extends TestCase
         $new = PayrollRun::where('payroll_period_id', $period->id)->latest('version')->firstOrFail();
         $this->actingAs($hrd)->patch(route('hrd.hasil-payroll.ajukan', $new))->assertSessionHasNoErrors();
         $this->assertSame('submitted', $new->fresh()->status);
+    }
+
+    public function test_calendar_change_after_calculation_makes_the_draft_stale(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $period = $this->makeCalculatedPeriod($hrd);
+        $run = $period->runs()->firstOrFail();
+
+        CompanyCalendarDay::create([
+            'company_id' => $hrd->company_id,
+            'date' => '2026-09-28',
+            'type' => 'holiday',
+            'description' => 'Libur ditambahkan setelah kalkulasi.',
+        ]);
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.hasil-payroll.ajukan', $run))
+            ->assertSessionHasErrors('readiness');
+
+        $this->assertSame('draft', $run->fresh()->status);
     }
 
     public function test_hrd_can_submit_a_draft_run_for_approval(): void

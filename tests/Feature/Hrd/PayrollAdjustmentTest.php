@@ -31,7 +31,7 @@ class PayrollAdjustmentTest extends TestCase
         $this->hrd = User::factory()->create(['role' => 'hrd']);
         $employee = User::factory()->create(['company_id' => $this->hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $division = Division::create(['company_id' => $employee->company_id, 'name' => 'Operasional']);
-        $component = PayrollComponent::create(['company_id' => $employee->company_id, 'code' => 'BASE', 'name' => 'Gaji pokok', 'type' => 'earning']);
+        $component = PayrollComponent::create(['company_id' => $employee->company_id, 'code' => 'BASE', 'name' => 'Gaji', 'type' => 'earning']);
         $profile = EmployeePayrollProfile::create(['user_id' => $employee->id, 'company_id' => $employee->company_id, 'division_id' => $division->id, 'position_id' => $employee->position_id, 'effective_from' => '2026-09-01', 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent']);
         EmployeeSalaryComponent::create(['employee_payroll_profile_id' => $profile->id, 'payroll_component_id' => $component->id, 'amount' => '3000000.01', 'basis' => 'monthly']);
         $period = PayrollPeriod::create(['company_id' => $employee->company_id, 'name' => 'September', 'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30', 'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28']);

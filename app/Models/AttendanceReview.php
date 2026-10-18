@@ -84,4 +84,15 @@ class AttendanceReview extends Model
     {
         return $this->belongsTo(User::class, 'validated_by');
     }
+
+    /**
+     * True when this day carries an approved "Izin Terlambat" — the
+     * classification and late_minutes still come from real attendance
+     * (see AttendanceReviewGenerator), but Potongan Keterlambatan must
+     * not be charged for it.
+     */
+    public function isLateDeductionExcused(): bool
+    {
+        return ($this->leave_snapshot['type'] ?? null) === 'late';
+    }
 }

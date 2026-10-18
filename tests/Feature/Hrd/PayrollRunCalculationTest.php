@@ -43,7 +43,7 @@ class PayrollRunCalculationTest extends TestCase
         $hrd = User::factory()->create(['role' => 'hrd']);
         $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
-            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji',
             'type' => 'earning', ]);
         $allowance = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'ALLOW', 'name' => 'Tunjangan',
@@ -85,7 +85,7 @@ class PayrollRunCalculationTest extends TestCase
         $hrd = User::factory()->create(['role' => 'hrd']);
         $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
-            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji',
             'type' => 'earning', ]);
         $loan = PayrollComponent::create([
             'company_id' => $hrd->company_id, 'code' => 'KASBON', 'name' => 'Potongan Kasbon',
@@ -163,7 +163,7 @@ class PayrollRunCalculationTest extends TestCase
         $hrd = User::factory()->create(['role' => 'hrd']);
         $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
-            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji',
             'type' => 'earning', ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $employee->update(['bank_name' => 'BCA', 'bank_account_number' => '111222333', 'bank_account_holder' => $employee->name]);
@@ -188,7 +188,7 @@ class PayrollRunCalculationTest extends TestCase
         $hrd = User::factory()->create(['role' => 'hrd']);
         $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
         $base = PayrollComponent::create([
-            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji',
             'type' => 'earning', ]);
         $employee = User::factory()->create(['company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active']);
         $this->makeProfile($employee, $division, [[$base, '2500000']]);

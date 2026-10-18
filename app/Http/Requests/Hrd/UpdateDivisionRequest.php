@@ -33,7 +33,7 @@ class UpdateDivisionRequest extends FormRequest
                     ->ignore($division->id),
             ],
             'is_active' => ['required', 'boolean'],
-            'daily_attendance_allowance' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
+            'base_salary' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
         ];
     }
 }

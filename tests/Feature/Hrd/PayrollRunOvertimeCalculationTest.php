@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Hrd;
 
+use App\Models\Attendance;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -54,6 +55,16 @@ class PayrollRunOvertimeCalculationTest extends TestCase
             'user_id' => $employee->id, 'company_id' => $hrd->company_id,
             'starts_at' => '2026-09-28 18:00:00', 'ends_at' => '2026-09-28 21:00:00',
             'break_minutes' => 0, 'reason' => 'Lembur', 'status' => 'approved', 'approved_minutes' => 180,
+        ]);
+
+        // Full attendance on the one day in the window — otherwise it
+        // reads as a no-show alpha day and the Potongan Alpha formula
+        // (Gaji Pokok ÷ Hari Kerja × Hari Alpha) would eat the whole
+        // base salary, which isn't what this test is about.
+        Attendance::create([
+            'user_id' => $employee->id, 'tanggal' => '2026-09-28',
+            'clock_in_time' => '2026-09-28 08:00:00', 'clock_in_status' => 'tepat_waktu', 'clock_in_late_minutes' => 0,
+            'clock_out_time' => '2026-09-28 17:00:00', 'clock_out_status' => 'tepat_waktu', 'clock_out_early_minutes' => 0,
         ]);
 
         $period = PayrollPeriod::create([

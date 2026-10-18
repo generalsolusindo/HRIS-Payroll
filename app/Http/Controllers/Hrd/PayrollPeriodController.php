@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Hrd;
 use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\StorePayrollPeriodRequest;
+use App\Http\Requests\Hrd\UpdatePayrollPeriodRequest;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollPeriodDeletionRequest;
 use Illuminate\Http\RedirectResponse;
@@ -33,6 +34,9 @@ class PayrollPeriodController extends Controller
                 'name' => $period->name,
                 'starts_on' => $period->starts_on->toDateString(),
                 'ends_on' => $period->ends_on->toDateString(),
+                'attendance_starts_on' => $period->attendance_starts_on->toDateString(),
+                'attendance_ends_on' => $period->attendance_ends_on->toDateString(),
+                'payment_due_on' => $period->payment_due_on?->toDateString(),
                 'status' => $period->status,
                 'latest_run' => $period->runs->first() ? [
                     'id' => $period->runs->first()->id,
@@ -41,6 +45,11 @@ class PayrollPeriodController extends Controller
                     'employee_count' => $period->runs->first()->employee_count,
                     'net_total' => (string) $period->runs->first()->net_total,
                 ] : null,
+                // Dates can be fixed up right up until HRD submits the
+                // period to the Manager — once a run has moved past draft,
+                // the attendance window it was calculated from must stay
+                // frozen for the approval trail to make sense.
+                'can_edit_dates' => $period->runs->first() === null || $period->runs->first()->status === 'draft',
                 'can_request_deletion' => $period->runs->first() !== null
                     && ! in_array($period->runs->first()->status, ['approved', 'locked', 'partially_paid', 'paid'], true),
                 'deletion_request' => $period->deletionRequests->first() ? [
@@ -60,6 +69,34 @@ class PayrollPeriodController extends Controller
         ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Periode {$period->name} berhasil dibuat."]);
+
+        return back();
+    }
+
+    public function update(UpdatePayrollPeriodRequest $request, PayrollPeriod $period): RedirectResponse
+    {
+        $this->assertOwnCompany($request, $period->company_id);
+
+        DB::transaction(function () use ($request, $period) {
+            $locked = PayrollPeriod::whereKey($period->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->archived_at !== null || $locked->deletionRequests()->where('status', 'pending')->exists()) {
+                throw ValidationException::withMessages([
+                    'period' => 'Periode sedang menunggu keputusan penghapusan atau sudah diarsipkan.',
+                ]);
+            }
+
+            $latestRun = $locked->runs()->latest('version')->first();
+            if ($latestRun && $latestRun->status !== 'draft') {
+                throw ValidationException::withMessages([
+                    'period' => 'Tanggal periode hanya bisa diubah sebelum diajukan ke Manager. Batalkan hasil payroll dulu kalau perlu diubah.',
+                ]);
+            }
+
+            $locked->update($request->validated());
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => "Tanggal periode {$period->name} berhasil diperbarui. Hitung ulang draft kalau sudah ada hasil sebelumnya."]);
 
         return back();
     }

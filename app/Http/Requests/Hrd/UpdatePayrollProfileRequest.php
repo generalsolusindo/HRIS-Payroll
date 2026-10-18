@@ -46,6 +46,7 @@ class UpdatePayrollProfileRequest extends FormRequest
                 $validCount = PayrollComponent::whereIn('id', $componentIds)
                     ->where('company_id', $targetUser->company_id)
                     ->whereIn('type', ['earning', 'deduction'])->where('is_active', true)
+                    ->where('calculation_mode', 'profile')
                     ->whereNotIn('code', PayrollComponent::SYSTEM_CODES)
                     ->count();
                 if ($validCount !== $componentIds->unique()->count()) {

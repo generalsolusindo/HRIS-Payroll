@@ -34,7 +34,7 @@ type DivisionRow = {
     id: number;
     name: string;
     is_active: boolean;
-    daily_attendance_allowance: string;
+    base_salary: string;
 };
 
 type Props = {
@@ -67,26 +67,23 @@ function DivisionFormFields({
             </div>
 
             <div className="grid gap-2">
-                <Label htmlFor="daily_attendance_allowance">
-                    Tunjangan per Hari Hadir (Rp)
-                </Label>
+                <Label htmlFor="base_salary">Gaji Pokok (Rp)</Label>
                 <Input
-                    id="daily_attendance_allowance"
-                    name="daily_attendance_allowance"
+                    id="base_salary"
+                    name="base_salary"
                     type="number"
                     min="0"
                     step="0.01"
                     required
-                    defaultValue={
-                        defaultValues?.daily_attendance_allowance ?? '0'
-                    }
+                    defaultValue={defaultValues?.base_salary ?? '0'}
                 />
                 <p className="text-xs text-muted-foreground">
-                    Dihitung otomatis saat payroll diproses: hari hadir penuh
-                    dapat tarif penuh, setengah hari dapat separuh tarif. Isi 0
-                    untuk menonaktifkan.
+                    Dipakai sebagai nilai awal Gaji Pokok saat HRD membuat
+                    profil gaji karyawan baru di divisi ini — tetap bisa diubah
+                    manual per karyawan di Profil Gaji, dan tidak memengaruhi
+                    karyawan yang profilnya sudah ada.
                 </p>
-                <InputError message={errors.daily_attendance_allowance} />
+                <InputError message={errors.base_salary} />
             </div>
 
             <div className="grid gap-2">
@@ -191,7 +188,7 @@ export default function Divisions({ divisions }: Props) {
                                         Nama
                                     </th>
                                     <th className="px-4 py-3 font-medium">
-                                        Tunjangan/Hari
+                                        Gaji Pokok
                                     </th>
                                     <th className="px-4 py-3 font-medium">
                                         Status
@@ -209,7 +206,7 @@ export default function Divisions({ divisions }: Props) {
                                         </td>
                                         <td className="px-4 py-3 tabular-nums">
                                             {formatRupiah(
-                                                division.daily_attendance_allowance,
+                                                division.base_salary,
                                             )}
                                         </td>
                                         <td className="px-4 py-3">

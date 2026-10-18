@@ -22,7 +22,7 @@ class DivisionFactory extends Factory
             'company_id' => Company::factory(),
             'name' => fake()->unique()->jobTitle(),
             'is_active' => true,
-            'daily_attendance_allowance' => 0,
+            'base_salary' => 0,
         ];
     }
 }

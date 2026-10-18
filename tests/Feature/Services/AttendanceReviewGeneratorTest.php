@@ -192,6 +192,74 @@ class AttendanceReviewGeneratorTest extends TestCase
         $this->assertSame('Surat dokter dikirim via WhatsApp.', $review->fresh()->correction_reason);
     }
 
+    public function test_a_multi_day_leave_covers_every_day_of_its_duration(): void
+    {
+        $user = User::factory()->create(['role' => 'karyawan', 'status' => 'active']);
+        LeaveRequest::create([
+            'request_number' => 'REQ-2', 'user_id' => $user->id, 'type' => 'leave',
+            'leave_date' => '2026-10-05', 'duration' => '3', 'status' => 'approved',
+        ]);
+
+        // 2026-10-05 (Mon) to 2026-10-07 (Wed) — all three days must read
+        // as "leave", not just the first one.
+        foreach (['2026-10-05', '2026-10-06', '2026-10-07'] as $date) {
+            $this->generator()->generateForDate(Carbon::parse($date));
+            $review = AttendanceReview::where('user_id', $user->id)->whereDate('date', $date)->firstOrFail();
+            $this->assertSame('leave', $review->classification, "$date should be covered by the 3-day Cuti.");
+        }
+
+        // The day right after the leave ends is unaffected.
+        $this->generator()->generateForDate(Carbon::parse('2026-10-08'));
+        $after = AttendanceReview::where('user_id', $user->id)->whereDate('date', '2026-10-08')->firstOrFail();
+        $this->assertSame('absent', $after->classification);
+    }
+
+    public function test_an_approved_late_leave_does_not_override_real_attendance(): void
+    {
+        $user = User::factory()->create(['role' => 'karyawan', 'status' => 'active']);
+        WorkSchedule::create([
+            'company_id' => $user->company_id, 'name' => 'Reguler',
+            'jam_masuk' => '08:00:00', 'jam_pulang' => '17:00:00', 'toleransi_telat_menit' => 15,
+        ]);
+        $date = Carbon::parse('2026-10-05'); // A Monday.
+        LeaveRequest::create([
+            'request_number' => 'REQ-3', 'user_id' => $user->id, 'type' => 'late',
+            'leave_date' => $date, 'status' => 'approved',
+        ]);
+        Attendance::create([
+            'user_id' => $user->id, 'tanggal' => $date,
+            'clock_in_time' => '2026-10-05 09:00:00', 'clock_in_status' => 'telat', 'clock_in_late_minutes' => 45,
+            'clock_out_time' => '2026-10-05 17:00:00', 'clock_out_status' => 'tepat_waktu', 'clock_out_early_minutes' => 0,
+        ]);
+
+        $this->generator()->generateForDate($date);
+
+        $review = AttendanceReview::where('user_id', $user->id)->whereDate('date', $date)->firstOrFail();
+        // Classification and late minutes still come from the real
+        // clock-in — the approved leave never overrides attendance for
+        // this type, it only rides along so payroll can excuse the
+        // deduction without touching Tunjangan Kehadiran eligibility.
+        $this->assertSame('present', $review->classification);
+        $this->assertSame(45, $review->late_minutes);
+        $this->assertSame('late', $review->leave_snapshot['type']);
+        $this->assertTrue($review->isLateDeductionExcused());
+    }
+
+    public function test_an_approved_late_leave_with_no_attendance_still_reads_as_absent(): void
+    {
+        $user = User::factory()->create(['role' => 'karyawan', 'status' => 'active']);
+        $date = Carbon::parse('2026-10-05');
+        LeaveRequest::create([
+            'request_number' => 'REQ-4', 'user_id' => $user->id, 'type' => 'late',
+            'leave_date' => $date, 'status' => 'approved',
+        ]);
+
+        $this->generator()->generateForDate($date);
+
+        $review = AttendanceReview::where('user_id', $user->id)->whereDate('date', $date)->firstOrFail();
+        $this->assertSame('absent', $review->classification);
+    }
+
     public function test_inactive_or_non_karyawan_users_are_not_reviewed(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd', 'status' => 'active']);

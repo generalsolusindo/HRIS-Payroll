@@ -13,6 +13,8 @@ use Illuminate\Support\Str;
  * @property string $code
  * @property string $name
  * @property string $type earning|deduction|employer_contribution
+ * @property string $calculation_mode profile|system
+ * @property string|null $calculation_rule
  * @property bool $is_active
  */
 class PayrollComponent extends Model
@@ -33,9 +35,10 @@ class PayrollComponent extends Model
         'ATTENDANCE_PERFECT',
         'OVERTIME',
         'ATTENDANCE_ALLOWANCE',
+        'ATTENDANCE_TRANSPORT',
     ];
 
-    protected $fillable = ['company_id', 'code', 'name', 'type', 'is_active'];
+    protected $fillable = ['company_id', 'code', 'name', 'type', 'calculation_mode', 'calculation_rule', 'is_active'];
 
     /**
      * HRD only ever names a component — code is an internal identifier
@@ -91,5 +94,12 @@ class PayrollComponent extends Model
     public function entryLines(): HasMany
     {
         return $this->hasMany(PayrollEntryLine::class);
+    }
+
+    public function isSystemManaged(): bool
+    {
+        // SYSTEM_CODES remains a compatibility guard for pre-migration test
+        // fixtures and any legacy row encountered during a rolling deploy.
+        return $this->calculation_mode === 'system' || in_array($this->code, self::SYSTEM_CODES, true);
     }
 }

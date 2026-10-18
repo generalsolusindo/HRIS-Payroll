@@ -21,7 +21,7 @@ class PayrollComponentController extends Controller
     {
         $components = PayrollComponent::where('company_id', $request->user()->company_id)
             ->orderBy('name')
-            ->get(['id', 'name', 'type', 'is_active', 'code'])
+            ->get(['id', 'name', 'type', 'is_active', 'code', 'calculation_mode'])
             ->map(fn (PayrollComponent $component) => [
                 'id' => $component->id,
                 'name' => $component->name,
@@ -31,7 +31,7 @@ class PayrollComponentController extends Controller
                 // this component shows up in the Profil Gaji dropdown (a
                 // manual earning) or is computed automatically by the
                 // payroll run from attendance/overtime (see SYSTEM_CODES).
-                'is_system_managed' => in_array($component->code, PayrollComponent::SYSTEM_CODES, true),
+                'is_system_managed' => $component->isSystemManaged(),
             ]);
 
         return Inertia::render('hrd/payroll-components', [

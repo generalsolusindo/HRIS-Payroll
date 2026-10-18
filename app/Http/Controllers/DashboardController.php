@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CompanyCalendarDay;
 use App\Models\User;
+use App\Services\CompanyWorkCalendar;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -58,8 +60,40 @@ class DashboardController extends Controller
 
     private function employeeDashboard(User $user): Response
     {
-        $attendance = $user->attendances()->where('tanggal', today())->first();
+        $today = today();
+        $attendance = $user->attendances()->where('tanggal', $today)->first();
         $workSchedule = $user->company->workSchedules()->first();
+        $dayType = app(CompanyWorkCalendar::class)->dayType($user->company_id, $today, $user->id);
+        $calendarDescription = CompanyCalendarDay::where('company_id', $user->company_id)
+            ->whereDate('date', $today)
+            ->value('description');
+
+        // Collapses consecutive dates sharing a type+description into one
+        // range (e.g. 5 individual Idul Fitri rows become one "31 Mar - 2
+        // Apr" entry) so employees see it as a holiday stretch, not a list
+        // of single days.
+        $upcomingDaysOff = CompanyCalendarDay::where('company_id', $user->company_id)
+            ->whereIn('type', ['holiday', 'rest_day'])
+            ->whereDate('date', '>=', $today)
+            ->orderBy('date')
+            ->limit(90)
+            ->get(['date', 'type', 'description'])
+            ->reduce(function (array $ranges, CompanyCalendarDay $day) {
+                $last = $ranges === [] ? null : $ranges[array_key_last($ranges)];
+                if ($last !== null && $last['type'] === $day->type && $last['description'] === $day->description
+                    && Carbon::parse($last['ends_on'])->addDay()->isSameDay($day->date)) {
+                    $ranges[array_key_last($ranges)]['ends_on'] = $day->date->toDateString();
+                } else {
+                    $ranges[] = [
+                        'type' => $day->type,
+                        'description' => $day->description,
+                        'starts_on' => $day->date->toDateString(),
+                        'ends_on' => $day->date->toDateString(),
+                    ];
+                }
+
+                return $ranges;
+            }, []);
 
         return Inertia::render('dashboard', [
             'user' => [
@@ -67,6 +101,12 @@ class DashboardController extends Controller
             ],
             'hrdSummary' => null,
             'isTeknisi' => $user->division?->name === 'Teknisi',
+            'attendanceDay' => [
+                'type' => $dayType,
+                'label' => app(CompanyWorkCalendar::class)->label($dayType),
+                'description' => $calendarDescription,
+            ],
+            'upcomingDaysOff' => $upcomingDaysOff,
             'todayAttendance' => $attendance ? [
                 'clock_in_time' => $attendance->clock_in_time,
                 'clock_in_status' => $attendance->clock_in_status,

@@ -28,7 +28,7 @@ class StoreDivisionRequest extends FormRequest
                 Rule::unique(Division::class)->where(fn ($query) => $query->where('company_id', $this->user()->company_id)),
             ],
             'is_active' => ['required', 'boolean'],
-            'daily_attendance_allowance' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
+            'base_salary' => ['required', 'numeric', 'min:0', 'regex:/^\d{1,12}(?:\.\d{1,2})?$/D'],
         ];
     }
 }

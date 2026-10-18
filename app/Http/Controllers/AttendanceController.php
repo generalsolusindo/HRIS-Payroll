@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreAttendanceRequest;
 use App\Models\Attendance;
+use App\Models\Company;
 use App\Models\FaceVerificationReceipt;
 use App\Models\OfficeLocation;
 use App\Models\User;
 use App\Models\WorkSchedule;
 use App\Services\AttendancePunctuality;
+use App\Services\CompanyWorkCalendar;
 use App\Services\FaceDescriptorExtractor;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -30,6 +32,8 @@ class AttendanceController extends Controller
     public function clockIn(StoreAttendanceRequest $request): RedirectResponse
     {
         $user = $request->user();
+
+        $this->assertAttendanceDayIsWorkday($user, today());
 
         // Fast, unlocked pre-check — rejects an obviously-already-done
         // attempt before paying for a photo upload and a face-model call.
@@ -66,6 +70,8 @@ class AttendanceController extends Controller
                 // commits — it never holds a row lock across the model call.
                 $this->assertNotAlreadyClockedIn($user);
                 $this->assertEnrollmentUnchanged($user, $enrolledAtSnapshot);
+                Company::whereKey($user->company_id)->lockForUpdate()->firstOrFail();
+                $this->assertAttendanceDayIsWorkday($user, today());
                 $this->consumeReceiptIfProvided($request, $user, 'masuk');
 
                 try {
@@ -111,6 +117,18 @@ class AttendanceController extends Controller
         if ($alreadyClockedIn) {
             throw ValidationException::withMessages([
                 'photo' => 'Anda sudah absen masuk hari ini.',
+            ]);
+        }
+    }
+
+    private function assertAttendanceDayIsWorkday(User $user, CarbonInterface $date): void
+    {
+        $calendar = app(CompanyWorkCalendar::class);
+        $dayType = $calendar->dayType($user->company_id, $date, $user->id);
+
+        if ($dayType !== 'workday') {
+            throw ValidationException::withMessages([
+                'photo' => $calendar->label($dayType).' — absensi tidak tersedia pada tanggal ini.',
             ]);
         }
     }

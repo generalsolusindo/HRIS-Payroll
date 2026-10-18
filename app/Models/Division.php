@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $company_id
  * @property string $name
  * @property bool $is_active
- * @property string $daily_attendance_allowance
+ * @property string $base_salary
  */
 class Division extends Model
 {
@@ -22,14 +22,14 @@ class Division extends Model
 
     protected $fillable = [
         'company_id', 'name', 'is_active',
-        'daily_attendance_allowance',
+        'base_salary',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
-            'daily_attendance_allowance' => 'decimal:2',
+            'base_salary' => 'decimal:2',
         ];
     }
 

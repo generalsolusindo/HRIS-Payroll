@@ -407,4 +407,109 @@ class PenggajianTest extends TestCase
         $this->assertFalse($numbers->contains($firstPayslip->number));
         $this->assertSame('superseded', $firstPayslip->fresh()->status);
     }
+
+    public function test_employee_can_submit_a_complaint_against_their_own_shared_preview(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        [, $entry] = $this->makeSharedDraftRun($employee);
+
+        $this->actingAs($employee)
+            ->post(route('penggajian.pratinjau.komplain', $entry), [
+                'message' => 'Potongan alpha tanggal 28 seharusnya tidak ada.',
+            ])
+            ->assertSessionDoesntHaveErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('payroll_entry_complaints', [
+            'payroll_entry_id' => $entry->id,
+            'user_id' => $employee->id,
+            'message' => 'Potongan alpha tanggal 28 seharusnya tidak ada.',
+            'status' => 'new',
+        ]);
+
+        $this->actingAs($employee)->get(route('penggajian.pratinjau', $entry))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('preview.complaints', 1)
+                ->where('preview.complaints.0.status', 'new')
+            );
+    }
+
+    public function test_an_employee_cannot_submit_a_complaint_against_someone_elses_entry(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        $otherEmployee = User::factory()->create(['role' => 'karyawan', 'company_id' => $employee->company_id]);
+        [, $entry] = $this->makeSharedDraftRun($employee);
+
+        $this->actingAs($otherEmployee)
+            ->post(route('penggajian.pratinjau.komplain', $entry), ['message' => 'Bukan punya saya.'])
+            ->assertForbidden();
+    }
+
+    public function test_a_complaint_cannot_be_submitted_once_the_run_is_no_longer_shared(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        [$run, $entry] = $this->makeSharedDraftRun($employee);
+        $run->update(['shared_at' => null]);
+
+        $this->actingAs($employee)
+            ->post(route('penggajian.pratinjau.komplain', $entry), ['message' => 'Komplain terlambat.'])
+            ->assertForbidden();
+    }
+
+    public function test_hrd_can_see_and_resolve_a_complaint_with_a_note_the_employee_can_read(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        [$run, $entry, $hrd] = $this->makeSharedDraftRun($employee);
+
+        $this->actingAs($employee)
+            ->post(route('penggajian.pratinjau.komplain', $entry), ['message' => 'Tolong dicek potongan alpha-nya.']);
+
+        $complaint = $entry->complaints()->firstOrFail();
+
+        $this->actingAs($hrd)
+            ->get(route('hrd.hasil-payroll.show', $run))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('complaints', 1)
+                ->where('complaints.0.employee_name', $employee->name)
+                ->where('complaints.0.status', 'new')
+            );
+
+        $this->actingAs($hrd)
+            ->patch(route('hrd.hasil-payroll.komplain.update', $complaint), [
+                'status' => 'resolved',
+                'hrd_note' => 'Sudah dikoreksi lewat penyesuaian manual.',
+            ])
+            ->assertSessionDoesntHaveErrors()
+            ->assertRedirect();
+
+        $fresh = $complaint->fresh();
+        $this->assertSame('resolved', $fresh->status);
+        $this->assertSame('Sudah dikoreksi lewat penyesuaian manual.', $fresh->hrd_note);
+        $this->assertSame($hrd->id, $fresh->resolved_by);
+        $this->assertNotNull($fresh->resolved_at);
+
+        $this->actingAs($employee)->get(route('penggajian.pratinjau', $entry))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('preview.complaints.0.status', 'resolved')
+                ->where('preview.complaints.0.hrd_note', 'Sudah dikoreksi lewat penyesuaian manual.')
+            );
+    }
+
+    public function test_hrd_cannot_resolve_a_complaint_belonging_to_another_companys_run(): void
+    {
+        $employee = User::factory()->create(['role' => 'karyawan']);
+        [, $entry] = $this->makeSharedDraftRun($employee);
+        $this->actingAs($employee)
+            ->post(route('penggajian.pratinjau.komplain', $entry), ['message' => 'Komplain lintas perusahaan.']);
+        $complaint = $entry->complaints()->firstOrFail();
+
+        $otherHrd = User::factory()->create(['role' => 'hrd']);
+
+        $this->actingAs($otherHrd)
+            ->patch(route('hrd.hasil-payroll.komplain.update', $complaint), ['status' => 'resolved'])
+            ->assertForbidden();
+    }
 }

@@ -61,6 +61,7 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('penggajian', [PenggajianController::class, 'index'])->name('penggajian');
     Route::get('penggajian/pratinjau/{entry}', [PenggajianController::class, 'pratinjau'])->name('penggajian.pratinjau');
+    Route::post('penggajian/pratinjau/{entry}/komplain', [PenggajianController::class, 'storeComplaint'])->name('penggajian.pratinjau.komplain');
     Route::get('penggajian/{payslip}', [PenggajianController::class, 'show'])->name('penggajian.show');
     Route::get('daily-report', fn () => Inertia::render('daily-report'))->name('daily-report');
     Route::get('izin', [LeaveRequestController::class, 'index'])->name('izin');
@@ -122,6 +123,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::patch('hasil-payroll/{run}/ajukan', [PayrollRunController::class, 'submit'])->name('hasil-payroll.ajukan');
     Route::patch('hasil-payroll/{run}/batalkan', [PayrollRunController::class, 'cancel'])->name('hasil-payroll.batalkan');
     Route::patch('hasil-payroll/{run}/bagikan', [PayrollRunController::class, 'share'])->name('hasil-payroll.bagikan');
+    Route::patch('hasil-payroll/komplain/{complaint}', [PayrollRunController::class, 'resolveComplaint'])->name('hasil-payroll.komplain.update');
     Route::post('hasil-payroll/entri/{entry}/penyesuaian', [PayrollAdjustmentController::class, 'store'])->name('hasil-payroll.penyesuaian.store');
     Route::delete('hasil-payroll/penyesuaian/{line}', [PayrollAdjustmentController::class, 'destroy'])->name('hasil-payroll.penyesuaian.destroy');
 

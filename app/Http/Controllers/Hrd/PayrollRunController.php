@@ -12,6 +12,7 @@ use App\Models\OvertimeRequest;
 use App\Models\PayrollApproval;
 use App\Models\PayrollComponent;
 use App\Models\PayrollEntry;
+use App\Models\PayrollEntryComplaint;
 use App\Models\PayrollEntryLine;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollPolicy;
@@ -26,6 +27,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -631,9 +633,37 @@ class PayrollRunController extends Controller
         return back();
     }
 
+    /**
+     * HRD marks a complaint as being looked at or settled, with an
+     * optional note the employee can see back on their own Pratinjau Gaji
+     * page. This never touches any payroll figure by itself — HRD still
+     * makes any actual correction via Tambah Penyesuaian Manual.
+     */
+    public function resolveComplaint(Request $request, PayrollEntryComplaint $complaint): RedirectResponse
+    {
+        $complaint->loadMissing('entry.run.period');
+        $this->assertOwnCompany($request, $complaint->entry->run->period->company_id);
+
+        $validated = $request->validate([
+            'status' => ['required', Rule::in(['in_review', 'resolved'])],
+            'hrd_note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $complaint->update([
+            'status' => $validated['status'],
+            'hrd_note' => $validated['hrd_note'] ?? $complaint->hrd_note,
+            'resolved_by' => $validated['status'] === 'resolved' ? $request->user()->id : $complaint->resolved_by,
+            'resolved_at' => $validated['status'] === 'resolved' ? now() : $complaint->resolved_at,
+        ]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Status komplain diperbarui.']);
+
+        return back();
+    }
+
     public function show(Request $request, PayrollRun $run): Response
     {
-        $run->load('period.company', 'entries.division', 'entries.lines', 'entries.payslips', 'approvals.actor');
+        $run->load('period.company', 'entries.division', 'entries.lines', 'entries.payslips', 'entries.complaints', 'approvals.actor');
 
         $this->assertOwnCompany($request, $run->period->company_id);
 
@@ -685,6 +715,21 @@ class PayrollRunController extends Controller
                 'note' => $approval->note,
                 'created_at' => $approval->created_at->toIso8601String(),
             ]),
+            // Flattened across every employee's entry — HRD reviews these
+            // as one list for the whole run, not per-employee. Never
+            // changes a figure by itself; HRD still adjusts manually.
+            'complaints' => $run->entries
+                ->flatMap(fn (PayrollEntry $entry) => $entry->complaints->map(fn (PayrollEntryComplaint $complaint) => [
+                    'id' => $complaint->id,
+                    'employee_name' => $entry->employee_snapshot['name'] ?? '—',
+                    'message' => $complaint->message,
+                    'status' => $complaint->status,
+                    'hrd_note' => $complaint->hrd_note,
+                    'created_at' => $complaint->created_at,
+                ]))
+                ->sortByDesc('created_at')
+                ->values()
+                ->map(fn (array $complaint) => [...$complaint, 'created_at' => $complaint['created_at']->toIso8601String()]),
             'entries' => $run->entries->map(fn (PayrollEntry $entry) => [
                 'id' => $entry->id,
                 'user_id' => $entry->user_id,

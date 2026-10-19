@@ -1,5 +1,11 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, History, Search, Users } from 'lucide-react';
+import {
+    ArrowLeft,
+    History,
+    MessageSquare,
+    Search,
+    Users,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import PayrollPayslipController from '@/actions/App/Http/Controllers/Hrd/PayrollPayslipController';
@@ -18,6 +24,13 @@ import {
 import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
@@ -100,6 +113,15 @@ type Props = {
         note: string | null;
         created_at: string;
     }[];
+    complaints: Complaint[];
+};
+type Complaint = {
+    id: number;
+    employee_name: string;
+    message: string;
+    status: 'new' | 'in_review' | 'resolved';
+    hrd_note: string | null;
+    created_at: string;
 };
 const RUN_STATUS_LABELS: Record<string, string> = {
     draft: 'Draft',
@@ -111,6 +133,12 @@ const RUN_STATUS_LABELS: Record<string, string> = {
     paid: 'Lunas',
     superseded: 'Digantikan',
     cancelled: 'Dibatalkan',
+};
+
+const COMPLAINT_STATUS_LABELS: Record<Complaint['status'], string> = {
+    new: 'Baru',
+    in_review: 'Sedang Ditinjau',
+    resolved: 'Selesai',
 };
 
 const APPROVAL_ACTION_LABELS: Record<string, string> = {
@@ -225,6 +253,7 @@ export default function PayrollRunShow({
     capabilities,
     readiness_issues,
     approvals,
+    complaints,
 }: Props) {
     const [search, setSearch] = useState('');
     const [division, setDivision] = useState('all');
@@ -233,6 +262,11 @@ export default function PayrollRunShow({
     const [recalculating, setRecalculating] = useState(false);
     const [sharing, setSharing] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
+    const [respondingComplaint, setRespondingComplaint] =
+        useState<Complaint | null>(null);
+    const [respondStatus, setRespondStatus] = useState<'in_review' | 'resolved'>(
+        'in_review',
+    );
     const detailRef = useRef<HTMLHeadingElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const visible = entries.filter(
@@ -302,6 +336,11 @@ export default function PayrollRunShow({
         setSelectedId(id);
         setMobileDetail(true);
         requestAnimationFrame(() => detailRef.current?.focus());
+    }
+
+    function openRespond(complaint: Complaint) {
+        setRespondingComplaint(complaint);
+        setRespondStatus(complaint.status === 'new' ? 'in_review' : 'resolved');
     }
 
     return (
@@ -864,6 +903,84 @@ export default function PayrollRunShow({
                         )}
                     </section>
                 </div>
+                {complaints.length > 0 && (
+                    <details
+                        className="rounded-2xl border bg-card p-4"
+                        open
+                    >
+                        <summary className="cursor-pointer text-sm font-semibold">
+                            <MessageSquare className="mr-2 inline size-4" />
+                            Komplain karyawan ({complaints.length})
+                        </summary>
+                        <ul className="mt-4 space-y-3">
+                            {complaints.map((complaint) => (
+                                <li
+                                    key={complaint.id}
+                                    className="rounded-xl border p-3 text-sm"
+                                >
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <p className="font-medium">
+                                            {complaint.employee_name}
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <span
+                                                className={cn(
+                                                    'inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                                                    complaint.status ===
+                                                        'resolved'
+                                                        ? 'border-emerald-400 text-emerald-600 dark:border-emerald-400/70 dark:text-emerald-400'
+                                                        : complaint.status ===
+                                                            'in_review'
+                                                          ? 'border-blue-400 text-blue-600 dark:border-blue-400/70 dark:text-blue-400'
+                                                          : 'border-amber-400 text-amber-600 dark:border-amber-400/70 dark:text-amber-400',
+                                                )}
+                                            >
+                                                {
+                                                    COMPLAINT_STATUS_LABELS[
+                                                        complaint.status
+                                                    ]
+                                                }
+                                            </span>
+                                            {complaint.status !==
+                                                'resolved' && (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="rounded-full"
+                                                    onClick={() =>
+                                                        openRespond(complaint)
+                                                    }
+                                                >
+                                                    Tanggapi
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {new Date(
+                                            complaint.created_at,
+                                        ).toLocaleString('id-ID', {
+                                            timeZone: 'Asia/Jakarta',
+                                        })}{' '}
+                                        WIB
+                                    </p>
+                                    <p className="mt-2 break-words">
+                                        {complaint.message}
+                                    </p>
+                                    {complaint.hrd_note && (
+                                        <div className="mt-2 rounded-lg bg-muted/50 p-2 text-xs">
+                                            <span className="font-medium">
+                                                Catatan HRD:
+                                            </span>{' '}
+                                            {complaint.hrd_note}
+                                        </div>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </details>
+                )}
                 {approvals.length > 0 && (
                     <details className="rounded-2xl border bg-card p-4">
                         <summary className="cursor-pointer text-sm font-semibold">
@@ -900,6 +1017,110 @@ export default function PayrollRunShow({
                     </details>
                 )}
             </div>
+
+            <Dialog
+                open={respondingComplaint !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setRespondingComplaint(null);
+                    }
+                }}
+            >
+                <DialogContent>
+                    {respondingComplaint && (
+                        <Form
+                            {...PayrollRunController.resolveComplaint.form(
+                                respondingComplaint.id,
+                            )}
+                            key={respondingComplaint.id}
+                            disableWhileProcessing
+                            onSuccess={() => setRespondingComplaint(null)}
+                        >
+                            {({ processing, errors }) => (
+                                <>
+                                    <DialogHeader>
+                                        <DialogTitle>
+                                            Tanggapi Komplain —{' '}
+                                            {respondingComplaint.employee_name}
+                                        </DialogTitle>
+                                        <DialogDescription className="break-words">
+                                            {respondingComplaint.message}
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="grid gap-4 py-2">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="complaint_status">
+                                                Status
+                                            </Label>
+                                            <input
+                                                type="hidden"
+                                                name="status"
+                                                value={respondStatus}
+                                            />
+                                            <Select
+                                                value={respondStatus}
+                                                onValueChange={(
+                                                    value:
+                                                        | 'in_review'
+                                                        | 'resolved',
+                                                ) => setRespondStatus(value)}
+                                            >
+                                                <SelectTrigger
+                                                    id="complaint_status"
+                                                    className="w-full"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="in_review">
+                                                        Sedang Ditinjau
+                                                    </SelectItem>
+                                                    <SelectItem value="resolved">
+                                                        Selesai
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <InputError
+                                                message={errors.status}
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="hrd_note">
+                                                Catatan untuk karyawan{' '}
+                                                <span className="font-normal text-muted-foreground">
+                                                    (opsional)
+                                                </span>
+                                            </Label>
+                                            <Textarea
+                                                id="hrd_note"
+                                                name="hrd_note"
+                                                rows={3}
+                                                maxLength={2000}
+                                                defaultValue={
+                                                    respondingComplaint.hrd_note ??
+                                                    ''
+                                                }
+                                                placeholder="Contoh: sudah dikoreksi, lihat penyesuaian manual di rincian gaji."
+                                            />
+                                            <InputError
+                                                message={errors.hrd_note}
+                                            />
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <Button
+                                            type="submit"
+                                            disabled={processing}
+                                        >
+                                            Simpan Tanggapan
+                                        </Button>
+                                    </DialogFooter>
+                                </>
+                            )}
+                        </Form>
+                    )}
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

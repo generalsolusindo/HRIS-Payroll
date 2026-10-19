@@ -18,10 +18,19 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Trusts only a proxy running on this same machine (e.g. a local
-        // HTTPS-terminating proxy used for LAN device testing) to report
-        // the original request scheme via X-Forwarded-Proto.
-        $middleware->trustProxies(at: ['127.0.0.1']);
+        // Trusts whatever reverse proxy forwards to this app (nginx on the
+        // deployed servers terminating TLS, or a local HTTPS-terminating
+        // proxy for LAN device testing) to report the original client IP
+        // and scheme via X-Forwarded-For/-Proto. Safe to trust broadly
+        // here because PHP-FPM is never reachable directly from the
+        // public internet — only that one upstream proxy can reach it.
+        // Scoping this to a single hardcoded IP (e.g. 127.0.0.1) silently
+        // breaks the moment the real proxy's address doesn't match it:
+        // Laravel then treats genuinely-HTTPS requests as plain HTTP,
+        // which showed up as login/logout needing a manual refresh to
+        // take effect (the session cookie's Secure flag and generated
+        // redirect URLs disagreeing with what the browser actually used).
+        $middleware->trustProxies(at: '*');
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 

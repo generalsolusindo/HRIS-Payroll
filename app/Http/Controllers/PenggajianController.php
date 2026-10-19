@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\PayrollEntry;
+use App\Models\PayrollEntryComplaint;
 use App\Models\PayrollEntryLine;
 use App\Models\PayrollPayslip;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -82,7 +84,7 @@ class PenggajianController extends Controller
      */
     public function pratinjau(Request $request, PayrollEntry $entry): Response
     {
-        $entry->loadMissing('run.period', 'lines');
+        $entry->loadMissing('run.period', 'lines', 'complaints');
 
         abort_unless(
             $entry->user_id === $request->user()->id && $entry->run->shared_at !== null,
@@ -91,6 +93,7 @@ class PenggajianController extends Controller
 
         return Inertia::render('penggajian-pratinjau', [
             'preview' => [
+                'id' => $entry->id,
                 'run_status' => $entry->run->status,
                 'shared_at' => $entry->run->shared_at->toIso8601String(),
                 'period' => [
@@ -114,7 +117,44 @@ class PenggajianController extends Controller
                     'type' => $line->type,
                     'amount' => (string) $line->amount,
                 ])->all(),
+                'complaints' => $entry->complaints->sortBy('id')->values()->map(fn (PayrollEntryComplaint $complaint) => [
+                    'id' => $complaint->id,
+                    'message' => $complaint->message,
+                    'status' => $complaint->status,
+                    'hrd_note' => $complaint->hrd_note,
+                    'created_at' => $complaint->created_at->toIso8601String(),
+                ]),
             ],
         ]);
+    }
+
+    /**
+     * A free-text complaint/adjustment request against the employee's own
+     * preview entry — never changes any figure by itself. It's purely a
+     * note for HRD to act on manually (e.g. via Tambah Penyesuaian Manual),
+     * same as the "report outside the system" path this replaces, just
+     * captured inside the app instead of over chat/Telegram.
+     */
+    public function storeComplaint(Request $request, PayrollEntry $entry): RedirectResponse
+    {
+        abort_unless(
+            $entry->user_id === $request->user()->id && $entry->run->shared_at !== null,
+            403,
+        );
+
+        $validated = $request->validate([
+            'message' => ['required', 'string', 'max:2000'],
+        ]);
+
+        PayrollEntryComplaint::create([
+            'payroll_entry_id' => $entry->id,
+            'user_id' => $request->user()->id,
+            'message' => $validated['message'],
+            'status' => 'new',
+        ]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Komplain/penyesuaian terkirim ke HRD.']);
+
+        return back();
     }
 }

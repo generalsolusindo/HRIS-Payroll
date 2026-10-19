@@ -107,4 +107,12 @@ class PayrollEntry extends Model
     {
         return $this->hasMany(PayrollPayslip::class);
     }
+
+    /**
+     * @return HasMany<PayrollEntryComplaint, $this>
+     */
+    public function complaints(): HasMany
+    {
+        return $this->hasMany(PayrollEntryComplaint::class);
+    }
 }

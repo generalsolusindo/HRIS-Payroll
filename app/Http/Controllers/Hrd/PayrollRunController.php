@@ -699,6 +699,7 @@ class PayrollRunController extends Controller
                 'unresolved_days' => $entry->attendance_snapshot['unresolved_days'] ?? 0,
                 'lines' => $entry->lines->map(fn (PayrollEntryLine $line) => [
                     'id' => $line->id,
+                    'line_key' => $line->line_key,
                     'source' => $line->source,
                     'quantity' => (string) $line->quantity,
                     'rate' => (string) $line->rate,
@@ -708,6 +709,18 @@ class PayrollRunController extends Controller
                     'component_name' => $line->component_name,
                     'type' => $line->type,
                     'amount' => (string) $line->amount,
+                    // Surfaces the Potongan Alpha formula (Gaji Pokok ÷
+                    // Hari Kerja × Hari Alpha) so HRD can see exactly why
+                    // the number is what it is, not just quantity × rate.
+                    // A run calculated before this breakdown existed won't
+                    // have these keys in its snapshot — guarded rather
+                    // than assumed, so an old run's page still renders.
+                    'alpha_breakdown' => $line->line_key === 'attendance-absence' && array_key_exists('work_days', $line->calculation_snapshot) ? [
+                        'base_salary' => (string) $line->calculation_snapshot['base_salary'],
+                        'work_days' => $line->calculation_snapshot['work_days'],
+                        'absent_days' => $line->calculation_snapshot['absent_days'],
+                        'capped_to_avoid_negative_net' => $line->calculation_snapshot['capped_to_avoid_negative_net'] ?? false,
+                    ] : null,
                 ]),
                 'can_publish_slip' => $isHrd && $canPublishSlips,
                 'latest_payslip' => $this->latestPayslip($entry),

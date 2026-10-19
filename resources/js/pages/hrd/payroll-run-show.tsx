@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 
 type Line = {
     id: number;
+    line_key: string;
     component_name: string;
     type: string;
     amount: string;
@@ -32,6 +33,12 @@ type Line = {
     adjustment_reason: string | null;
     cancelled: boolean;
     cancellation_reason: string | null;
+    alpha_breakdown: {
+        base_salary: string;
+        work_days: number;
+        absent_days: number;
+        capped_to_avoid_negative_net: boolean;
+    } | null;
 };
 type Entry = {
     id: number;
@@ -173,6 +180,21 @@ function LineGroup({ title, lines }: { title: string; lines: Line[] }) {
                                     }).format(Number(line.quantity))}{' '}
                                     × {money(line.rate)}
                                 </p>
+                                {line.alpha_breakdown && (
+                                    <p className="text-xs text-muted-foreground">
+                                        {money(
+                                            line.alpha_breakdown.base_salary,
+                                        )}{' '}
+                                        (Gaji Pokok) ÷{' '}
+                                        {line.alpha_breakdown.work_days} hari
+                                        kerja ×{' '}
+                                        {line.alpha_breakdown.absent_days}{' '}
+                                        hari alpha
+                                        {line.alpha_breakdown
+                                            .capped_to_avoid_negative_net &&
+                                            ' — dibatasi agar gaji bersih tidak minus'}
+                                    </p>
+                                )}
                                 {line.cancellation_reason && (
                                     <p className="text-xs text-muted-foreground">
                                         Alasan pembatalan:{' '}

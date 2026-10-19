@@ -8,10 +8,10 @@ use App\Models\CompanyCalendarDay;
 use App\Models\Division;
 use App\Models\EmployeePayrollProfile;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\LeaveRequest;
 use App\Models\PayrollComponent;
 use App\Models\PayrollEntry;
 use App\Models\PayrollPeriod;
-use App\Models\LeaveRequest;
 use App\Models\PayrollPolicy;
 use App\Models\PayrollRun;
 use App\Models\User;
@@ -135,6 +135,17 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $this->assertSame('1.0000', $line->quantity);
         $this->assertSame('3000000.00', $line->calculation_snapshot['base_salary']);
         $this->assertSame(2, $line->calculation_snapshot['work_days']);
+
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+        $this->actingAs($hrd)
+            ->get(route('hrd.hasil-payroll.show', $run))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('entries.0.lines.0.alpha_breakdown.base_salary', '3000000.00')
+                ->where('entries.0.lines.0.alpha_breakdown.work_days', 2)
+                ->where('entries.0.lines.0.alpha_breakdown.absent_days', 1)
+                ->where('entries.0.lines.0.alpha_breakdown.capped_to_avoid_negative_net', false)
+            );
     }
 
     public function test_an_employee_without_a_gaji_pokok_component_gets_no_alpha_deduction(): void

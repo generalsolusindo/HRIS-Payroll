@@ -6,6 +6,7 @@ use App\Models\PayrollEntry;
 use App\Models\PayrollEntryComplaint;
 use App\Models\PayrollEntryLine;
 use App\Models\PayrollPayslip;
+use App\Services\NavBadgeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,8 +20,10 @@ class PenggajianController extends Controller
      * PayrollRunController::share()). HRD sees everyone's via the payroll
      * run screen instead, so this stays scoped to the viewer.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, NavBadgeService $navBadges): Response
     {
+        $navBadges->markSeen($request->user(), 'karyawan_penggajian');
+
         $payslips = PayrollPayslip::where('status', 'published')
             ->whereIn('payroll_entry_id', PayrollEntry::where('user_id', $request->user()->id)->pluck('id'))
             ->with('entry.run.period')

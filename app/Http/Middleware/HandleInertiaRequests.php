@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\NavBadgeService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -43,6 +44,9 @@ class HandleInertiaRequests extends Middleware
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'faceVerificationEnabled' => (bool) config('face.verification_enabled'),
+            'navBadges' => $request->user()
+                ? app(NavBadgeService::class)->pendingBadges($request->user())
+                : [],
         ];
     }
 }

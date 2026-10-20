@@ -20,6 +20,7 @@ use App\Models\PayrollRun;
 use App\Models\User;
 use App\Services\AttendanceReviewGenerator;
 use App\Services\CompanyWorkCalendar;
+use App\Services\NavBadgeService;
 use App\Services\PayrollMoney;
 use App\Services\PayrollReadiness;
 use App\Services\PayrollTotals;
@@ -661,11 +662,12 @@ class PayrollRunController extends Controller
         return back();
     }
 
-    public function show(Request $request, PayrollRun $run): Response
+    public function show(Request $request, PayrollRun $run, NavBadgeService $navBadges): Response
     {
         $run->load('period.company', 'entries.division', 'entries.lines', 'entries.payslips', 'entries.complaints', 'approvals.actor');
 
         $this->assertOwnCompany($request, $run->period->company_id);
+        $navBadges->markSeen($request->user(), 'hrd_payroll_complaints');
 
         $canPublishSlips = in_array($run->status, ['approved', 'locked', 'partially_paid', 'paid'], true);
 

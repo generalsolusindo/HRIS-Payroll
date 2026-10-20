@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import {
     SidebarGroup,
     SidebarGroupLabel,
@@ -20,6 +20,8 @@ export function NavMain({
 }) {
     const { currentUrl } = useCurrentUrl();
     const { isMobile, setOpenMobile } = useSidebar();
+    const { navBadges } = usePage<{ navBadges: Record<string, boolean> }>()
+        .props;
 
     // Only the single most specific match wins. Plain prefix-matching
     // would otherwise keep a broader item highlighted too (e.g.
@@ -58,6 +60,9 @@ export function NavMain({
             <SidebarMenu>
                 {items.map((item, index) => {
                     const isActive = index === activeIndex;
+                    const hasBadge = Boolean(
+                        item.badgeKey && navBadges?.[item.badgeKey],
+                    );
 
                     return (
                         <SidebarMenuItem key={item.title}>
@@ -75,17 +80,25 @@ export function NavMain({
                                         if (isMobile) setOpenMobile(false);
                                     }}
                                 >
-                                    {item.icon && (
-                                        <span
-                                            className={cn(
-                                                'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors',
-                                                isActive &&
-                                                    'bg-sidebar-primary text-sidebar-primary-foreground',
-                                            )}
-                                        >
-                                            <item.icon className="size-4" />
-                                        </span>
-                                    )}
+                                    <span className="relative flex shrink-0">
+                                        {item.icon && (
+                                            <span
+                                                className={cn(
+                                                    'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors',
+                                                    isActive &&
+                                                        'bg-sidebar-primary text-sidebar-primary-foreground',
+                                                )}
+                                            >
+                                                <item.icon className="size-4" />
+                                            </span>
+                                        )}
+                                        {hasBadge && (
+                                            <span
+                                                aria-label="Ada yang perlu dikerjakan"
+                                                className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500 ring-2 ring-sidebar"
+                                            />
+                                        )}
+                                    </span>
                                     <span
                                         className={cn(
                                             isActive && 'font-semibold',

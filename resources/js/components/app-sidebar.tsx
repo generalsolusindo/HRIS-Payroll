@@ -70,18 +70,21 @@ const selfServicePenggajianItem: NavItem = {
     title: 'Penggajian',
     href: penggajian(),
     icon: Wallet,
+    badgeKey: 'karyawan_penggajian',
 };
 
 const selfServiceIzinItem: NavItem = {
     title: 'Izin',
     href: izin(),
     icon: CalendarOff,
+    badgeKey: 'karyawan_izin',
 };
 
 const selfServiceLemburItem: NavItem = {
     title: 'Lembur',
     href: OvertimeRequestController.index(),
     icon: Clock,
+    badgeKey: 'karyawan_lembur',
 };
 
 const payrollNavItems: NavItem[] = [
@@ -90,6 +93,7 @@ const payrollNavItems: NavItem[] = [
         href: PayrollPeriodController.index(),
         icon: Calculator,
         activePaths: ['/hrd/periode-gaji', '/hrd/hasil-payroll'],
+        badgeKey: 'hrd_payroll_complaints',
     },
     {
         title: 'Aturan Gaji',
@@ -124,6 +128,7 @@ const hrdNavItems: NavItem[] = [
         title: 'Manajemen User',
         href: UserManagementController.index(),
         icon: Users,
+        badgeKey: 'hrd_pending_users',
     },
     {
         title: 'Divisi',
@@ -144,6 +149,7 @@ const hrdNavItems: NavItem[] = [
         title: 'Persetujuan Lembur',
         href: OvertimeApprovalController.index(),
         icon: Clock,
+        badgeKey: 'hrd_lembur',
     },
 ];
 
@@ -167,6 +173,7 @@ const leaveNavItems: NavItem[] = [
         title: 'Persetujuan Izin',
         href: HrdLeaveRequestApprovalController.index(),
         icon: CalendarOff,
+        badgeKey: 'hrd_izin',
     },
     {
         title: 'Riwayat Izin',
@@ -180,6 +187,7 @@ const managerNavItems: NavItem[] = [
         title: 'Persetujuan Izin',
         href: ManagerLeaveRequestApprovalController.index(),
         icon: CalendarOff,
+        badgeKey: 'manager_izin',
     },
     {
         title: 'Riwayat Izin',
@@ -190,6 +198,7 @@ const managerNavItems: NavItem[] = [
         title: 'Persetujuan Payroll',
         href: PayrollRunApprovalController.index(),
         icon: Wallet,
+        badgeKey: 'manager_payroll',
     },
 ];
 
@@ -198,6 +207,7 @@ const financeNavItems: NavItem[] = [
         title: 'Pembayaran Payroll',
         href: PayrollPaymentController.index(),
         icon: Wallet,
+        badgeKey: 'finance_payroll',
     },
 ];
 

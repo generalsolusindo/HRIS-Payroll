@@ -7,6 +7,7 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveRequestAttachment;
 use App\Services\LeaveRequestNotifier;
 use App\Services\LeaveRequestService;
+use App\Services\NavBadgeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -21,8 +22,10 @@ class LeaveRequestController extends Controller
         private readonly LeaveRequestNotifier $notifier,
     ) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request, NavBadgeService $navBadges): Response
     {
+        $navBadges->markSeen($request->user(), 'karyawan_izin');
+
         $leaveRequests = $request->user()->leaveRequests()
             ->with(['processedBy:id,name', 'hrdProcessedBy:id,name'])
             ->latest('leave_date')

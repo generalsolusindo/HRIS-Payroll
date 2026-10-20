@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Hrd;
 use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Models\OvertimeRequest;
+use App\Services\NavBadgeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -15,8 +16,10 @@ class OvertimeApprovalController extends Controller
 {
     use ScopesToOwnCompany;
 
-    public function index(Request $request): Response
+    public function index(Request $request, NavBadgeService $navBadges): Response
     {
+        $navBadges->markSeen($request->user(), 'hrd_lembur');
+
         $overtimeRequests = OvertimeRequest::where('status', 'submitted')
             ->where('company_id', $request->user()->company_id)
             ->with(['user:id,name,company_id,division_id', 'user.company:id,name', 'user.division:id,name'])

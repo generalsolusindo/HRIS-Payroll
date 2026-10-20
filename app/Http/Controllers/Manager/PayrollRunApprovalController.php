@@ -11,6 +11,7 @@ use App\Models\PayrollEntryLine;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollPeriodDeletionRequest;
 use App\Models\PayrollRun;
+use App\Services\NavBadgeService;
 use App\Services\PayrollReadiness;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,8 +24,10 @@ class PayrollRunApprovalController extends Controller
 {
     use ScopesToOwnCompany;
 
-    public function index(Request $request): Response
+    public function index(Request $request, NavBadgeService $navBadges): Response
     {
+        $navBadges->markSeen($request->user(), 'manager_payroll');
+
         $runs = PayrollRun::where('status', 'submitted')
             ->whereHas('period', fn ($query) => $query
                 ->where('company_id', $request->user()->company_id)

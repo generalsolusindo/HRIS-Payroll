@@ -12,4 +12,7 @@ export type NavItem = {
     icon?: LucideIcon | null;
     isActive?: boolean;
     activePaths?: string[];
+    // Key into the shared `navBadges` page prop — shows a small dot on
+    // this item while true (see NavBadgeService on the backend).
+    badgeKey?: string;
 };

@@ -9,6 +9,8 @@ use App\Models\PayrollApproval;
 use App\Models\PayrollEntry;
 use App\Models\PayrollPayment;
 use App\Models\PayrollRun;
+use App\Models\User;
+use App\Services\NavBadgeService;
 use App\Services\PayrollAuditLogger;
 use App\Services\PayrollMoney;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -30,8 +32,10 @@ class PayrollPaymentController extends Controller
      * Draft/submitted/revision_requested runs never appear here: there is
      * nothing for Finance to do until a Manager has approved a version.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, NavBadgeService $navBadges): Response
     {
+        $navBadges->markSeen($request->user(), 'finance_payroll');
+
         $runs = PayrollRun::whereIn('status', ['approved', 'locked', 'partially_paid', 'paid'])
             ->whereHas('period', fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->with('period.company')
@@ -60,7 +64,7 @@ class PayrollPaymentController extends Controller
         abort_unless(in_array($run->status, ['approved', 'locked', 'partially_paid', 'paid'], true), 404);
         $this->assertOwnCompany($request, $run->period->company_id);
 
-        $run->load('period.company', 'entries.division', 'entries.payments', 'approvals.actor');
+        $run->load('period.company', 'entries.division', 'entries.payments', 'entries.user', 'approvals.actor');
 
         return Inertia::render('finance/payroll-run-show', [
             'approvals' => $run->approvals->sortBy('created_at')->values()->map(fn (PayrollApproval $approval) => [
@@ -86,6 +90,7 @@ class PayrollPaymentController extends Controller
             ],
             'entries' => $run->entries->map(function (PayrollEntry $entry) {
                 $paid = $this->confirmedTotal($entry);
+                $destination = $this->currentDestination($entry);
 
                 return [
                     'id' => $entry->id,
@@ -94,8 +99,8 @@ class PayrollPaymentController extends Controller
                     'net_amount' => (string) $entry->net_amount,
                     'paid_amount' => $paid,
                     'remaining_amount' => bccomp($entry->net_amount, $paid, 2) > 0 ? bcsub($entry->net_amount, $paid, 2) : '0.00',
-                    'has_destination' => $entry->payment_destination !== null,
-                    'destination' => $entry->payment_destination,
+                    'has_destination' => $destination !== null,
+                    'destination' => $destination,
                     'payments' => $entry->payments->sortByDesc('created_at')->values()->map(fn (PayrollPayment $payment) => [
                         'id' => $payment->id,
                         'amount' => (string) $payment->amount,
@@ -189,7 +194,7 @@ class PayrollPaymentController extends Controller
                     'status' => 'confirmed',
                     'reference' => $validated['reference'] ?? null,
                     'proof_path' => $proofPath,
-                    'destination_snapshot' => $lockedEntry->payment_destination,
+                    'destination_snapshot' => $this->currentDestination($lockedEntry),
                     'paid_at' => now(),
                     'recorded_by' => $request->user()->id,
                     'confirmed_by' => $request->user()->id,
@@ -243,6 +248,30 @@ class PayrollPaymentController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Pembayaran dibatalkan.']);
 
         return back();
+    }
+
+    /**
+     * Reads bank details live off the employee's User record rather than
+     * the payment_destination column frozen on the entry at run-generation
+     * time — HRD routinely fills in a missing bank account in Manajemen
+     * User only after the run already exists, and that update must be
+     * reflected before Finance records a payment.
+     *
+     * @return array{bank_name: ?string, account_number: ?string, account_holder: ?string}|null
+     */
+    private function currentDestination(PayrollEntry $entry): ?array
+    {
+        $user = $entry->user instanceof User ? $entry->user : $entry->user()->first();
+
+        if ($user === null || ! $user->bank_account_number) {
+            return null;
+        }
+
+        return [
+            'bank_name' => $user->bank_name,
+            'account_number' => $user->bank_account_number,
+            'account_holder' => $user->bank_account_holder,
+        ];
     }
 
     /** @return numeric-string */

@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\ScopesToOwnCompany;
 use App\Http\Controllers\Controller;
 use App\Models\LeaveRequest;
 use App\Services\LeaveRequestNotifier;
+use App\Services\NavBadgeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,9 +29,10 @@ class LeaveRequestApprovalController extends Controller
     /**
      * HRD's own queue — only pengajuan still awaiting the HRD stage.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, NavBadgeService $navBadges): Response
     {
         $companyId = $request->user()->company_id;
+        $navBadges->markSeen($request->user(), 'hrd_izin');
 
         $leaveRequests = $this->filteredLeaveRequestsQuery($request, $companyId)
             ->where('status', self::PENDING_STATUS)

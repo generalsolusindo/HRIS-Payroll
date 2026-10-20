@@ -8,6 +8,7 @@ use App\Http\Requests\Hrd\UpdateUserRequest;
 use App\Models\Company;
 use App\Models\Division;
 use App\Models\User;
+use App\Services\NavBadgeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -17,8 +18,9 @@ use Inertia\Response;
 
 class UserManagementController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, NavBadgeService $navBadges): Response
     {
+        $navBadges->markSeen($request->user(), 'hrd_pending_users');
         $search = trim((string) $request->string('search'));
 
         // HRD manages users across every instansi in the system, not just

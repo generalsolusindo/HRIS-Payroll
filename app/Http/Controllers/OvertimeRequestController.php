@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreOvertimeRequestRequest;
 use App\Models\OvertimeRequest;
+use App\Services\NavBadgeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -11,8 +12,10 @@ use Inertia\Response;
 
 class OvertimeRequestController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, NavBadgeService $navBadges): Response
     {
+        $navBadges->markSeen($request->user(), 'karyawan_lembur');
+
         $overtimeRequests = $request->user()->overtimeRequests()
             ->with('processedBy:id,name')
             ->latest('starts_at')

@@ -13,6 +13,7 @@ declare module '@inertiajs/core' {
             auth: Auth;
             sidebarOpen: boolean;
             faceVerificationEnabled: boolean;
+            navBadges: Record<string, boolean>;
             [key: string]: unknown;
         };
     }

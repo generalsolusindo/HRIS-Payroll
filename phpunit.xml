@@ -34,6 +34,17 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!-- Pinned regardless of the developer's local .env: without this,
+             a real TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID from .env leaks into
+             every test run, and any Izin test that exercises submit/
+             approve/reject without its own Http::fake() silently sends a
+             real message to the real Telegram group. Blank here forces
+             LeaveRequestNotifier::sendTelegram()'s "not configured" guard
+             to short-circuit by default; tests that specifically assert
+             Telegram behavior already set their own config()+Http::fake()
+             in setUp(), so this does not affect them. -->
+        <env name="TELEGRAM_BOT_TOKEN" value=""/>
+        <env name="TELEGRAM_CHAT_ID" value=""/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

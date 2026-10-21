@@ -1,5 +1,6 @@
 import { Form, Head, router } from '@inertiajs/react';
 import { Users } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import AttendanceRangeSummaryController from '@/actions/App/Http/Controllers/Hrd/AttendanceRangeSummaryController';
 import { DateField } from '@/components/date-field';
 import { Card } from '@/components/ui/card';
@@ -7,6 +8,13 @@ import { Button } from '@/components/ui/button';
 import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 
 type EmployeeSummary = {
@@ -34,6 +42,7 @@ type Props = {
     employees: EmployeeSummary[];
     confirmations: {
         id: number;
+        user_id: number;
         name: string;
         date: string;
         version: number;
@@ -56,6 +65,10 @@ export default function AttendanceRangeSummary({
     employees,
     confirmations,
 }: Props) {
+    const [activeEmployeeId, setActiveEmployeeId] = useState<number | null>(
+        null,
+    );
+
     function handleChange(next: Partial<{ dari: string; sampai: string }>) {
         router.get(
             AttendanceRangeSummaryController.index().url,
@@ -63,6 +76,19 @@ export default function AttendanceRangeSummary({
             { preserveState: true, preserveScroll: true },
         );
     }
+
+    const activeEmployee = useMemo(
+        () => employees.find((employee) => employee.id === activeEmployeeId),
+        [employees, activeEmployeeId],
+    );
+
+    const activeConfirmations = useMemo(
+        () =>
+            confirmations.filter(
+                (confirmation) => confirmation.user_id === activeEmployeeId,
+            ),
+        [confirmations, activeEmployeeId],
+    );
 
     return (
         <>
@@ -107,87 +133,6 @@ export default function AttendanceRangeSummary({
                     {formatDate(dari)} – {formatDate(sampai)}
                 </p>
 
-                {confirmations.length > 0 && (
-                    <Card className="p-5">
-                        <h2 className="font-semibold">
-                            Konfirmasi absen pulang
-                        </h2>
-                        <p className="text-sm text-muted-foreground">
-                            Isi jam pulang yang sudah diverifikasi dan alasan
-                            koreksi. Catatan absensi asli tetap disimpan.
-                            Setelah konfirmasi, perbarui draft payroll.
-                        </p>
-                        {confirmations.map((review) => (
-                            <Form
-                                key={`${review.id}-${review.version}`}
-                                action={`/hrd/konfirmasi-absensi/${review.id}`}
-                                method="patch"
-                                options={{ preserveScroll: true }}
-                                className="space-y-3 border-t pt-4"
-                            >
-                                {({ processing, errors }) => (
-                                    <>
-                                        <p className="text-sm font-medium">
-                                            {review.name} ·{' '}
-                                            {formatDate(review.date)} · Masuk{' '}
-                                            {review.clock_in} WIB
-                                        </p>
-                                        <input
-                                            type="hidden"
-                                            name="version"
-                                            value={review.version}
-                                        />
-                                        <Label htmlFor={`out-${review.id}`}>
-                                            Jam pulang terkonfirmasi (WIB)
-                                        </Label>
-                                        <Input
-                                            id={`out-${review.id}`}
-                                            type="time"
-                                            name="clock_out"
-                                            required
-                                            disabled={!review.can_confirm}
-                                            className="max-w-48"
-                                        />
-                                        <InputError
-                                            message={errors.clock_out}
-                                        />
-                                        <Label htmlFor={`reason-${review.id}`}>
-                                            Alasan / dasar konfirmasi
-                                        </Label>
-                                        <Textarea
-                                            id={`reason-${review.id}`}
-                                            name="reason"
-                                            required
-                                            minLength={5}
-                                            maxLength={2000}
-                                            disabled={!review.can_confirm}
-                                        />
-                                        <InputError message={errors.reason} />
-                                        <InputError
-                                            message={
-                                                errors.confirmation ??
-                                                errors.version
-                                            }
-                                        />
-                                        <Button
-                                            disabled={
-                                                processing ||
-                                                !review.can_confirm
-                                            }
-                                        >
-                                            Konfirmasi HRD
-                                        </Button>
-                                        {!review.can_confirm && (
-                                            <p className="text-sm text-muted-foreground">
-                                                Menunggu hari absensi selesai.
-                                            </p>
-                                        )}
-                                    </>
-                                )}
-                            </Form>
-                        ))}
-                    </Card>
-                )}
                 {employees.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-2 rounded-3xl bg-muted/40 py-16 text-center">
                         <Users className="size-8 text-muted-foreground" />
@@ -287,8 +232,27 @@ export default function AttendanceRangeSummary({
                                             <td className="p-3 text-right tabular-nums">
                                                 {employee.libur}
                                             </td>
-                                            <td className="p-3 text-right text-amber-600 tabular-nums dark:text-amber-400">
-                                                {employee.perlu_konfirmasi}
+                                            <td className="p-3 text-right tabular-nums">
+                                                {employee.perlu_konfirmasi >
+                                                0 ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setActiveEmployeeId(
+                                                                employee.id,
+                                                            )
+                                                        }
+                                                        className="rounded-full border border-amber-400/50 bg-amber-500/10 px-2.5 py-0.5 font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:border-amber-400/40 dark:text-amber-400"
+                                                    >
+                                                        {
+                                                            employee.perlu_konfirmasi
+                                                        }
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-muted-foreground">
+                                                        0
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="p-3 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums">
                                                 {employee.reviewed_days} dari{' '}
@@ -302,6 +266,103 @@ export default function AttendanceRangeSummary({
                     </Card>
                 )}
             </div>
+
+            <Sheet
+                open={activeEmployeeId !== null}
+                onOpenChange={(open) => {
+                    if (!open) setActiveEmployeeId(null);
+                }}
+            >
+                <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-md">
+                    <SheetHeader>
+                        <SheetTitle>
+                            Konfirmasi Absen Pulang
+                            {activeEmployee ? ` — ${activeEmployee.name}` : ''}
+                        </SheetTitle>
+                        <SheetDescription>
+                            Isi jam pulang yang sudah diverifikasi dan alasan
+                            koreksi. Catatan absensi asli tetap disimpan.
+                            Setelah konfirmasi, perbarui draft payroll.
+                        </SheetDescription>
+                    </SheetHeader>
+                    <div className="flex flex-col gap-4 px-4 pb-4">
+                        {activeConfirmations.map((review) => (
+                            <Form
+                                key={`${review.id}-${review.version}`}
+                                action={`/hrd/konfirmasi-absensi/${review.id}`}
+                                method="patch"
+                                options={{ preserveScroll: true }}
+                                className="space-y-3 rounded-xl border p-3"
+                            >
+                                {({ processing, errors }) => (
+                                    <>
+                                        <p className="text-sm font-medium">
+                                            {formatDate(review.date)} · Masuk{' '}
+                                            {review.clock_in} WIB
+                                        </p>
+                                        <input
+                                            type="hidden"
+                                            name="version"
+                                            value={review.version}
+                                        />
+                                        <Label htmlFor={`out-${review.id}`}>
+                                            Jam pulang terkonfirmasi (WIB)
+                                        </Label>
+                                        <Input
+                                            id={`out-${review.id}`}
+                                            type="time"
+                                            name="clock_out"
+                                            required
+                                            disabled={!review.can_confirm}
+                                            className="max-w-48"
+                                        />
+                                        <InputError
+                                            message={errors.clock_out}
+                                        />
+                                        <Label htmlFor={`reason-${review.id}`}>
+                                            Alasan / dasar konfirmasi
+                                        </Label>
+                                        <Textarea
+                                            id={`reason-${review.id}`}
+                                            name="reason"
+                                            required
+                                            minLength={5}
+                                            maxLength={2000}
+                                            disabled={!review.can_confirm}
+                                        />
+                                        <InputError message={errors.reason} />
+                                        <InputError
+                                            message={
+                                                errors.confirmation ??
+                                                errors.version
+                                            }
+                                        />
+                                        <Button
+                                            disabled={
+                                                processing ||
+                                                !review.can_confirm
+                                            }
+                                        >
+                                            Konfirmasi HRD
+                                        </Button>
+                                        {!review.can_confirm && (
+                                            <p className="text-sm text-muted-foreground">
+                                                Menunggu hari absensi selesai.
+                                            </p>
+                                        )}
+                                    </>
+                                )}
+                            </Form>
+                        ))}
+                        {activeConfirmations.length === 0 && (
+                            <p className="text-sm text-muted-foreground">
+                                Tidak ada lagi hari yang perlu dikonfirmasi
+                                untuk karyawan ini.
+                            </p>
+                        )}
+                    </div>
+                </SheetContent>
+            </Sheet>
         </>
     );
 }

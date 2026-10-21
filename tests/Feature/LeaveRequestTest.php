@@ -7,6 +7,7 @@ use App\Models\LeaveRequestAttachment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -19,6 +20,11 @@ class LeaveRequestTest extends TestCase
         parent::setUp();
 
         Storage::fake('leave_attachments');
+        // Submitting here triggers LeaveRequestNotifier::notifySubmitted();
+        // fake it so no test in this file can ever reach the real
+        // Telegram API, regardless of what TELEGRAM_BOT_TOKEN/CHAT_ID
+        // resolve to.
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
     }
 
     public function test_guest_cannot_submit_a_leave_request()

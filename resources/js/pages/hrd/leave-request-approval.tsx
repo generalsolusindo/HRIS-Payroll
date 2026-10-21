@@ -1,4 +1,4 @@
-import { Form, Head, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { CalendarOff, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -176,11 +176,96 @@ function RejectDialog({
     );
 }
 
+function ApproveDialog({
+    leaveRequest,
+    open,
+    onOpenChange,
+}: {
+    leaveRequest: PendingLeaveRequest;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    const [note, setNote] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+
+    function handleApprove() {
+        if (submitting) {
+            return;
+        }
+
+        setSubmitting(true);
+
+        router.patch(
+            LeaveRequestApprovalController.approve.url(leaveRequest.id),
+            { note: note.trim() || undefined },
+            {
+                onSuccess: () => {
+                    toast.success(
+                        'Pengajuan disetujui, menunggu keputusan Manager.',
+                    );
+                    setNote('');
+                    onOpenChange(false);
+                },
+                onError: (errors) => {
+                    const message = Object.values(errors)[0];
+                    toast.error(
+                        typeof message === 'string'
+                            ? message
+                            : 'Gagal menyetujui pengajuan.',
+                    );
+                },
+                onFinish: () => setSubmitting(false),
+            },
+        );
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Setujui Pengajuan</DialogTitle>
+                    <DialogDescription>
+                        Setujui pengajuan {LEAVE_TYPE_LABELS[leaveRequest.type]}{' '}
+                        dari {leaveRequest.user.name}. Catatan bersifat
+                        opsional dan akan ikut terkirim ke Telegram.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-1.5">
+                    <Label htmlFor="approve-note">
+                        Catatan{' '}
+                        <span className="font-normal text-muted-foreground">
+                            (opsional)
+                        </span>
+                    </Label>
+                    <Textarea
+                        id="approve-note"
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        placeholder="Contoh: sudah dikonfirmasi lewat telepon"
+                    />
+                </div>
+
+                <DialogFooter>
+                    <Button
+                        className="rounded-full"
+                        disabled={submitting}
+                        onClick={handleApprove}
+                    >
+                        Setujui Pengajuan
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function PendingLeaveRequestCard({
     leaveRequest,
 }: {
     leaveRequest: PendingLeaveRequest;
 }) {
+    const [approveOpen, setApproveOpen] = useState(false);
     const [rejectOpen, setRejectOpen] = useState(false);
     const Icon = LEAVE_TYPE_ICONS[leaveRequest.type];
 
@@ -239,28 +324,14 @@ function PendingLeaveRequestCard({
                     className="flex gap-2"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <Form
-                        {...LeaveRequestApprovalController.approve.form(
-                            leaveRequest.id,
-                        )}
-                        disableWhileProcessing
-                        onSuccess={() =>
-                            toast.success(
-                                'Pengajuan disetujui, menunggu keputusan Manager.',
-                            )
-                        }
+                    <Button
+                        type="button"
+                        size="sm"
+                        className="rounded-full"
+                        onClick={() => setApproveOpen(true)}
                     >
-                        {({ processing }) => (
-                            <Button
-                                type="submit"
-                                size="sm"
-                                className="rounded-full"
-                                disabled={processing}
-                            >
-                                Setujui
-                            </Button>
-                        )}
-                    </Form>
+                        Setujui
+                    </Button>
                     <Button
                         type="button"
                         size="sm"
@@ -343,6 +414,11 @@ function PendingLeaveRequestCard({
                 </div>
             )}
 
+            <ApproveDialog
+                leaveRequest={leaveRequest}
+                open={approveOpen}
+                onOpenChange={setApproveOpen}
+            />
             <RejectDialog
                 leaveRequest={leaveRequest}
                 open={rejectOpen}

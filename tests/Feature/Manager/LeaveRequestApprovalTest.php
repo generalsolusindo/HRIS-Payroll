@@ -6,11 +6,21 @@ use App\Models\Division;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class LeaveRequestApprovalTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // approve()/reject() here trigger LeaveRequestNotifier; fake it so
+        // no test in this file can ever reach the real Telegram API.
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+    }
 
     private function makeLeaveRequest(User $employee, array $overrides = []): LeaveRequest
     {

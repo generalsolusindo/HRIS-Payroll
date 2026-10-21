@@ -45,7 +45,10 @@ class LeaveRequestNotifier
             $this->renderMessage(
                 $leaveRequest,
                 '🟡 DISETUJUI HRD — MENUNGGU MANAGER',
-                ['Disetujui HRD: '.$this->escape($leaveRequest->hrdProcessedBy->name)],
+                array_filter([
+                    'Disetujui HRD: '.$this->escape($leaveRequest->hrdProcessedBy->name),
+                    $leaveRequest->hrd_note ? 'Catatan HRD: '.$this->escape($leaveRequest->hrd_note) : null,
+                ]),
                 '🟡 MENUNGGU PERSETUJUAN MANAGER',
                 [
                     'Mohon Manager untuk meninjau dan memberikan keputusan final.',
@@ -63,10 +66,11 @@ class LeaveRequestNotifier
             $this->renderMessage(
                 $leaveRequest,
                 '🟢 PENGAJUAN IZIN DISETUJUI (FINAL)',
-                [
+                array_filter([
                     'Disetujui HRD: '.$this->escape($leaveRequest->hrdProcessedBy->name),
+                    $leaveRequest->hrd_note ? 'Catatan HRD: '.$this->escape($leaveRequest->hrd_note) : null,
                     'Disetujui Manager: '.$this->escape($leaveRequest->processedBy->name),
-                ],
+                ]),
                 '🟢 DISETUJUI',
                 ['Silakan teruskan konfirmasi ke karyawan lewat tombol WhatsApp di bawah ini.'],
             ),

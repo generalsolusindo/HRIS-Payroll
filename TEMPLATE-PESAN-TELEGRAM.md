@@ -59,6 +59,7 @@ Jenis Izin: {type_label}
 Tanggal Izin: {leave_date, format d/m/Y}
 Alasan: {reason, atau "-" kalau kosong}
 Disetujui HRD: {nama HRD}
+Catatan HRD: {hrd_note — baris ini dilewati sama sekali kalau HRD tidak mengisi catatan saat approve}
 Status: 🟡 MENUNGGU PERSETUJUAN MANAGER
 
 Mohon Manager untuk meninjau dan memberikan keputusan final.
@@ -66,7 +67,7 @@ Login Web: {login_url}
 ```
 **Tombol:** `Login Web Izin` → `{login_url}`
 
-**Contoh terisi:**
+**Contoh terisi (dengan catatan HRD):**
 ```
 🟡 DISETUJUI HRD — MENUNGGU MANAGER
 
@@ -78,6 +79,7 @@ Jenis Izin: Izin Setengah Hari
 Tanggal Izin: 13/10/2026
 Alasan: Mengantar anak ke rumah sakit untuk kontrol rutin
 Disetujui HRD: Tim HRD
+Catatan HRD: Sudah dikonfirmasi lewat telepon, boleh langsung pulang jam 11
 Status: 🟡 MENUNGGU PERSETUJUAN MANAGER
 
 Mohon Manager untuk meninjau dan memberikan keputusan final.
@@ -101,6 +103,7 @@ Jenis Izin: {type_label}
 Tanggal Izin: {leave_date, format d/m/Y}
 Alasan: {reason, atau "-" kalau kosong}
 Disetujui HRD: {nama HRD}
+Catatan HRD: {hrd_note — baris ini dilewati sama sekali kalau HRD tidak mengisi catatan saat approve}
 Disetujui Manager: {nama Manager}
 Status: 🟢 DISETUJUI
 
@@ -108,7 +111,7 @@ Silakan teruskan konfirmasi ke karyawan lewat tombol WhatsApp di bawah ini.
 ```
 **Tombol:** `Kirim ke WhatsApp Karyawan` → `https://wa.me/{no_hp}?text={pesan WA terlampir di bawah}`
 
-**Contoh terisi:**
+**Contoh terisi (dengan catatan HRD):**
 ```
 🟢 PENGAJUAN IZIN DISETUJUI (FINAL)
 
@@ -120,6 +123,7 @@ Jenis Izin: Izin Setengah Hari
 Tanggal Izin: 13/10/2026
 Alasan: Mengantar anak ke rumah sakit untuk kontrol rutin
 Disetujui HRD: Tim HRD
+Catatan HRD: Sudah dikonfirmasi lewat telepon, boleh langsung pulang jam 11
 Disetujui Manager: Manager
 Status: 🟢 DISETUJUI
 

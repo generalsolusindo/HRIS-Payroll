@@ -208,6 +208,73 @@ class LeaveRequestNotificationTest extends TestCase
         $this->assertSame('sent', $leaveRequest->fresh()->telegram_status);
     }
 
+    public function test_hrd_approve_note_is_included_in_the_telegram_message()
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $leaveRequest = $this->makeLeaveRequest([], $hrd->company_id);
+
+        $this->actingAs($hrd)->patch(route('hrd.izin.approve', $leaveRequest), [
+            'note' => 'Sudah dikonfirmasi lewat telepon.',
+        ]);
+
+        Http::assertSent(fn (HttpRequest $request) => str_contains(
+            $request['text'],
+            'Catatan HRD: Sudah dikonfirmasi lewat telepon.',
+        ));
+    }
+
+    public function test_hrd_approve_without_a_note_omits_the_catatan_line_entirely()
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $leaveRequest = $this->makeLeaveRequest([], $hrd->company_id);
+
+        $this->actingAs($hrd)->patch(route('hrd.izin.approve', $leaveRequest), []);
+
+        Http::assertSent(fn (HttpRequest $request) => ! str_contains($request['text'], 'Catatan HRD'));
+    }
+
+    public function test_hrd_approve_note_carries_through_to_the_final_approval_message()
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        Mail::fake();
+
+        $manager = User::factory()->create(['role' => 'admin']);
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $manager->company_id]);
+        $leaveRequest = $this->makeLeaveRequest([
+            'status' => 'pending_manager',
+            'hrd_processed_by' => $hrd->id,
+            'hrd_note' => 'Sudah dikonfirmasi lewat telepon.',
+        ], $manager->company_id);
+
+        $this->actingAs($manager)->patch(route('manager.izin.approve', $leaveRequest), []);
+
+        Http::assertSent(fn (HttpRequest $request) => str_contains(
+            $request['text'],
+            'Catatan HRD: Sudah dikonfirmasi lewat telepon.',
+        ));
+    }
+
+    public function test_hrd_approve_note_is_escaped_in_the_telegram_message()
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $leaveRequest = $this->makeLeaveRequest([], $hrd->company_id);
+
+        $this->actingAs($hrd)->patch(route('hrd.izin.approve', $leaveRequest), [
+            'note' => '<script>alert(1)</script>',
+        ]);
+
+        Http::assertSent(function (HttpRequest $request) {
+            return ! str_contains($request['text'], '<script>')
+                && str_contains($request['text'], 'Catatan HRD: &lt;script&gt;alert(1)&lt;/script&gt;');
+        });
+    }
+
     public function test_hrd_reject_sends_telegram_and_email_with_hrd_as_rejector()
     {
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);

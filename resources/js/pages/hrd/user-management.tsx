@@ -34,6 +34,7 @@ type UserRow = {
     employee_number: string | null;
     employment_type: string | null;
     employment_started_on: string | null;
+    is_payroll_eligible: boolean;
     name: string;
     email: string;
     phone: string | null;
@@ -112,6 +113,9 @@ function UserFormFields({
     );
     const [role, setRole] = useState(defaultValues?.role ?? 'karyawan');
     const [status, setStatus] = useState(defaultValues?.status ?? 'pending');
+    const [isPayrollEligible, setIsPayrollEligible] = useState(
+        defaultValues ? (defaultValues.is_payroll_eligible ? '1' : '0') : '1',
+    );
 
     const divisions = useMemo(
         () =>
@@ -208,6 +212,40 @@ function UserFormFields({
                     defaultValue={defaultValues?.employment_started_on ?? ''}
                 />
                 <InputError message={errors.employment_started_on} />
+            </div>
+
+            <div className="grid gap-2">
+                <Label htmlFor="is_payroll_eligible">Ikut Payroll</Label>
+                <input
+                    type="hidden"
+                    name="is_payroll_eligible"
+                    value={isPayrollEligible}
+                />
+                <Select
+                    value={isPayrollEligible}
+                    onValueChange={setIsPayrollEligible}
+                >
+                    <SelectTrigger
+                        id="is_payroll_eligible"
+                        className="w-full"
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="1">
+                            Ya — digaji lewat sistem ini
+                        </SelectItem>
+                        <SelectItem value="0">
+                            Tidak — misal magang/relawan tanpa gaji
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                    Kalau dipilih "Tidak", karyawan ini tidak akan dianggap
+                    "belum masuk payroll" dan tidak ikut dihitung saat Proses
+                    Gaji dijalankan.
+                </p>
+                <InputError message={errors.is_payroll_eligible} />
             </div>
 
             <div className="grid gap-2">
@@ -532,8 +570,13 @@ export default function UserManagement({ users, search, companies }: Props) {
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div className="min-w-0">
-                                                    <div className="font-medium">
+                                                    <div className="flex items-center gap-2 font-medium">
                                                         {user.name}
+                                                        {!user.is_payroll_eligible && (
+                                                            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
+                                                                Tidak ikut payroll
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="text-xs text-muted-foreground">
                                                         {user.email}

@@ -101,6 +101,7 @@ class UserManagementTest extends TestCase
             'employee_number' => null,
             'employment_started_on' => '2026-01-01',
             'employment_type' => 'permanent',
+            'is_payroll_eligible' => true,
             'company_id' => $company->id,
             'division_id' => $division->id,
             'role' => 'karyawan',
@@ -215,7 +216,7 @@ class UserManagementTest extends TestCase
         $this->actingAs($hrd)
             ->put(route('hrd.users.update', $target), [
                 'name' => $target->name, 'email' => $target->email, 'phone' => $target->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'company_id' => $company->id, 'division_id' => $division->id,
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true, 'company_id' => $company->id, 'division_id' => $division->id,
                 'role' => $target->role, 'status' => $target->status,
                 'bank_name' => 'Mandiri', 'bank_account_number' => '', 'bank_account_holder' => 'Baru',
                 'password' => '', 'password_confirmation' => '',
@@ -256,7 +257,7 @@ class UserManagementTest extends TestCase
                 'name' => $target->name,
                 'email' => $target->email,
                 'phone' => $target->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent',
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true,
                 'company_id' => $company->id,
                 'division_id' => $otherDivision->id,
                 'role' => 'hrd',
@@ -288,7 +289,7 @@ class UserManagementTest extends TestCase
                 'name' => $target->name,
                 'email' => $target->email,
                 'phone' => $target->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent',
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true,
                 'company_id' => $otherCompany->id,
                 'division_id' => $otherDivision->id,
                 'role' => $target->role,
@@ -325,7 +326,7 @@ class UserManagementTest extends TestCase
                 'name' => 'Diubah',
                 'email' => $outsider->email,
                 'phone' => $outsider->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent',
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true,
                 'company_id' => $company->id,
                 'division_id' => $division->id,
                 'role' => 'admin',
@@ -367,7 +368,7 @@ class UserManagementTest extends TestCase
                 'name' => $target->name,
                 'email' => $target->email,
                 'phone' => $target->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent',
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true,
                 'company_id' => $company->id,
                 'division_id' => $division->id,
                 'role' => $target->role,
@@ -393,7 +394,7 @@ class UserManagementTest extends TestCase
                 'name' => $hrd->name,
                 'email' => $hrd->email,
                 'phone' => $hrd->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent',
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true,
                 'company_id' => $company->id,
                 'division_id' => $division->id,
                 'role' => 'karyawan',
@@ -406,6 +407,62 @@ class UserManagementTest extends TestCase
         $fresh = $hrd->fresh();
         $this->assertSame('hrd', $fresh->role, 'Role must not change on a self-edit, regardless of what was submitted.');
         $this->assertSame('active', $fresh->status, 'Status must not change on a self-edit, regardless of what was submitted.');
+    }
+
+    public function test_a_new_user_is_payroll_eligible_by_default(): void
+    {
+        [$company, $division] = $this->makeCompanyWithDivision();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.users.store'), $this->payload($company, $division))
+            ->assertSessionDoesntHaveErrors();
+
+        $created = User::where('email', 'baru@example.com')->firstOrFail();
+        $this->assertTrue($created->is_payroll_eligible);
+    }
+
+    public function test_hrd_can_create_a_user_marked_as_not_payroll_eligible(): void
+    {
+        [$company, $division] = $this->makeCompanyWithDivision();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.users.store'), $this->payload($company, $division, [
+                'is_payroll_eligible' => false,
+            ]))
+            ->assertSessionDoesntHaveErrors();
+
+        $created = User::where('email', 'baru@example.com')->firstOrFail();
+        $this->assertFalse($created->is_payroll_eligible);
+    }
+
+    public function test_hrd_can_toggle_an_existing_users_payroll_eligibility(): void
+    {
+        [$company, $division] = $this->makeCompanyWithDivision();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+        $target = User::factory()->create([
+            'company_id' => $company->id, 'division_id' => $division->id,
+            'is_payroll_eligible' => true,
+        ]);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.users.update', $target), [
+                'name' => $target->name,
+                'email' => $target->email,
+                'phone' => $target->phone,
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent',
+                'is_payroll_eligible' => false,
+                'company_id' => $company->id,
+                'division_id' => $division->id,
+                'role' => $target->role,
+                'status' => $target->status,
+                'password' => '',
+                'password_confirmation' => '',
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertFalse($target->fresh()->is_payroll_eligible);
     }
 
     public function test_hrd_can_delete_another_user(): void

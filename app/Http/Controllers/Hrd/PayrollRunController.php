@@ -152,7 +152,7 @@ class PayrollRunController extends Controller
             }
 
             $profiles = EmployeePayrollProfile::where('company_id', $period->company_id)
-                ->whereHas('user', fn ($query) => $query->where('role', 'karyawan')->where('status', 'active'))
+                ->whereHas('user', fn ($query) => $query->where('role', 'karyawan')->where('status', 'active')->where('is_payroll_eligible', true))
                 ->with(['user', 'division', 'salaryComponents.payrollComponent'])
                 ->get();
 
@@ -474,11 +474,12 @@ class PayrollRunController extends Controller
         $unresolvedDaysTotal = $result['unresolved_days_total'];
 
         $skipped = EmployeePayrollProfile::where('company_id', $period->company_id)
-            ->whereHas('user', fn ($query) => $query->where('role', 'karyawan')->where('status', 'active'))
+            ->whereHas('user', fn ($query) => $query->where('role', 'karyawan')->where('status', 'active')->where('is_payroll_eligible', true))
             ->whereDoesntHave('salaryComponents')
             ->count();
         $withoutProfile = User::where('company_id', $period->company_id)
             ->where('role', 'karyawan')->where('status', 'active')
+            ->where('is_payroll_eligible', true)
             ->whereDoesntHave('payrollProfiles')
             ->count();
         $totalSkipped = $skipped + $withoutProfile;

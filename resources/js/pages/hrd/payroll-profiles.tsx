@@ -9,6 +9,7 @@ type EmployeeRow = {
     name: string;
     email: string;
     has_profile: boolean;
+    is_payroll_eligible: boolean;
     division_name: string | null;
     monthly_total: string | null;
 };
@@ -94,8 +95,13 @@ export default function PayrollProfiles({ employees }: Props) {
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div className="min-w-0">
-                                                    <div className="font-medium">
+                                                    <div className="flex items-center gap-2 font-medium">
                                                         {employee.name}
+                                                        {!employee.is_payroll_eligible && (
+                                                            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
+                                                                Tidak ikut payroll
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="text-xs text-muted-foreground">
                                                         {employee.email}

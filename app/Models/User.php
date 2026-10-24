@@ -24,6 +24,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int|null $division_id
  * @property string|null $employment_type
  * @property Carbon|null $employment_started_on
+ * @property bool $is_payroll_eligible
  * @property string|null $employee_number
  * @property string $name
  * @property string $email
@@ -44,7 +45,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['company_id', 'position_id', 'division_id', 'employee_number', 'employment_type', 'employment_started_on', 'name', 'email', 'phone', 'password', 'bank_name', 'bank_account_number', 'bank_account_holder'])]
+#[Fillable(['company_id', 'position_id', 'division_id', 'employee_number', 'employment_type', 'employment_started_on', 'is_payroll_eligible', 'name', 'email', 'phone', 'password', 'bank_name', 'bank_account_number', 'bank_account_holder'])]
 // face_descriptor is deliberately never mass-assignable or serialized —
 // it's biometric data and must only ever be set via an explicit enrollment
 // code path, never via fill()/create(), and never sent to the frontend
@@ -201,6 +202,7 @@ class User extends Authenticatable implements PasskeyUser
     {
         return [
             'employment_started_on' => 'date',
+            'is_payroll_eligible' => 'boolean',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',

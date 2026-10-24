@@ -49,6 +49,7 @@ class PayrollProfileController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'has_profile' => $profile !== null,
+                    'is_payroll_eligible' => $user->is_payroll_eligible,
                     // Always sourced from the user's own division (set at
                     // Manajemen User, required there) — never from the
                     // profile, which may not exist yet for an employee

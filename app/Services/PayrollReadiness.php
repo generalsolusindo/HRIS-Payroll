@@ -32,6 +32,7 @@ class PayrollReadiness
             $issues[] = 'Periode absensi belum selesai.';
         }
         $missing = User::where('company_id', $run->period->company_id)->where('role', 'karyawan')->where('status', 'active')
+            ->where('is_payroll_eligible', true)
             ->whereNotIn('id', $run->entries->pluck('user_id'))->count();
         if ($missing > 0) {
             $issues[] = "$missing karyawan aktif belum masuk payroll. Lengkapi profil gaji dan hitung ulang draft.";

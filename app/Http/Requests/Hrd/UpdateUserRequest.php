@@ -34,6 +34,7 @@ class UpdateUserRequest extends FormRequest
             ...$this->profileRules($user->id),
             'employment_type' => ['required', Rule::in(User::EMPLOYMENT_TYPES)],
             'employment_started_on' => ['required', 'date'],
+            'is_payroll_eligible' => ['required', 'boolean'],
             'phone' => ['nullable', 'string', 'max:20'],
             'company_id' => ['required', Rule::exists(Company::class, 'id')],
             'division_id' => ['required', Rule::exists(Division::class, 'id')],

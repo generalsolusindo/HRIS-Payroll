@@ -140,6 +140,41 @@ class PayrollRunCalculationTest extends TestCase
         $this->assertSame(0, PayrollEntry::where('payroll_run_id', $run->id)->count());
     }
 
+    public function test_an_employee_marked_not_payroll_eligible_is_excluded_even_with_a_full_profile(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
+        $base = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji',
+            'type' => 'earning', ]);
+
+        $intern = User::factory()->create([
+            'company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active',
+            'is_payroll_eligible' => false,
+        ]);
+        $this->makeProfile($intern, $division, [[$base, '1000000']]);
+
+        $period = PayrollPeriod::create([
+            'company_id' => $hrd->company_id, 'name' => 'Oktober 2026',
+            'starts_on' => '2026-10-01', 'ends_on' => '2026-10-31',
+            'attendance_starts_on' => '2026-09-26', 'attendance_ends_on' => '2026-10-25',
+        ]);
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.periode-gaji.hitung', $period))
+            ->assertSessionDoesntHaveErrors();
+
+        $run = PayrollRun::where('payroll_period_id', $period->id)->firstOrFail();
+        $this->assertSame(0, $run->employee_count);
+        $this->assertSame(0, PayrollEntry::where('payroll_run_id', $run->id)->where('user_id', $intern->id)->count());
+
+        $issues = app(\App\Services\PayrollReadiness::class)->issues($run);
+        $this->assertFalse(
+            collect($issues)->contains(fn (string $issue) => str_contains($issue, 'belum masuk payroll')),
+            'A payroll-ineligible employee must never trigger the "belum masuk payroll" readiness issue.',
+        );
+    }
+
     public function test_a_period_cannot_be_calculated_twice(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);

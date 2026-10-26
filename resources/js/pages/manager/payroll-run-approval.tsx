@@ -3,6 +3,8 @@ import { Archive, Eye, Trash2, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import PayrollRunApprovalController from '@/actions/App/Http/Controllers/Manager/PayrollRunApprovalController';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { PromptDialog } from '@/components/prompt-dialog';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -255,23 +257,21 @@ function PendingRunCard({ run }: { run: PendingRun }) {
 }
 
 export default function PayrollRunApproval({ runs, deletionRequests }: Props) {
-    function approveDeletion(request: PendingDeletionRequest) {
-        if (
-            !window.confirm(
-                `Arsipkan periode ${request.period.name}? Periode akan hilang dari daftar aktif HRD, tetapi histori payroll, pembayaran, dan slip tetap tersimpan.`,
-            )
-        ) {
-            return;
-        }
+    const [approvingDeletion, setApprovingDeletion] =
+        useState<PendingDeletionRequest | null>(null);
+    const [approvingDeletionBusy, setApprovingDeletionBusy] = useState(false);
 
+    function confirmApproveDeletion() {
+        if (!approvingDeletion) return;
+
+        setApprovingDeletionBusy(true);
         router.patch(
             PayrollRunApprovalController.approvePeriodDeletion(
-                request.id,
+                approvingDeletion.id,
             ).url,
             {},
             {
-                onSuccess: () =>
-                    toast.success('Periode berhasil diarsipkan.'),
+                onSuccess: () => setApprovingDeletion(null),
                 onError: (errors) => {
                     const message = Object.values(errors)[0];
                     toast.error(
@@ -280,26 +280,26 @@ export default function PayrollRunApproval({ runs, deletionRequests }: Props) {
                             : 'Gagal menyetujui permintaan.',
                     );
                 },
+                onFinish: () => setApprovingDeletionBusy(false),
             },
         );
     }
 
-    function rejectDeletion(request: PendingDeletionRequest) {
-        const decision_note = window.prompt(
-            `Alasan menolak permintaan penghapusan ${request.period.name}:`,
-        );
+    const [rejectingDeletion, setRejectingDeletion] =
+        useState<PendingDeletionRequest | null>(null);
+    const [rejectingDeletionBusy, setRejectingDeletionBusy] = useState(false);
 
-        if (!decision_note?.trim()) {
-            return;
-        }
+    function submitRejectDeletion(decisionNote: string) {
+        if (!rejectingDeletion) return;
 
+        setRejectingDeletionBusy(true);
         router.patch(
             PayrollRunApprovalController.rejectPeriodDeletion(
-                request.id,
+                rejectingDeletion.id,
             ).url,
-            { decision_note: decision_note.trim() },
+            { decision_note: decisionNote },
             {
-                onSuccess: () => toast.success('Permintaan penghapusan ditolak.'),
+                onSuccess: () => setRejectingDeletion(null),
                 onError: (errors) => {
                     const message = Object.values(errors)[0];
                     toast.error(
@@ -308,6 +308,7 @@ export default function PayrollRunApproval({ runs, deletionRequests }: Props) {
                             : 'Gagal menolak permintaan.',
                     );
                 },
+                onFinish: () => setRejectingDeletionBusy(false),
             },
         );
     }
@@ -373,7 +374,9 @@ export default function PayrollRunApproval({ runs, deletionRequests }: Props) {
                                         size="sm"
                                         variant="outline"
                                         className="rounded-full"
-                                        onClick={() => rejectDeletion(request)}
+                                        onClick={() =>
+                                            setRejectingDeletion(request)
+                                        }
                                     >
                                         Tolak
                                     </Button>
@@ -382,7 +385,9 @@ export default function PayrollRunApproval({ runs, deletionRequests }: Props) {
                                         size="sm"
                                         variant="destructive"
                                         className="rounded-full"
-                                        onClick={() => approveDeletion(request)}
+                                        onClick={() =>
+                                            setApprovingDeletion(request)
+                                        }
                                     >
                                         <Trash2 className="size-3.5" />
                                         Setujui Pengarsipan
@@ -408,6 +413,40 @@ export default function PayrollRunApproval({ runs, deletionRequests }: Props) {
                     </div>
                 )}
             </div>
+
+            <ConfirmDialog
+                open={approvingDeletion !== null}
+                onOpenChange={(open) => {
+                    if (!open) setApprovingDeletion(null);
+                }}
+                title="Setujui Pengarsipan"
+                description={
+                    approvingDeletion
+                        ? `Arsipkan periode ${approvingDeletion.period.name}? Periode akan hilang dari daftar aktif HRD, tetapi histori payroll, pembayaran, dan slip tetap tersimpan.`
+                        : ''
+                }
+                confirmLabel="Setujui Pengarsipan"
+                destructive
+                confirming={approvingDeletionBusy}
+                onConfirm={confirmApproveDeletion}
+            />
+
+            <PromptDialog
+                open={rejectingDeletion !== null}
+                onOpenChange={(open) => {
+                    if (!open) setRejectingDeletion(null);
+                }}
+                title="Tolak Permintaan Penghapusan"
+                description={
+                    rejectingDeletion
+                        ? `Alasan menolak permintaan penghapusan ${rejectingDeletion.period.name}:`
+                        : ''
+                }
+                label="Alasan"
+                submitLabel="Tolak Permintaan"
+                submitting={rejectingDeletionBusy}
+                onSubmit={submitRejectDeletion}
+            />
         </>
     );
 }

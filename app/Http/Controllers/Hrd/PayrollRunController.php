@@ -198,6 +198,7 @@ class PayrollRunController extends Controller
                     app(CompanyWorkCalendar::class),
                     $period->company_id,
                     $profile->user_id,
+                    $profile->user->is_allowance_eligible,
                 );
                 $totalUnresolvedDays += $attendance['unresolved_days'];
 
@@ -859,7 +860,7 @@ class PayrollRunController extends Controller
      *     days: array<int, array<string, mixed>>,
      * }
      */
-    private function summarizeAttendance(Collection $reviews, int $expectedAttendanceDays, string $lateRate, string $rewardRate, string $allowanceRate, string $transportRate, CompanyWorkCalendar $calendar, int $companyId, int $userId): array
+    private function summarizeAttendance(Collection $reviews, int $expectedAttendanceDays, string $lateRate, string $rewardRate, string $allowanceRate, string $transportRate, CompanyWorkCalendar $calendar, int $companyId, int $userId, bool $allowanceEligible): array
     {
         $lateMinutesTotal = 0;
         $presentDays = 0;
@@ -909,7 +910,7 @@ class PayrollRunController extends Controller
             && $lateMinutesTotal === 0 && $halfDays === 0 && $absentDays === 0 && $unresolvedDays === 0;
 
         $allowanceAmount = null;
-        if (($presentDays > 0 || $halfDays > 0) && $allowanceRate > 0) {
+        if ($allowanceEligible && ($presentDays > 0 || $halfDays > 0) && $allowanceRate > 0) {
             $allowanceAmount = bcadd(
                 PayrollMoney::multiply($allowanceRate, $presentDays),
                 PayrollMoney::multiply($allowanceRate, $halfDays, 2),
@@ -918,7 +919,7 @@ class PayrollRunController extends Controller
         }
 
         $transportAmount = null;
-        if (($presentDays > 0 || $halfDays > 0) && $transportRate > 0) {
+        if ($allowanceEligible && ($presentDays > 0 || $halfDays > 0) && $transportRate > 0) {
             $transportAmount = bcadd(
                 PayrollMoney::multiply($transportRate, $presentDays),
                 PayrollMoney::multiply($transportRate, $halfDays, 2),

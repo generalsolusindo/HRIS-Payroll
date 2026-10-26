@@ -10,6 +10,7 @@ import {
     Clock,
     History,
     LayoutGrid,
+    ListChecks,
     Settings,
     ShieldCheck,
     UserCog,
@@ -24,6 +25,7 @@ import CompanyCalendarDayController from '@/actions/App/Http/Controllers/Hrd/Com
 import CompanySettingsController from '@/actions/App/Http/Controllers/Hrd/CompanySettingsController';
 import DivisionController from '@/actions/App/Http/Controllers/Hrd/DivisionController';
 import HrdLeaveRequestApprovalController from '@/actions/App/Http/Controllers/Hrd/LeaveRequestApprovalController';
+import MonitoringDashboardController from '@/actions/App/Http/Controllers/Hrd/MonitoringDashboardController';
 import OvertimeApprovalController from '@/actions/App/Http/Controllers/Hrd/OvertimeApprovalController';
 import PayrollAuditLogController from '@/actions/App/Http/Controllers/Hrd/PayrollAuditLogController';
 import PayrollComponentController from '@/actions/App/Http/Controllers/Hrd/PayrollComponentController';
@@ -131,6 +133,11 @@ const hrdNavItems: NavItem[] = [
         badgeKey: 'hrd_pending_users',
     },
     {
+        title: 'Monitoring HR',
+        href: MonitoringDashboardController.index(),
+        icon: ListChecks,
+    },
+    {
         title: 'Divisi',
         href: DivisionController.index(),
         icon: Building2,
@@ -199,6 +206,11 @@ const managerNavItems: NavItem[] = [
         href: PayrollRunApprovalController.index(),
         icon: Wallet,
         badgeKey: 'manager_payroll',
+    },
+    {
+        title: 'Riwayat Payroll',
+        href: PayrollRunApprovalController.riwayat(),
+        icon: History,
     },
 ];
 

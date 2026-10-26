@@ -79,6 +79,40 @@ class PayrollRunApprovalController extends Controller
     }
 
     /**
+     * Every run a Manager has ever acted on (or could have), beyond just
+     * the live "submitted" queue — the only place they can check whether
+     * Finance has since finished paying a run they already approved,
+     * since it disappears from the approval queue the moment it's
+     * approved.
+     */
+    public function riwayat(Request $request): Response
+    {
+        $runs = PayrollRun::where('status', '!=', 'draft')
+            ->whereHas('period', fn ($query) => $query->where('company_id', $request->user()->company_id))
+            ->with('period.company')
+            ->latest('id')
+            ->paginate(20)
+            ->withQueryString()
+            ->through(fn (PayrollRun $run) => [
+                'id' => $run->id,
+                'version' => $run->version,
+                'status' => $run->status,
+                'employee_count' => $run->employee_count,
+                'net_total' => (string) $run->net_total,
+                'period' => [
+                    'name' => $run->period->name,
+                    'company_name' => $run->period->company->name,
+                    'starts_on' => $run->period->starts_on->toDateString(),
+                    'ends_on' => $run->period->ends_on->toDateString(),
+                ],
+            ]);
+
+        return Inertia::render('manager/payroll-run-history', [
+            'runs' => $runs,
+        ]);
+    }
+
+    /**
      * A Manager's own detail view — same breakdown HRD sees (read-only
      * here, no draft-stage actions like Perbarui Draft/Batalkan/Bagikan),
      * plus the Setujui/Minta Revisi actions that were previously only

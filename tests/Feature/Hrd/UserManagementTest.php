@@ -102,6 +102,7 @@ class UserManagementTest extends TestCase
             'employment_started_on' => '2026-01-01',
             'employment_type' => 'permanent',
             'is_payroll_eligible' => true,
+            'is_allowance_eligible' => true,
             'company_id' => $company->id,
             'division_id' => $division->id,
             'role' => 'karyawan',
@@ -216,7 +217,7 @@ class UserManagementTest extends TestCase
         $this->actingAs($hrd)
             ->put(route('hrd.users.update', $target), [
                 'name' => $target->name, 'email' => $target->email, 'phone' => $target->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true, 'company_id' => $company->id, 'division_id' => $division->id,
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true, 'is_allowance_eligible' => true, 'company_id' => $company->id, 'division_id' => $division->id,
                 'role' => $target->role, 'status' => $target->status,
                 'bank_name' => 'Mandiri', 'bank_account_number' => '', 'bank_account_holder' => 'Baru',
                 'password' => '', 'password_confirmation' => '',
@@ -257,7 +258,7 @@ class UserManagementTest extends TestCase
                 'name' => $target->name,
                 'email' => $target->email,
                 'phone' => $target->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true,
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true, 'is_allowance_eligible' => true,
                 'company_id' => $company->id,
                 'division_id' => $otherDivision->id,
                 'role' => 'hrd',
@@ -289,7 +290,7 @@ class UserManagementTest extends TestCase
                 'name' => $target->name,
                 'email' => $target->email,
                 'phone' => $target->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true,
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true, 'is_allowance_eligible' => true,
                 'company_id' => $otherCompany->id,
                 'division_id' => $otherDivision->id,
                 'role' => $target->role,
@@ -326,7 +327,7 @@ class UserManagementTest extends TestCase
                 'name' => 'Diubah',
                 'email' => $outsider->email,
                 'phone' => $outsider->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true,
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true, 'is_allowance_eligible' => true,
                 'company_id' => $company->id,
                 'division_id' => $division->id,
                 'role' => 'admin',
@@ -368,7 +369,7 @@ class UserManagementTest extends TestCase
                 'name' => $target->name,
                 'email' => $target->email,
                 'phone' => $target->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true,
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true, 'is_allowance_eligible' => true,
                 'company_id' => $company->id,
                 'division_id' => $division->id,
                 'role' => $target->role,
@@ -394,7 +395,7 @@ class UserManagementTest extends TestCase
                 'name' => $hrd->name,
                 'email' => $hrd->email,
                 'phone' => $hrd->phone,
-                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true,
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true, 'is_allowance_eligible' => true,
                 'company_id' => $company->id,
                 'division_id' => $division->id,
                 'role' => 'karyawan',
@@ -437,6 +438,92 @@ class UserManagementTest extends TestCase
         $this->assertFalse($created->is_payroll_eligible);
     }
 
+    public function test_hrd_can_set_contract_and_end_dates_on_creation(): void
+    {
+        [$company, $division] = $this->makeCompanyWithDivision();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.users.store'), $this->payload($company, $division, [
+                'contract_ends_on' => '2027-01-01',
+            ]))
+            ->assertSessionDoesntHaveErrors();
+
+        $created = User::where('email', 'baru@example.com')->firstOrFail();
+        $this->assertSame('2027-01-01', $created->contract_ends_on->toDateString());
+        $this->assertNull($created->employment_ended_on);
+    }
+
+    public function test_hrd_can_set_a_probation_end_date_on_an_already_active_employee(): void
+    {
+        [$company, $division] = $this->makeCompanyWithDivision();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+        $target = User::factory()->create([
+            'company_id' => $company->id, 'division_id' => $division->id, 'status' => 'active',
+        ]);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.users.update', $target), [
+                'name' => $target->name,
+                'email' => $target->email,
+                'phone' => $target->phone,
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true, 'is_allowance_eligible' => true,
+                'probation_ends_on' => '2027-01-31',
+                'company_id' => $company->id,
+                'division_id' => $division->id,
+                'role' => $target->role,
+                'status' => $target->status,
+                'password' => '',
+                'password_confirmation' => '',
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $fresh = $target->fresh();
+        $this->assertSame('2027-01-31', $fresh->probation_ends_on->toDateString());
+        $this->assertSame('active', $fresh->status, 'Probation tracking must not touch the account status.');
+    }
+
+    public function test_hrd_can_record_an_employment_end_date(): void
+    {
+        [$company, $division] = $this->makeCompanyWithDivision();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+        $target = User::factory()->create(['company_id' => $company->id, 'division_id' => $division->id]);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.users.update', $target), [
+                'name' => $target->name,
+                'email' => $target->email,
+                'phone' => $target->phone,
+                'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent', 'is_payroll_eligible' => true, 'is_allowance_eligible' => true,
+                'employment_ended_on' => '2026-10-24',
+                'company_id' => $company->id,
+                'division_id' => $division->id,
+                'role' => $target->role,
+                'status' => 'rejected',
+                'password' => '',
+                'password_confirmation' => '',
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSame('2026-10-24', $target->fresh()->employment_ended_on->toDateString());
+    }
+
+    public function test_hrd_can_create_a_user_marked_as_not_allowance_eligible(): void
+    {
+        [$company, $division] = $this->makeCompanyWithDivision();
+        $hrd = User::factory()->create(['role' => 'hrd', 'company_id' => $company->id]);
+
+        $this->actingAs($hrd)
+            ->post(route('hrd.users.store'), $this->payload($company, $division, [
+                'is_allowance_eligible' => false,
+            ]))
+            ->assertSessionDoesntHaveErrors();
+
+        $created = User::where('email', 'baru@example.com')->firstOrFail();
+        $this->assertTrue($created->is_payroll_eligible, 'Opting out of allowances must not opt the employee out of payroll entirely.');
+        $this->assertFalse($created->is_allowance_eligible);
+    }
+
     public function test_hrd_can_toggle_an_existing_users_payroll_eligibility(): void
     {
         [$company, $division] = $this->makeCompanyWithDivision();
@@ -453,6 +540,7 @@ class UserManagementTest extends TestCase
                 'phone' => $target->phone,
                 'employee_number' => null, 'employment_started_on' => '2026-01-01', 'employment_type' => 'permanent',
                 'is_payroll_eligible' => false,
+                'is_allowance_eligible' => true,
                 'company_id' => $company->id,
                 'division_id' => $division->id,
                 'role' => $target->role,

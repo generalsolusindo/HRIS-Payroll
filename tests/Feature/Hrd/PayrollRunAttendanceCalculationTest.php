@@ -329,6 +329,42 @@ class PayrollRunAttendanceCalculationTest extends TestCase
         $this->assertEqualsWithDelta(3_050_000.0, (float) $entry->gross_amount, 0.001);
     }
 
+    public function test_a_user_marked_not_allowance_eligible_gets_no_allowance_or_transport_but_keeps_base_salary(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $this->setAttendanceRates($hrd->company_id, '0', '0', '0', allowance: '50000', transport: '20000');
+        $division = Division::create(['company_id' => $hrd->company_id, 'name' => 'Operasional']);
+        $base = PayrollComponent::create([
+            'company_id' => $hrd->company_id, 'code' => 'BASE', 'name' => 'Gaji Pokok',
+            'type' => 'earning',
+        ]);
+        $employee = User::factory()->create([
+            'company_id' => $hrd->company_id, 'role' => 'karyawan', 'status' => 'active',
+            'is_allowance_eligible' => false,
+        ]);
+        $this->makeProfile($employee, $division, [[$base, '3000000']]);
+
+        Attendance::create([
+            'user_id' => $employee->id, 'tanggal' => '2026-09-28',
+            'clock_in_time' => '2026-09-28 08:00:00', 'clock_in_status' => 'tepat_waktu', 'clock_in_late_minutes' => 0,
+            'clock_out_time' => '2026-09-28 17:00:00', 'clock_out_status' => 'tepat_waktu', 'clock_out_early_minutes' => 0,
+        ]);
+
+        $period = PayrollPeriod::create([
+            'company_id' => $hrd->company_id, 'name' => 'September 2026',
+            'starts_on' => '2026-09-01', 'ends_on' => '2026-09-30',
+            'attendance_starts_on' => '2026-09-28', 'attendance_ends_on' => '2026-09-28',
+        ]);
+        $this->actingAs($hrd)->post(route('hrd.periode-gaji.hitung', $period))->assertSessionDoesntHaveErrors();
+
+        $entry = PayrollEntry::where('user_id', $employee->id)->firstOrFail();
+        $this->assertSame(0, $entry->lines()->where('line_key', 'attendance-allowance')->count());
+        $this->assertSame(0, $entry->lines()->where('line_key', 'attendance-transport')->count());
+        // Gaji Pokok from the profile still applies — only the two
+        // attendance-based allowances are withheld.
+        $this->assertEqualsWithDelta(3_000_000.0, (float) $entry->gross_amount, 0.001);
+    }
+
     public function test_attendance_allowance_pays_half_rate_for_a_half_day(): void
     {
         $hrd = User::factory()->create(['role' => 'hrd']);

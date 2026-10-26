@@ -1,7 +1,8 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, router } from '@inertiajs/react';
 import { Building2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import DivisionController from '@/actions/App/Http/Controllers/Hrd/DivisionController';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -106,6 +107,21 @@ function DivisionFormFields({
 
 export default function Divisions({ divisions }: Props) {
     const [createOpen, setCreateOpen] = useState(false);
+    const [deletingDivision, setDeletingDivision] =
+        useState<DivisionRow | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    function confirmDeleteDivision() {
+        if (!deletingDivision) return;
+
+        setDeleting(true);
+        router.delete(DivisionController.destroy.url(deletingDivision.id), {
+            preserveScroll: true,
+            onSuccess: () => setDeletingDivision(null),
+            onFinish: () => setDeleting(false),
+        });
+    }
+
     const [editingDivision, setEditingDivision] = useState<DivisionRow | null>(
         null,
     );
@@ -238,32 +254,20 @@ export default function Divisions({ divisions }: Props) {
                                                 >
                                                     <Pencil className="size-4" />
                                                 </Button>
-                                                <Form
-                                                    {...DivisionController.destroy.form(
-                                                        division.id,
-                                                    )}
-                                                    disableWhileProcessing
-                                                    onBefore={() =>
-                                                        confirm(
-                                                            `Hapus divisi ${division.name}?`,
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="outline"
+                                                    className="rounded-full text-destructive hover:text-destructive"
+                                                    aria-label={`Hapus ${division.name}`}
+                                                    onClick={() =>
+                                                        setDeletingDivision(
+                                                            division,
                                                         )
                                                     }
                                                 >
-                                                    {({ processing }) => (
-                                                        <Button
-                                                            type="submit"
-                                                            size="icon"
-                                                            variant="outline"
-                                                            className="rounded-full text-destructive hover:text-destructive"
-                                                            aria-label={`Hapus ${division.name}`}
-                                                            disabled={
-                                                                processing
-                                                            }
-                                                        >
-                                                            <Trash2 className="size-4" />
-                                                        </Button>
-                                                    )}
-                                                </Form>
+                                                    <Trash2 className="size-4" />
+                                                </Button>
                                             </div>
                                         </td>
                                     </tr>
@@ -319,6 +323,23 @@ export default function Divisions({ divisions }: Props) {
                     )}
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={deletingDivision !== null}
+                onOpenChange={(open) => {
+                    if (!open) setDeletingDivision(null);
+                }}
+                title="Hapus Divisi"
+                description={
+                    deletingDivision
+                        ? `Hapus divisi ${deletingDivision.name}?`
+                        : ''
+                }
+                confirmLabel="Hapus"
+                destructive
+                confirming={deleting}
+                onConfirm={confirmDeleteDivision}
+            />
         </>
     );
 }

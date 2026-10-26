@@ -1,7 +1,8 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, router } from '@inertiajs/react';
 import { Pencil, Plus, Trash2, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import PayrollComponentController from '@/actions/App/Http/Controllers/Hrd/PayrollComponentController';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -140,6 +141,23 @@ export default function PayrollComponents({ components }: Props) {
     const [createOpen, setCreateOpen] = useState(false);
     const [editingComponent, setEditingComponent] =
         useState<ComponentRow | null>(null);
+    const [deletingComponent, setDeletingComponent] =
+        useState<ComponentRow | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    function confirmDeleteComponent() {
+        if (!deletingComponent) return;
+
+        setDeleting(true);
+        router.delete(
+            PayrollComponentController.destroy.url(deletingComponent.id),
+            {
+                preserveScroll: true,
+                onSuccess: () => setDeletingComponent(null),
+                onFinish: () => setDeleting(false),
+            },
+        );
+    }
 
     return (
         <>
@@ -291,32 +309,20 @@ export default function PayrollComponents({ components }: Props) {
                                                 >
                                                     <Pencil className="size-4" />
                                                 </Button>
-                                                <Form
-                                                    {...PayrollComponentController.destroy.form(
-                                                        component.id,
-                                                    )}
-                                                    disableWhileProcessing
-                                                    onBefore={() =>
-                                                        confirm(
-                                                            `Hapus komponen ${component.name}?`,
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="outline"
+                                                    className="rounded-full text-destructive hover:text-destructive"
+                                                    aria-label={`Hapus ${component.name}`}
+                                                    onClick={() =>
+                                                        setDeletingComponent(
+                                                            component,
                                                         )
                                                     }
                                                 >
-                                                    {({ processing }) => (
-                                                        <Button
-                                                            type="submit"
-                                                            size="icon"
-                                                            variant="outline"
-                                                            className="rounded-full text-destructive hover:text-destructive"
-                                                            aria-label={`Hapus ${component.name}`}
-                                                            disabled={
-                                                                processing
-                                                            }
-                                                        >
-                                                            <Trash2 className="size-4" />
-                                                        </Button>
-                                                    )}
-                                                </Form>
+                                                    <Trash2 className="size-4" />
+                                                </Button>
                                             </div>
                                         </td>
                                     </tr>
@@ -372,6 +378,23 @@ export default function PayrollComponents({ components }: Props) {
                     )}
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={deletingComponent !== null}
+                onOpenChange={(open) => {
+                    if (!open) setDeletingComponent(null);
+                }}
+                title="Hapus Komponen"
+                description={
+                    deletingComponent
+                        ? `Hapus komponen ${deletingComponent.name}?`
+                        : ''
+                }
+                confirmLabel="Hapus"
+                destructive
+                confirming={deleting}
+                onConfirm={confirmDeleteComponent}
+            />
         </>
     );
 }

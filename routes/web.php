@@ -12,7 +12,9 @@ use App\Http\Controllers\Hrd\AttendanceRangeSummaryController;
 use App\Http\Controllers\Hrd\CompanyCalendarDayController;
 use App\Http\Controllers\Hrd\CompanySettingsController;
 use App\Http\Controllers\Hrd\DivisionController;
+use App\Http\Controllers\Hrd\EmployeeDocumentController;
 use App\Http\Controllers\Hrd\LeaveRequestApprovalController;
+use App\Http\Controllers\Hrd\MonitoringDashboardController;
 use App\Http\Controllers\Hrd\OvertimeApprovalController;
 use App\Http\Controllers\Hrd\PayrollAdjustmentController;
 use App\Http\Controllers\Hrd\PayrollAuditLogController;
@@ -82,8 +84,17 @@ Route::middleware(['auth', 'active'])->group(function () {
 Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->group(function () {
     Route::get('users', [UserManagementController::class, 'index'])->name('users.index');
     Route::post('users', [UserManagementController::class, 'store'])->name('users.store');
+    // Registered before the users/{user}-style routes below so the
+    // literal "documents" segment is never swallowed as a {user} value
+    // (same reasoning as izin/riwayat vs izin/{leaveRequest} further down).
+    Route::get('users/documents/{document}', [EmployeeDocumentController::class, 'show'])->name('users.documents.show');
+    Route::delete('users/documents/{document}', [EmployeeDocumentController::class, 'destroy'])->name('users.documents.destroy');
+    Route::get('users/{user}', [UserManagementController::class, 'show'])->name('users.show');
     Route::put('users/{user}', [UserManagementController::class, 'update'])->name('users.update');
     Route::delete('users/{user}', [UserManagementController::class, 'destroy'])->name('users.destroy');
+    Route::post('users/{user}/documents', [EmployeeDocumentController::class, 'store'])->name('users.documents.store');
+
+    Route::get('monitoring', [MonitoringDashboardController::class, 'index'])->name('monitoring.index');
 
     Route::get('absensi', [AttendanceDashboardController::class, 'index'])->name('absensi.index');
     Route::patch('konfirmasi-absensi/{review}', [AttendanceConfirmationController::class, 'update'])->name('konfirmasi-absensi.update');
@@ -155,6 +166,10 @@ Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('ma
     Route::patch('izin/{leaveRequest}/reject', [ManagerLeaveRequestApprovalController::class, 'reject'])->name('izin.reject');
 
     Route::get('payroll', [PayrollRunApprovalController::class, 'index'])->name('payroll.index');
+    // Registered before payroll/{run} below so the literal "riwayat"
+    // segment is never swallowed as a {run} value (same reasoning as
+    // izin/riwayat vs izin/{leaveRequest} above).
+    Route::get('payroll/riwayat', [PayrollRunApprovalController::class, 'riwayat'])->name('payroll.riwayat');
     Route::get('payroll/{run}', [PayrollRunApprovalController::class, 'show'])->name('payroll.show');
     Route::patch('payroll/{run}/approve', [PayrollRunApprovalController::class, 'approve'])->name('payroll.approve');
     Route::patch('payroll/{run}/revisi', [PayrollRunApprovalController::class, 'requestRevision'])->name('payroll.revisi');

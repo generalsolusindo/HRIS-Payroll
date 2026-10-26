@@ -1,8 +1,9 @@
 import { EMPLOYMENT_TYPE_LABELS } from '@/lib/employment-types';
-import { Form, Head, router, usePage } from '@inertiajs/react';
-import { Pencil, Plus, Trash2, Users as UsersIcon } from 'lucide-react';
+import { Form, Head, Link, router, usePage } from '@inertiajs/react';
+import { Eye, Pencil, Plus, Trash2, Users as UsersIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import UserManagementController from '@/actions/App/Http/Controllers/Hrd/UserManagementController';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -34,7 +35,11 @@ type UserRow = {
     employee_number: string | null;
     employment_type: string | null;
     employment_started_on: string | null;
+    probation_ends_on: string | null;
+    contract_ends_on: string | null;
+    employment_ended_on: string | null;
     is_payroll_eligible: boolean;
+    is_allowance_eligible: boolean;
     name: string;
     email: string;
     phone: string | null;
@@ -111,10 +116,16 @@ function UserFormFields({
     const [divisionId, setDivisionId] = useState(
         defaultValues?.division ? String(defaultValues.division.id) : '',
     );
+    const [employmentType, setEmploymentType] = useState(
+        defaultValues?.employment_type ?? '',
+    );
     const [role, setRole] = useState(defaultValues?.role ?? 'karyawan');
     const [status, setStatus] = useState(defaultValues?.status ?? 'pending');
     const [isPayrollEligible, setIsPayrollEligible] = useState(
         defaultValues ? (defaultValues.is_payroll_eligible ? '1' : '0') : '1',
+    );
+    const [isAllowanceEligible, setIsAllowanceEligible] = useState(
+        defaultValues ? (defaultValues.is_allowance_eligible ? '1' : '0') : '1',
     );
 
     const divisions = useMemo(
@@ -181,7 +192,8 @@ function UserFormFields({
                     id="employment_type"
                     name="employment_type"
                     required
-                    defaultValue={defaultValues?.employment_type ?? ''}
+                    value={employmentType}
+                    onChange={(e) => setEmploymentType(e.target.value)}
                     className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                     <option
@@ -212,6 +224,66 @@ function UserFormFields({
                     defaultValue={defaultValues?.employment_started_on ?? ''}
                 />
                 <InputError message={errors.employment_started_on} />
+            </div>
+
+            <div className="grid gap-2">
+                <Label htmlFor="probation_ends_on">
+                    Tanggal Berakhir Masa Percobaan{' '}
+                    <span className="font-normal text-muted-foreground">
+                        (opsional)
+                    </span>
+                </Label>
+                <Input
+                    id="probation_ends_on"
+                    name="probation_ends_on"
+                    type="date"
+                    defaultValue={defaultValues?.probation_ends_on ?? ''}
+                />
+                <p className="text-xs text-muted-foreground">
+                    Isi kalau karyawan ini masih dalam masa percobaan
+                    sebelum diangkat tetap. Kosongkan kalau tidak/sudah
+                    tidak lagi masa percobaan.
+                </p>
+                <InputError message={errors.probation_ends_on} />
+            </div>
+
+            {employmentType === 'contract' && (
+                <div className="grid gap-2 rounded-xl border p-3">
+                    <Label htmlFor="contract_ends_on">
+                        Periode Kontrak — Berakhir{' '}
+                        <span className="font-normal text-muted-foreground">
+                            (opsional)
+                        </span>
+                    </Label>
+                    <Input
+                        id="contract_ends_on"
+                        name="contract_ends_on"
+                        type="date"
+                        defaultValue={defaultValues?.contract_ends_on ?? ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        Dari Tanggal Mulai Kerja di atas, sampai tanggal
+                        ini. Kosongkan kalau kontraknya belum punya
+                        tanggal berakhir pasti.
+                    </p>
+                    <InputError message={errors.contract_ends_on} />
+                </div>
+            )}
+
+            <div className="grid gap-2">
+                <Label htmlFor="employment_ended_on">
+                    Tanggal Keluar{' '}
+                    <span className="font-normal text-muted-foreground">
+                        (opsional)
+                    </span>
+                </Label>
+                <Input
+                    id="employment_ended_on"
+                    name="employment_ended_on"
+                    type="date"
+                    defaultValue={defaultValues?.employment_ended_on ?? ''}
+                />
+                <InputError message={errors.employment_ended_on} />
             </div>
 
             <div className="grid gap-2">
@@ -246,6 +318,37 @@ function UserFormFields({
                     Gaji dijalankan.
                 </p>
                 <InputError message={errors.is_payroll_eligible} />
+            </div>
+
+            <div className="grid gap-2">
+                <Label htmlFor="is_allowance_eligible">Dapat Tunjangan</Label>
+                <input
+                    type="hidden"
+                    name="is_allowance_eligible"
+                    value={isAllowanceEligible}
+                />
+                <Select
+                    value={isAllowanceEligible}
+                    onValueChange={setIsAllowanceEligible}
+                >
+                    <SelectTrigger
+                        id="is_allowance_eligible"
+                        className="w-full"
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="1">Ya</SelectItem>
+                        <SelectItem value="0">Tidak</SelectItem>
+                    </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                    Kalau dipilih "Tidak", karyawan ini tidak dapat Tunjangan
+                    Kehadiran maupun Tunjangan Transport otomatis — tetap
+                    dapat Gaji Pokok dan tetap kena Potongan Telat/Alpha
+                    seperti biasa.
+                </p>
+                <InputError message={errors.is_allowance_eligible} />
             </div>
 
             <div className="grid gap-2">
@@ -428,6 +531,19 @@ export default function UserManagement({ users, search, companies }: Props) {
     const [searchValue, setSearchValue] = useState(search);
     const [createOpen, setCreateOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+    const [deletingUser, setDeletingUser] = useState<UserRow | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    function confirmDeleteUser() {
+        if (!deletingUser) return;
+
+        setDeleting(true);
+        router.delete(UserManagementController.destroy.url(deletingUser.id), {
+            preserveScroll: true,
+            onSuccess: () => setDeletingUser(null),
+            onFinish: () => setDeleting(false),
+        });
+    }
 
     function handleSearchSubmit(event: React.FormEvent) {
         event.preventDefault();
@@ -577,6 +693,17 @@ export default function UserManagement({ users, search, companies }: Props) {
                                                                 Tidak ikut payroll
                                                             </span>
                                                         )}
+                                                        {user.is_payroll_eligible &&
+                                                            !user.is_allowance_eligible && (
+                                                                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
+                                                                    Tanpa tunjangan
+                                                                </span>
+                                                            )}
+                                                        {user.probation_ends_on && (
+                                                            <span className="rounded-full border border-amber-400/50 bg-amber-500/10 px-2 py-0.5 text-[11px] font-normal text-amber-600 dark:border-amber-400/40 dark:text-amber-400">
+                                                                Masa percobaan
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="text-xs text-muted-foreground">
                                                         {user.email}
@@ -613,6 +740,21 @@ export default function UserManagement({ users, search, companies }: Props) {
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex justify-end gap-2">
+                                                <Link
+                                                    href={UserManagementController.show(
+                                                        user.id,
+                                                    )}
+                                                >
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="outline"
+                                                        className="rounded-full"
+                                                        aria-label={`Detail ${user.name}`}
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </Button>
+                                                </Link>
                                                 <Button
                                                     type="button"
                                                     size="icon"
@@ -625,34 +767,22 @@ export default function UserManagement({ users, search, companies }: Props) {
                                                 >
                                                     <Pencil className="size-4" />
                                                 </Button>
-                                                <Form
-                                                    {...UserManagementController.destroy.form(
-                                                        user.id,
-                                                    )}
-                                                    disableWhileProcessing
-                                                    onBefore={() =>
-                                                        confirm(
-                                                            `Hapus ${user.name}? Seluruh data absensi dan izin miliknya ikut terhapus permanen. Tindakan ini tidak bisa dibatalkan.`,
-                                                        )
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="outline"
+                                                    className="rounded-full text-destructive hover:text-destructive"
+                                                    aria-label={`Hapus ${user.name}`}
+                                                    disabled={
+                                                        user.id ===
+                                                        auth.user.id
+                                                    }
+                                                    onClick={() =>
+                                                        setDeletingUser(user)
                                                     }
                                                 >
-                                                    {({ processing }) => (
-                                                        <Button
-                                                            type="submit"
-                                                            size="icon"
-                                                            variant="outline"
-                                                            className="rounded-full text-destructive hover:text-destructive"
-                                                            aria-label={`Hapus ${user.name}`}
-                                                            disabled={
-                                                                processing ||
-                                                                user.id ===
-                                                                    auth.user.id
-                                                            }
-                                                        >
-                                                            <Trash2 className="size-4" />
-                                                        </Button>
-                                                    )}
-                                                </Form>
+                                                    <Trash2 className="size-4" />
+                                                </Button>
                                             </div>
                                         </td>
                                     </tr>
@@ -748,6 +878,23 @@ export default function UserManagement({ users, search, companies }: Props) {
                     )}
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={deletingUser !== null}
+                onOpenChange={(open) => {
+                    if (!open) setDeletingUser(null);
+                }}
+                title="Hapus Pengguna"
+                description={
+                    deletingUser
+                        ? `Hapus ${deletingUser.name}? Seluruh data absensi dan izin miliknya ikut terhapus permanen. Tindakan ini tidak bisa dibatalkan.`
+                        : ''
+                }
+                confirmLabel="Hapus"
+                destructive
+                confirming={deleting}
+                onConfirm={confirmDeleteUser}
+            />
         </>
     );
 }

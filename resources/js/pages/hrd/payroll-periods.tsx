@@ -11,7 +11,9 @@ import { useState } from 'react';
 import PayrollPeriodController from '@/actions/App/Http/Controllers/Hrd/PayrollPeriodController';
 import PayrollRunController from '@/actions/App/Http/Controllers/Hrd/PayrollRunController';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import InputError from '@/components/input-error';
+import { PromptDialog } from '@/components/prompt-dialog';
 import { show as showPayrollRun } from '@/routes/hrd/hasil-payroll';
 import { Button } from '@/components/ui/button';
 import {
@@ -182,34 +184,43 @@ export default function PayrollPeriods({ periods }: Props) {
         null,
     );
 
-    function calculate(periodId: number) {
-        if (
-            !confirm(
-                'Hitung payroll untuk periode ini? Hanya karyawan dengan profil gaji yang akan dihitung.',
-            )
-        ) {
-            return;
-        }
-        router.post(PayrollRunController.store(periodId).url);
+    const [calculatingPeriod, setCalculatingPeriod] =
+        useState<PeriodRow | null>(null);
+    const [calculating, setCalculating] = useState(false);
+
+    function confirmCalculate() {
+        if (!calculatingPeriod) return;
+
+        setCalculating(true);
+        router.post(
+            PayrollRunController.store(calculatingPeriod.id).url,
+            {},
+            {
+                onSuccess: () => setCalculatingPeriod(null),
+                onFinish: () => setCalculating(false),
+            },
+        );
     }
 
-    function requestDeletion(period: PeriodRow) {
-        const reason = window.prompt(
-            `Alasan meminta pengarsipan periode ${period.name}:`,
-        );
+    const [requestingDeletionFor, setRequestingDeletionFor] =
+        useState<PeriodRow | null>(null);
+    const [requestingDeletion, setRequestingDeletion] = useState(false);
 
-        if (!reason?.trim()) {
-            return;
-        }
+    function submitDeletionRequest(reason: string) {
+        if (!requestingDeletionFor) return;
 
+        setRequestingDeletion(true);
         router.post(
-            PayrollPeriodController.requestDeletion(period.id).url,
-            { reason: reason.trim() },
+            PayrollPeriodController.requestDeletion(requestingDeletionFor.id)
+                .url,
+            { reason },
             {
-                onSuccess: () =>
+                onSuccess: () => {
                     toast.success(
                         'Permintaan dikirim dan menunggu persetujuan Manager.',
-                    ),
+                    );
+                    setRequestingDeletionFor(null);
+                },
                 onError: (errors) => {
                     const message = Object.values(errors)[0];
                     toast.error(
@@ -218,6 +229,26 @@ export default function PayrollPeriods({ periods }: Props) {
                             : 'Gagal mengirim permintaan pengarsipan.',
                     );
                 },
+                onFinish: () => setRequestingDeletion(false),
+            },
+        );
+    }
+
+    const [deletingPeriod, setDeletingPeriod] = useState<PeriodRow | null>(
+        null,
+    );
+    const [deleting, setDeleting] = useState(false);
+
+    function confirmDeletePeriod() {
+        if (!deletingPeriod) return;
+
+        setDeleting(true);
+        router.delete(
+            PayrollPeriodController.destroy.url(deletingPeriod.id),
+            {
+                preserveScroll: true,
+                onSuccess: () => setDeletingPeriod(null),
+                onFinish: () => setDeleting(false),
             },
         );
     }
@@ -401,7 +432,7 @@ export default function PayrollPeriods({ periods }: Props) {
                                                             variant="outline"
                                                             className="rounded-full text-destructive hover:text-destructive"
                                                             onClick={() =>
-                                                                requestDeletion(
+                                                                setRequestingDeletionFor(
                                                                     period,
                                                                 )
                                                             }
@@ -431,7 +462,9 @@ export default function PayrollPeriods({ periods }: Props) {
                                                         size="sm"
                                                         className="rounded-full"
                                                         onClick={() =>
-                                                            calculate(period.id)
+                                                            setCalculatingPeriod(
+                                                                period,
+                                                            )
                                                         }
                                                     >
                                                         <Calculator className="size-3.5" />
@@ -441,32 +474,20 @@ export default function PayrollPeriods({ periods }: Props) {
                                                     </Button>
                                                 )}
                                                 {!period.latest_run && (
-                                                    <Form
-                                                        {...PayrollPeriodController.destroy.form(
-                                                            period.id,
-                                                        )}
-                                                        disableWhileProcessing
-                                                        onBefore={() =>
-                                                            confirm(
-                                                                `Hapus periode ${period.name}? Tindakan ini tidak bisa dibatalkan.`,
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="outline"
+                                                        className="rounded-full text-destructive hover:text-destructive"
+                                                        aria-label={`Hapus ${period.name}`}
+                                                        onClick={() =>
+                                                            setDeletingPeriod(
+                                                                period,
                                                             )
                                                         }
                                                     >
-                                                        {({ processing }) => (
-                                                            <Button
-                                                                type="submit"
-                                                                size="icon"
-                                                                variant="outline"
-                                                                className="rounded-full text-destructive hover:text-destructive"
-                                                                aria-label={`Hapus ${period.name}`}
-                                                                disabled={
-                                                                    processing
-                                                                }
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </Button>
-                                                        )}
-                                                    </Form>
+                                                        <Trash2 className="size-4" />
+                                                    </Button>
                                                 )}
                                             </div>
                                         </td>
@@ -528,6 +549,56 @@ export default function PayrollPeriods({ periods }: Props) {
                     )}
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={calculatingPeriod !== null}
+                onOpenChange={(open) => {
+                    if (!open) setCalculatingPeriod(null);
+                }}
+                title={
+                    calculatingPeriod?.latest_run
+                        ? 'Hitung Ulang Payroll'
+                        : 'Hitung Payroll'
+                }
+                description="Hitung payroll untuk periode ini? Hanya karyawan dengan profil gaji yang akan dihitung."
+                confirmLabel="Hitung"
+                confirming={calculating}
+                onConfirm={confirmCalculate}
+            />
+
+            <PromptDialog
+                open={requestingDeletionFor !== null}
+                onOpenChange={(open) => {
+                    if (!open) setRequestingDeletionFor(null);
+                }}
+                title="Minta Hapus Periode"
+                description={
+                    requestingDeletionFor
+                        ? `Alasan meminta pengarsipan periode ${requestingDeletionFor.name}:`
+                        : ''
+                }
+                label="Alasan"
+                submitLabel="Kirim Permintaan"
+                submitting={requestingDeletion}
+                onSubmit={submitDeletionRequest}
+            />
+
+            <ConfirmDialog
+                open={deletingPeriod !== null}
+                onOpenChange={(open) => {
+                    if (!open) setDeletingPeriod(null);
+                }}
+                title="Hapus Periode"
+                description={
+                    deletingPeriod
+                        ? `Hapus periode ${deletingPeriod.name}? Tindakan ini tidak bisa dibatalkan.`
+                        : ''
+                }
+                confirmLabel="Hapus"
+                destructive
+                confirming={deleting}
+                onConfirm={confirmDeletePeriod}
+            />
         </>
     );
 }

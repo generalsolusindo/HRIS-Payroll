@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import PayrollPayslipController from '@/actions/App/Http/Controllers/Hrd/PayrollPayslipController';
 import PayrollRunController from '@/actions/App/Http/Controllers/Hrd/PayrollRunController';
 import PenggajianController from '@/actions/App/Http/Controllers/PenggajianController';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { PayrollAdjustments } from '@/components/payroll-adjustments';
 import { Button } from '@/components/ui/button';
 import {
@@ -283,14 +284,14 @@ export default function PayrollRunShow({
         0,
     );
 
+    const [recalculateConfirmOpen, setRecalculateConfirmOpen] =
+        useState(false);
+    const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
+
     function recalculate() {
-        if (
-            recalculating ||
-            !confirm(
-                'Hitung ulang sebagai versi baru dengan data terbaru? Versi sebelumnya tetap tersimpan dalam histori.',
-            )
-        )
-            return;
+        if (recalculating) return;
+
+        setRecalculateConfirmOpen(false);
         setRecalculating(true);
         router.post(
             (run.status === 'draft'
@@ -310,13 +311,9 @@ export default function PayrollRunShow({
     }
 
     function shareForReview() {
-        if (
-            sharing ||
-            !confirm(
-                'Bagikan draft ini ke karyawan untuk ditinjau sebelum diajukan ke Manager? Mereka akan bisa melihat rincian gajinya sendiri.',
-            )
-        )
-            return;
+        if (sharing) return;
+
+        setShareConfirmOpen(false);
         setSharing(true);
         router.patch(
             PayrollRunController.share(run.id).url,
@@ -379,7 +376,7 @@ export default function PayrollRunShow({
                             <Button
                                 variant="outline"
                                 disabled={sharing}
-                                onClick={shareForReview}
+                                onClick={() => setShareConfirmOpen(true)}
                             >
                                 {sharing
                                     ? 'Membagikan…'
@@ -390,7 +387,9 @@ export default function PayrollRunShow({
                             <Button
                                 variant="outline"
                                 disabled={recalculating}
-                                onClick={recalculate}
+                                onClick={() =>
+                                    setRecalculateConfirmOpen(true)
+                                }
                             >
                                 {recalculating
                                     ? 'Menghitung…'
@@ -1121,6 +1120,30 @@ export default function PayrollRunShow({
                     )}
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={shareConfirmOpen}
+                onOpenChange={setShareConfirmOpen}
+                title="Bagikan untuk Ditinjau Karyawan"
+                description="Bagikan draft ini ke karyawan untuk ditinjau sebelum diajukan ke Manager? Mereka akan bisa melihat rincian gajinya sendiri."
+                confirmLabel="Bagikan"
+                confirming={sharing}
+                onConfirm={shareForReview}
+            />
+
+            <ConfirmDialog
+                open={recalculateConfirmOpen}
+                onOpenChange={setRecalculateConfirmOpen}
+                title={
+                    run.status === 'draft'
+                        ? 'Perbarui Draft'
+                        : 'Hitung Ulang Payroll'
+                }
+                description="Hitung ulang sebagai versi baru dengan data terbaru? Versi sebelumnya tetap tersimpan dalam histori."
+                confirmLabel="Hitung Ulang"
+                confirming={recalculating}
+                onConfirm={recalculate}
+            />
         </>
     );
 }

@@ -79,6 +79,16 @@ return [
             'report' => false,
         ],
 
+        // Same reasoning as leave_attachments — never a direct/signed URL,
+        // only ever served through Hrd\EmployeeDocumentController, which
+        // the hrd route group already gates to role=hrd.
+        'employee_documents' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/employee-documents'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

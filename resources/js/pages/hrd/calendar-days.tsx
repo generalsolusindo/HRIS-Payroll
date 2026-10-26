@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, router } from '@inertiajs/react';
 import {
     CalendarDays as CalendarDaysIcon,
     Pencil,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import CompanyCalendarDayController from '@/actions/App/Http/Controllers/Hrd/CompanyCalendarDayController';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -178,6 +179,22 @@ export default function CalendarDays({ days, companies, employees }: Props) {
     }
 
     const [editingDay, setEditingDay] = useState<DayRow | null>(null);
+    const [deletingDay, setDeletingDay] = useState<DayRow | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    function confirmDeleteDay() {
+        if (!deletingDay) return;
+
+        setDeleting(true);
+        router.delete(
+            CompanyCalendarDayController.destroy.url(deletingDay.id),
+            {
+                preserveScroll: true,
+                onSuccess: () => setDeletingDay(null),
+                onFinish: () => setDeleting(false),
+            },
+        );
+    }
     const [editType, setEditType] = useState('holiday');
     const [editAllowedUserIds, setEditAllowedUserIds] = useState<number[]>(
         [],
@@ -430,32 +447,18 @@ export default function CalendarDays({ days, companies, employees }: Props) {
                                                 >
                                                     <Pencil className="size-4" />
                                                 </Button>
-                                                <Form
-                                                    {...CompanyCalendarDayController.destroy.form(
-                                                        day.id,
-                                                    )}
-                                                    disableWhileProcessing
-                                                    onBefore={() =>
-                                                        confirm(
-                                                            `Hapus tanggal ${formatDate(day.date)}?`,
-                                                        )
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="outline"
+                                                    className="rounded-full text-destructive hover:text-destructive"
+                                                    aria-label="Hapus"
+                                                    onClick={() =>
+                                                        setDeletingDay(day)
                                                     }
                                                 >
-                                                    {({ processing }) => (
-                                                        <Button
-                                                            type="submit"
-                                                            size="icon"
-                                                            variant="outline"
-                                                            className="rounded-full text-destructive hover:text-destructive"
-                                                            aria-label="Hapus"
-                                                            disabled={
-                                                                processing
-                                                            }
-                                                        >
-                                                            <Trash2 className="size-4" />
-                                                        </Button>
-                                                    )}
-                                                </Form>
+                                                    <Trash2 className="size-4" />
+                                                </Button>
                                             </div>
                                         </td>
                                     </tr>
@@ -545,6 +548,23 @@ export default function CalendarDays({ days, companies, employees }: Props) {
                     )}
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={deletingDay !== null}
+                onOpenChange={(open) => {
+                    if (!open) setDeletingDay(null);
+                }}
+                title="Hapus Tanggal"
+                description={
+                    deletingDay
+                        ? `Hapus tanggal ${formatDate(deletingDay.date)}?`
+                        : ''
+                }
+                confirmLabel="Hapus"
+                destructive
+                confirming={deleting}
+                onConfirm={confirmDeleteDay}
+            />
         </>
     );
 }

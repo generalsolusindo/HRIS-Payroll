@@ -7,6 +7,9 @@ use App\Http\Requests\Hrd\StoreUserRequest;
 use App\Http\Requests\Hrd\UpdateUserRequest;
 use App\Models\Company;
 use App\Models\Division;
+use App\Models\EmployeeDocument;
+use App\Models\EmployeePayrollProfile;
+use App\Models\EmployeeSalaryComponent;
 use App\Models\User;
 use App\Services\NavBadgeService;
 use Illuminate\Http\RedirectResponse;
@@ -41,7 +44,9 @@ class UserManagementController extends Controller
                 'employee_number' => $user->employee_number,
                 'employment_type' => $user->employment_type,
                 'employment_started_on' => $user->employment_started_on?->toDateString(),
+                'probation_ends_on' => $user->probation_ends_on?->toDateString(),
                 'is_payroll_eligible' => $user->is_payroll_eligible,
+                'is_allowance_eligible' => $user->is_allowance_eligible,
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone,
@@ -64,6 +69,72 @@ class UserManagementController extends Controller
         ]);
     }
 
+    /**
+     * Full detail view for one employee — personal/employment data,
+     * contract dates, a read-only snapshot of their current salary
+     * profile (editing that stays on the Profil Gaji screen, which is
+     * the one place it's ever written), and their optional documents.
+     */
+    public function show(User $user): Response
+    {
+        $user->loadMissing([
+            'company:id,name',
+            'division:id,name',
+            'documents' => fn ($query) => $query->latest(),
+            'documents.uploadedBy:id,name',
+        ]);
+
+        $profile = EmployeePayrollProfile::where('user_id', $user->id)
+            ->latest('effective_from')
+            ->with('salaryComponents.payrollComponent:id,name,type')
+            ->first();
+
+        return Inertia::render('hrd/user-detail', [
+            'employee' => [
+                'id' => $user->id,
+                'employee_number' => $user->employee_number,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'role' => $user->role,
+                'status' => $user->status,
+                'company' => ['id' => $user->company->id, 'name' => $user->company->name],
+                'division' => $user->division ? ['id' => $user->division->id, 'name' => $user->division->name] : null,
+                'employment_type' => $user->employment_type,
+                'employment_started_on' => $user->employment_started_on?->toDateString(),
+                'probation_ends_on' => $user->probation_ends_on?->toDateString(),
+                'contract_ends_on' => $user->contract_ends_on?->toDateString(),
+                'employment_ended_on' => $user->employment_ended_on?->toDateString(),
+                'is_payroll_eligible' => $user->is_payroll_eligible,
+                'is_allowance_eligible' => $user->is_allowance_eligible,
+                'bank_name' => $user->bank_name,
+                'bank_account_holder' => $user->bank_account_holder,
+            ],
+            'salaryProfile' => $profile ? [
+                'division_name' => $user->division?->name,
+                'components' => $profile->salaryComponents->map(fn (EmployeeSalaryComponent $component) => [
+                    'name' => $component->payrollComponent->name,
+                    'type' => $component->payrollComponent->type,
+                    'amount' => (string) $component->amount,
+                ]),
+                'monthly_total' => (string) $profile->salaryComponents->sum(
+                    fn (EmployeeSalaryComponent $component) => $component->payrollComponent->type === 'deduction'
+                        ? -$component->amount : $component->amount
+                ),
+            ] : null,
+            'documents' => $user->documents->map(fn (EmployeeDocument $document) => [
+                'id' => $document->id,
+                'type' => $document->type,
+                'label' => $document->label,
+                'file_name' => $document->file_name,
+                'file_size' => $document->file_size,
+                'uploaded_by_name' => $document->uploadedBy?->name,
+                'created_at' => $document->created_at->toIso8601String(),
+            ]),
+            'documentTypes' => EmployeeDocument::TYPES,
+        ]);
+    }
+
     public function store(StoreUserRequest $request): RedirectResponse
     {
         $validated = $request->validated();
@@ -77,7 +148,11 @@ class UserManagementController extends Controller
             'division_id' => $validated['division_id'],
             'employment_type' => $validated['employment_type'] ?? null,
             'employment_started_on' => $validated['employment_started_on'],
+            'probation_ends_on' => $validated['probation_ends_on'] ?? null,
+            'contract_ends_on' => $validated['contract_ends_on'] ?? null,
+            'employment_ended_on' => $validated['employment_ended_on'] ?? null,
             'is_payroll_eligible' => $validated['is_payroll_eligible'],
+            'is_allowance_eligible' => $validated['is_allowance_eligible'],
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
@@ -107,7 +182,11 @@ class UserManagementController extends Controller
             'division_id' => $validated['division_id'],
             'employment_type' => $validated['employment_type'] ?? $user->employment_type,
             'employment_started_on' => $validated['employment_started_on'],
+            'probation_ends_on' => $validated['probation_ends_on'] ?? null,
+            'contract_ends_on' => $validated['contract_ends_on'] ?? null,
+            'employment_ended_on' => $validated['employment_ended_on'] ?? null,
             'is_payroll_eligible' => $validated['is_payroll_eligible'],
+            'is_allowance_eligible' => $validated['is_allowance_eligible'],
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,

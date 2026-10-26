@@ -24,7 +24,11 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int|null $division_id
  * @property string|null $employment_type
  * @property Carbon|null $employment_started_on
+ * @property Carbon|null $probation_ends_on
+ * @property Carbon|null $contract_ends_on
+ * @property Carbon|null $employment_ended_on
  * @property bool $is_payroll_eligible
+ * @property bool $is_allowance_eligible
  * @property string|null $employee_number
  * @property string $name
  * @property string $email
@@ -45,7 +49,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['company_id', 'position_id', 'division_id', 'employee_number', 'employment_type', 'employment_started_on', 'is_payroll_eligible', 'name', 'email', 'phone', 'password', 'bank_name', 'bank_account_number', 'bank_account_holder'])]
+#[Fillable(['company_id', 'position_id', 'division_id', 'employee_number', 'employment_type', 'employment_started_on', 'probation_ends_on', 'contract_ends_on', 'employment_ended_on', 'is_payroll_eligible', 'is_allowance_eligible', 'name', 'email', 'phone', 'password', 'bank_name', 'bank_account_number', 'bank_account_holder'])]
 // face_descriptor is deliberately never mass-assignable or serialized —
 // it's biometric data and must only ever be set via an explicit enrollment
 // code path, never via fill()/create(), and never sent to the frontend
@@ -152,6 +156,14 @@ class User extends Authenticatable implements PasskeyUser
         return $this->hasMany(OvertimeRequest::class);
     }
 
+    /**
+     * @return HasMany<EmployeeDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(EmployeeDocument::class);
+    }
+
     public function isHrd(): bool
     {
         return $this->role === 'hrd';
@@ -202,7 +214,11 @@ class User extends Authenticatable implements PasskeyUser
     {
         return [
             'employment_started_on' => 'date',
+            'probation_ends_on' => 'date',
+            'contract_ends_on' => 'date',
+            'employment_ended_on' => 'date',
             'is_payroll_eligible' => 'boolean',
+            'is_allowance_eligible' => 'boolean',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',

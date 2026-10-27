@@ -1,5 +1,5 @@
 import { Form, Head, router } from '@inertiajs/react';
-import { History, Search, Users } from 'lucide-react';
+import { Download, History, Search, Users } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import PayrollRunApprovalController from '@/actions/App/Http/Controllers/Manager/PayrollRunApprovalController';
@@ -189,7 +189,6 @@ export default function PayrollRunShow({
             { note },
             {
                 onSuccess: () => {
-                    toast.success('Permintaan revisi dikirim ke HRD.');
                     setNote('');
                     setRevisionOpen(false);
                 },
@@ -236,9 +235,6 @@ export default function PayrollRunShow({
                                         Object.values(errors)[0] ??
                                             'Persetujuan gagal. Periksa rincian payroll.',
                                     )
-                                }
-                                onSuccess={() =>
-                                    toast.success('Hasil payroll disetujui.')
                                 }
                             >
                                 {({ processing }) => (
@@ -532,6 +528,24 @@ export default function PayrollRunShow({
                                         </strong>
                                     </div>
                                 </div>
+                                <a
+                                    href={
+                                        PayrollRunApprovalController.downloadSlip(
+                                            selected.id,
+                                        ).url
+                                    }
+                                    className="mt-3 inline-block"
+                                >
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="rounded-full"
+                                    >
+                                        <Download className="size-3.5" />
+                                        Unduh Slip Gaji
+                                    </Button>
+                                </a>
                                 {selected.unresolved_days > 0 && (
                                     <p className="mt-3 text-sm text-muted-foreground">
                                         {selected.unresolved_days} hari

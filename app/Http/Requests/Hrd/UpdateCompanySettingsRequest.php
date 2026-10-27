@@ -19,6 +19,12 @@ class UpdateCompanySettingsRequest extends FormRequest
     {
         return [
             'telegram_chat_id' => ['nullable', 'string', 'max:64'],
+            'legal_name' => ['nullable', 'string', 'max:255'],
+            'code' => ['nullable', 'string', 'max:20'],
+            'address' => ['nullable', 'string', 'max:2000'],
+            'city' => ['nullable', 'string', 'max:255'],
+            'director_name' => ['nullable', 'string', 'max:255'],
+            'director_signature' => ['nullable', 'file', 'mimes:jpeg,png,webp', 'max:2048'],
         ];
     }
 }

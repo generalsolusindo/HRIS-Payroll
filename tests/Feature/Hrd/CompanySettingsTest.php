@@ -5,6 +5,8 @@ namespace Tests\Feature\Hrd;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CompanySettingsTest extends TestCase
@@ -73,6 +75,67 @@ class CompanySettingsTest extends TestCase
             ->assertSessionDoesntHaveErrors();
 
         $this->assertNull(Company::find($hrd->company_id)->telegram_chat_id);
+    }
+
+    public function test_hrd_can_set_the_payslip_letterhead_fields(): void
+    {
+        $hrd = User::factory()->create(['role' => 'hrd']);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.pengaturan-perusahaan.update', $hrd->company_id), [
+                'legal_name' => 'CV General Solusindo',
+                'code' => 'GS',
+                'address' => 'Pondok Jati Blok AS-31, Pagerwojo, Buduran, Sidoarjo',
+                'city' => 'Sidoarjo',
+                'director_name' => 'M Syarif Ridho P, S.Kom',
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $company = Company::find($hrd->company_id);
+        $this->assertSame('CV General Solusindo', $company->legal_name);
+        $this->assertSame('GS', $company->code);
+        $this->assertSame('Pondok Jati Blok AS-31, Pagerwojo, Buduran, Sidoarjo', $company->address);
+        $this->assertSame('Sidoarjo', $company->city);
+        $this->assertSame('M Syarif Ridho P, S.Kom', $company->director_name);
+    }
+
+    public function test_hrd_can_upload_a_director_signature(): void
+    {
+        Storage::fake('company_signatures');
+
+        $hrd = User::factory()->create(['role' => 'hrd']);
+        $file = UploadedFile::fake()->image('ttd.png', 300, 100);
+
+        $this->actingAs($hrd)
+            ->put(route('hrd.pengaturan-perusahaan.update', $hrd->company_id), [
+                'director_signature' => $file,
+            ])
+            ->assertSessionDoesntHaveErrors();
+
+        $company = Company::find($hrd->company_id);
+        $this->assertNotNull($company->director_signature_path);
+        Storage::disk('company_signatures')->assertExists($company->director_signature_path);
+    }
+
+    public function test_uploading_a_new_signature_replaces_the_old_one(): void
+    {
+        Storage::fake('company_signatures');
+
+        $hrd = User::factory()->create(['role' => 'hrd']);
+
+        $this->actingAs($hrd)->put(route('hrd.pengaturan-perusahaan.update', $hrd->company_id), [
+            'director_signature' => UploadedFile::fake()->image('ttd-lama.png'),
+        ]);
+        $oldPath = Company::find($hrd->company_id)->director_signature_path;
+
+        $this->actingAs($hrd)->put(route('hrd.pengaturan-perusahaan.update', $hrd->company_id), [
+            'director_signature' => UploadedFile::fake()->image('ttd-baru.png'),
+        ]);
+        $newPath = Company::find($hrd->company_id)->director_signature_path;
+
+        $this->assertNotSame($oldPath, $newPath);
+        Storage::disk('company_signatures')->assertMissing($oldPath);
+        Storage::disk('company_signatures')->assertExists($newPath);
     }
 
     public function test_karyawan_cannot_view_or_edit_company_settings(): void

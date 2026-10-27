@@ -22,6 +22,7 @@ use App\Services\AttendanceReviewGenerator;
 use App\Services\CompanyWorkCalendar;
 use App\Services\NavBadgeService;
 use App\Services\PayrollMoney;
+use App\Services\PayslipPdfService;
 use App\Services\PayrollReadiness;
 use App\Services\PayrollTotals;
 use Illuminate\Database\Eloquent\Collection;
@@ -662,6 +663,19 @@ class PayrollRunController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Status komplain diperbarui.']);
 
         return back();
+    }
+
+    /**
+     * Downloadable even for a draft entry that hasn't reached Manager
+     * yet — HRD can hand an employee a copy of what's about to be
+     * submitted, same template as the final published slip.
+     */
+    public function downloadSlip(Request $request, PayrollEntry $entry): \Illuminate\Http\Response
+    {
+        $entry->loadMissing('run.period');
+        $this->assertOwnCompany($request, $entry->run->period->company_id);
+
+        return (new PayslipPdfService)->build($entry)->download("slip-gaji-{$entry->id}.pdf");
     }
 
     public function show(Request $request, PayrollRun $run, NavBadgeService $navBadges): Response

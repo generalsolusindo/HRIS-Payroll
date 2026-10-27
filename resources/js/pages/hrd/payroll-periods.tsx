@@ -215,12 +215,7 @@ export default function PayrollPeriods({ periods }: Props) {
                 .url,
             { reason },
             {
-                onSuccess: () => {
-                    toast.success(
-                        'Permintaan dikirim dan menunggu persetujuan Manager.',
-                    );
-                    setRequestingDeletionFor(null);
-                },
+                onSuccess: () => setRequestingDeletionFor(null),
                 onError: (errors) => {
                     const message = Object.values(errors)[0];
                     toast.error(

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\NavBadgeService;
 use App\Services\PayrollAuditLogger;
 use App\Services\PayrollMoney;
+use App\Services\PayslipPdfService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -114,6 +115,14 @@ class PayrollPaymentController extends Controller
                 ];
             }),
         ]);
+    }
+
+    public function downloadSlip(Request $request, PayrollEntry $entry): \Illuminate\Http\Response
+    {
+        $entry->loadMissing('run.period');
+        $this->assertOwnCompany($request, $entry->run->period->company_id);
+
+        return (new PayslipPdfService)->build($entry)->download("slip-gaji-{$entry->id}.pdf");
     }
 
     public function lock(Request $request, PayrollRun $run): RedirectResponse

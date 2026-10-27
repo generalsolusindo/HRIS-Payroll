@@ -139,6 +139,7 @@ Route::middleware(['auth', 'active', 'role:hrd'])->prefix('hrd')->name('hrd.')->
     Route::delete('hasil-payroll/penyesuaian/{line}', [PayrollAdjustmentController::class, 'destroy'])->name('hasil-payroll.penyesuaian.destroy');
 
     Route::post('hasil-payroll/entri/{entry}/slip', [PayrollPayslipController::class, 'store'])->name('hasil-payroll.entri.slip');
+    Route::get('hasil-payroll/entri/{entry}/slip/unduh', [PayrollRunController::class, 'downloadSlip'])->name('hasil-payroll.entri.slip.unduh');
 
     Route::get('kebijakan-absensi', [PayrollPolicyController::class, 'index'])->name('kebijakan-absensi.index');
     Route::put('kebijakan-absensi/{policy}', [PayrollPolicyController::class, 'update'])->name('kebijakan-absensi.update');
@@ -170,6 +171,9 @@ Route::middleware(['auth', 'active', 'role:admin'])->prefix('manager')->name('ma
     // segment is never swallowed as a {run} value (same reasoning as
     // izin/riwayat vs izin/{leaveRequest} above).
     Route::get('payroll/riwayat', [PayrollRunApprovalController::class, 'riwayat'])->name('payroll.riwayat');
+    // Also registered before payroll/{run} — "entri" must never be
+    // swallowed as a {run} value either.
+    Route::get('payroll/entri/{entry}/slip', [PayrollRunApprovalController::class, 'downloadSlip'])->name('payroll.entri.slip');
     Route::get('payroll/{run}', [PayrollRunApprovalController::class, 'show'])->name('payroll.show');
     Route::patch('payroll/{run}/approve', [PayrollRunApprovalController::class, 'approve'])->name('payroll.approve');
     Route::patch('payroll/{run}/revisi', [PayrollRunApprovalController::class, 'requestRevision'])->name('payroll.revisi');
@@ -182,6 +186,7 @@ Route::middleware(['auth', 'active', 'role:finance'])->prefix('finance')->name('
     Route::get('payroll/{run}', [PayrollPaymentController::class, 'show'])->name('payroll.show');
     Route::patch('payroll/{run}/kunci', [PayrollPaymentController::class, 'lock'])->name('payroll.kunci');
     Route::post('entri/{entry}/bayar', [PayrollPaymentController::class, 'storePayment'])->name('entri.bayar');
+    Route::get('entri/{entry}/slip', [PayrollPaymentController::class, 'downloadSlip'])->name('entri.slip');
     Route::patch('pembayaran/{payment}/batalkan', [PayrollPaymentController::class, 'voidPayment'])->name('pembayaran.batalkan');
     Route::get('pembayaran/{payment}/bukti', [PaymentProofController::class, 'show'])->name('pembayaran.bukti');
 });

@@ -5,11 +5,18 @@ import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 type Company = {
     id: number;
     name: string;
     telegram_chat_id: string | null;
+    legal_name: string | null;
+    code: string | null;
+    address: string | null;
+    city: string | null;
+    director_name: string | null;
+    director_signature_path: string | null;
 };
 
 function CompanySettingsCard({ company }: { company: Company }) {
@@ -56,6 +63,110 @@ function CompanySettingsCard({ company }: { company: Company }) {
                         <p className="text-xs leading-relaxed text-muted-foreground">
                             {`Notifikasi pengajuan izin untuk karyawan ${company.name} dikirim ke grup Telegram ini. Kosongkan untuk memakai chat default sistem.`}
                         </p>
+                    </div>
+
+                    <div className="mt-5 space-y-4 border-t pt-4">
+                        <p className="text-xs font-medium text-muted-foreground">
+                            Kop surat slip gaji (opsional) — dipakai saat
+                            karyawan/HRD/Finance/Manager mengunduh slip gaji
+                            sebagai PDF.
+                        </p>
+
+                        <div className="space-y-1.5">
+                            <Label htmlFor={`legal_name-${company.id}`}>
+                                Nama Resmi Perusahaan
+                            </Label>
+                            <Input
+                                id={`legal_name-${company.id}`}
+                                name="legal_name"
+                                placeholder="Contoh: CV General Solusindo"
+                                defaultValue={company.legal_name ?? ''}
+                                aria-invalid={Boolean(errors.legal_name)}
+                            />
+                            <InputError message={errors.legal_name} />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label htmlFor={`code-${company.id}`}>
+                                Kode Perusahaan (prefix NIK)
+                            </Label>
+                            <Input
+                                id={`code-${company.id}`}
+                                name="code"
+                                placeholder="Contoh: GS"
+                                defaultValue={company.code ?? ''}
+                                aria-invalid={Boolean(errors.code)}
+                            />
+                            <InputError message={errors.code} />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label htmlFor={`address-${company.id}`}>
+                                Alamat
+                            </Label>
+                            <Textarea
+                                id={`address-${company.id}`}
+                                name="address"
+                                rows={2}
+                                defaultValue={company.address ?? ''}
+                                aria-invalid={Boolean(errors.address)}
+                            />
+                            <InputError message={errors.address} />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label htmlFor={`city-${company.id}`}>
+                                Kota (untuk tanggal tanda tangan)
+                            </Label>
+                            <Input
+                                id={`city-${company.id}`}
+                                name="city"
+                                placeholder="Contoh: Sidoarjo"
+                                defaultValue={company.city ?? ''}
+                                aria-invalid={Boolean(errors.city)}
+                            />
+                            <InputError message={errors.city} />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label htmlFor={`director_name-${company.id}`}>
+                                Nama Direktur
+                            </Label>
+                            <Input
+                                id={`director_name-${company.id}`}
+                                name="director_name"
+                                defaultValue={company.director_name ?? ''}
+                                aria-invalid={Boolean(errors.director_name)}
+                            />
+                            <InputError message={errors.director_name} />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label
+                                htmlFor={`director_signature-${company.id}`}
+                            >
+                                Tanda Tangan / Stempel{' '}
+                                <span className="font-normal text-muted-foreground">
+                                    (opsional, gambar)
+                                </span>
+                            </Label>
+                            <input
+                                id={`director_signature-${company.id}`}
+                                type="file"
+                                name="director_signature"
+                                accept=".jpg,.jpeg,.png,.webp"
+                                className="text-sm"
+                            />
+                            {company.director_signature_path && (
+                                <p className="text-xs text-muted-foreground">
+                                    Sudah ada tanda tangan tersimpan — unggah
+                                    file baru untuk menggantinya.
+                                </p>
+                            )}
+                            <InputError
+                                message={errors.director_signature}
+                            />
+                        </div>
                     </div>
 
                     <div className="mt-4 flex justify-end">

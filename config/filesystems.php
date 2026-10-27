@@ -89,6 +89,16 @@ return [
             'report' => false,
         ],
 
+        // Director signature/stamp image for the printed payslip letterhead
+        // — read directly off disk and embedded as base64 into the PDF
+        // HTML at generation time, never served via a public/signed URL.
+        'company_signatures' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/company-signatures'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

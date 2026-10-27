@@ -68,10 +68,7 @@ function ApproveDialog({
             OvertimeApprovalController.approve.url(overtimeRequest.id),
             { approved_minutes: approvedMinutes, note },
             {
-                onSuccess: () => {
-                    toast.success('Lembur disetujui.');
-                    onOpenChange(false);
-                },
+                onSuccess: () => onOpenChange(false),
                 onError: (errors) => {
                     setError(
                         (errors.approved_minutes as string | undefined) ??
@@ -160,7 +157,6 @@ function RejectDialog({
             { note },
             {
                 onSuccess: () => {
-                    toast.success('Lembur ditolak.');
                     setNote('');
                     onOpenChange(false);
                 },

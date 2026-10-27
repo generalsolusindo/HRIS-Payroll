@@ -136,7 +136,6 @@ function RejectDialog({
             { note },
             {
                 onSuccess: () => {
-                    toast.success('Pengajuan ditolak.');
                     setNote('');
                     onOpenChange(false);
                 },
@@ -258,7 +257,6 @@ function PendingLeaveRequestCard({
                             leaveRequest.id,
                         )}
                         disableWhileProcessing
-                        onSuccess={() => toast.success('Pengajuan disetujui.')}
                     >
                         {({ processing }) => (
                             <Button

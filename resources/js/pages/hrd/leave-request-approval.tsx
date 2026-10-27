@@ -122,7 +122,6 @@ function RejectDialog({
             { note },
             {
                 onSuccess: () => {
-                    toast.success('Pengajuan ditolak.');
                     setNote('');
                     onOpenChange(false);
                 },
@@ -200,9 +199,6 @@ function ApproveDialog({
             { note: note.trim() || undefined },
             {
                 onSuccess: () => {
-                    toast.success(
-                        'Pengajuan disetujui, menunggu keputusan Manager.',
-                    );
                     setNote('');
                     onOpenChange(false);
                 },

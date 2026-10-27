@@ -1,6 +1,7 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
 import {
     ArrowLeft,
+    Download,
     History,
     MessageSquare,
     Search,
@@ -824,6 +825,24 @@ export default function PayrollRunShow({
                                         </strong>
                                     </div>
                                 </div>
+                                <a
+                                    href={
+                                        PayrollRunController.downloadSlip(
+                                            selected.id,
+                                        ).url
+                                    }
+                                    className="mt-3 inline-block"
+                                >
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="rounded-full"
+                                    >
+                                        <Download className="size-3.5" />
+                                        Unduh Slip Gaji
+                                    </Button>
+                                </a>
                                 {selected.unresolved_days > 0 && (
                                     <p className="mt-3 text-sm text-muted-foreground">
                                         {selected.unresolved_days} hari absensi

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrd\UpdateCompanySettingsRequest;
 use App\Models\Company;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,7 +20,10 @@ class CompanySettingsController extends Controller
 {
     public function index(): Response
     {
-        $companies = Company::orderBy('name')->get(['id', 'name', 'telegram_chat_id']);
+        $companies = Company::orderBy('name')->get([
+            'id', 'name', 'telegram_chat_id',
+            'legal_name', 'code', 'address', 'city', 'director_name', 'director_signature_path',
+        ]);
 
         return Inertia::render('hrd/company-settings', [
             'companies' => $companies,
@@ -28,7 +32,18 @@ class CompanySettingsController extends Controller
 
     public function update(UpdateCompanySettingsRequest $request, Company $company): RedirectResponse
     {
-        $company->update($request->validated());
+        $validated = $request->safe()->except('director_signature');
+
+        if ($request->hasFile('director_signature')) {
+            if ($company->director_signature_path) {
+                Storage::disk('company_signatures')->delete($company->director_signature_path);
+            }
+
+            $validated['director_signature_path'] = $request->file('director_signature')
+                ->store((string) $company->id, 'company_signatures');
+        }
+
+        $company->update($validated);
 
         return back()->with('status', "Pengaturan {$company->name} berhasil disimpan.");
     }

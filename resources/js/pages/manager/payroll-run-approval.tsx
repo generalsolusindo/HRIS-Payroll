@@ -94,7 +94,6 @@ function RevisionDialog({
             { note },
             {
                 onSuccess: () => {
-                    toast.success('Permintaan revisi dikirim ke HRD.');
                     setNote('');
                     onOpenChange(false);
                 },
@@ -191,9 +190,6 @@ function PendingRunCard({ run }: { run: PendingRun }) {
                             )
                         }
                         disableWhileProcessing
-                        onSuccess={() =>
-                            toast.success('Hasil payroll disetujui.')
-                        }
                     >
                         {({ processing }) => (
                             <Button

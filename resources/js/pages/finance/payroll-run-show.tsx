@@ -1,5 +1,12 @@
 import { Form, Head, router } from '@inertiajs/react';
-import { ChevronDown, ChevronRight, FileText, History, Lock } from 'lucide-react';
+import {
+    ChevronDown,
+    ChevronRight,
+    Download,
+    FileText,
+    History,
+    Lock,
+} from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 import PaymentProofController from '@/actions/App/Http/Controllers/Finance/PaymentProofController';
@@ -183,10 +190,7 @@ function PaymentDialog({
             formData,
             {
                 forceFormData: true,
-                onSuccess: () => {
-                    toast.success('Pembayaran dicatat.');
-                    onOpenChange(false);
-                },
+                onSuccess: () => onOpenChange(false),
                 onError: (serverErrors) => {
                     setErrors(serverErrors as Record<string, string>);
                 },
@@ -353,7 +357,6 @@ function VoidDialog({
             { note },
             {
                 onSuccess: () => {
-                    toast.success('Pembayaran dibatalkan.');
                     setNote('');
                     onOpenChange(false);
                 },
@@ -438,11 +441,6 @@ export default function PayrollRunShow({ run, entries, approvals }: Props) {
                                 )
                             }
                             disableWhileProcessing
-                            onSuccess={() =>
-                                toast.success(
-                                    'Hasil payroll dikunci — siap diproses pembayarannya.',
-                                )
-                            }
                         >
                             {({ processing }) => (
                                 <Button
@@ -544,25 +542,49 @@ export default function PayrollRunShow({ run, entries, approvals }: Props) {
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            {(run.status === 'locked' ||
-                                                run.status ===
-                                                    'partially_paid') &&
-                                                Number(entry.remaining_amount) >
-                                                    0 && (
+                                            <div
+                                                className="flex justify-end gap-2"
+                                                onClick={(e) =>
+                                                    e.stopPropagation()
+                                                }
+                                            >
+                                                <a
+                                                    href={
+                                                        PayrollPaymentController.downloadSlip(
+                                                            entry.id,
+                                                        ).url
+                                                    }
+                                                >
                                                     <Button
                                                         type="button"
                                                         size="sm"
+                                                        variant="outline"
                                                         className="rounded-full"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setPayingEntry(
-                                                                entry,
-                                                            );
-                                                        }}
                                                     >
-                                                        Catat Pembayaran
+                                                        <Download className="size-3.5" />
+                                                        Slip
                                                     </Button>
-                                                )}
+                                                </a>
+                                                {(run.status === 'locked' ||
+                                                    run.status ===
+                                                        'partially_paid') &&
+                                                    Number(
+                                                        entry.remaining_amount,
+                                                    ) > 0 && (
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            className="rounded-full"
+                                                            onClick={() =>
+                                                                setPayingEntry(
+                                                                    entry,
+                                                                )
+                                                            }
+                                                        >
+                                                            Catat Pembayaran
+                                                        </Button>
+                                                    )}
+                                            </div>
                                         </td>
                                     </tr>
                                     {expandedEntry === entry.id && (

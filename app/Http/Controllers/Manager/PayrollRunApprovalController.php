@@ -13,6 +13,7 @@ use App\Models\PayrollPeriodDeletionRequest;
 use App\Models\PayrollRun;
 use App\Services\NavBadgeService;
 use App\Services\PayrollReadiness;
+use App\Services\PayslipPdfService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -110,6 +111,14 @@ class PayrollRunApprovalController extends Controller
         return Inertia::render('manager/payroll-run-history', [
             'runs' => $runs,
         ]);
+    }
+
+    public function downloadSlip(Request $request, PayrollEntry $entry): \Illuminate\Http\Response
+    {
+        $entry->loadMissing('run.period');
+        $this->assertOwnCompany($request, $entry->run->period->company_id);
+
+        return (new PayslipPdfService)->build($entry)->download("slip-gaji-{$entry->id}.pdf");
     }
 
     /**

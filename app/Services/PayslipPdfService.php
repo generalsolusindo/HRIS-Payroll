@@ -72,11 +72,29 @@ class PayslipPdfService
     }
 
     /**
+     * Lines have no guaranteed DB row order (no ORDER BY on the relation,
+     * and recalculation can delete/recreate individual lines), so the slip
+     * must impose its own order explicitly rather than trust row order —
+     * salary components first (Gaji Pokok, Tunjangan, ...), then earned
+     * bonuses, then attendance-based allowances last.
+     */
+    private const LINE_KEY_PRIORITY = [
+        'overtime' => 1,
+        'attendance-perfect-reward' => 1,
+        'attendance-transport' => 2,
+        'attendance-allowance' => 3,
+        'attendance-late' => 4,
+        'attendance-absence' => 4,
+    ];
+
+    /**
      * @param  \Illuminate\Support\Collection<int, PayrollEntryLine>  $lines
      * @return array<int, array{label: string, amount: string}>
      */
     private function mapLines(\Illuminate\Support\Collection $lines): array
     {
+        $lines = $lines->sortBy(fn (PayrollEntryLine $line) => self::LINE_KEY_PRIORITY[$line->line_key] ?? 0);
+
         return $lines->map(function (PayrollEntryLine $line) {
             $label = match ($line->line_key) {
                 'attendance-transport' => "Tj. Transportasi {$this->formatRate($line->rate)}*{$this->formatQty($line->quantity)}",

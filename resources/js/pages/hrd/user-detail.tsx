@@ -17,6 +17,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    daysUntil,
+    deadlineSeverity,
+    isWithinAttentionWindow,
+    SEVERITY_BADGE_CLASS,
+} from '@/lib/deadline-severity';
 
 type Employee = {
     id: number;
@@ -115,6 +121,43 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
             <div className="text-xs text-muted-foreground">{label}</div>
             <div className="font-medium">{value}</div>
         </div>
+    );
+}
+
+/**
+ * Same red/amber/green urgency coloring as Monitoring HR and the
+ * Manajemen User list — only shows up once the date is within that
+ * same "perlu perhatian" window.
+ */
+function DeadlineBadge({
+    date,
+    label,
+}: {
+    date: string | null;
+    label: string;
+}) {
+    if (!date) {
+        return null;
+    }
+
+    const daysLeft = daysUntil(date);
+
+    if (!isWithinAttentionWindow(daysLeft)) {
+        return null;
+    }
+
+    const severity = deadlineSeverity(daysLeft);
+    const daysText =
+        daysLeft < 0
+            ? `lewat ${Math.abs(daysLeft)} hari`
+            : `${daysLeft} hari lagi`;
+
+    return (
+        <span
+            className={`rounded-full border px-3 py-1 text-xs font-medium ${SEVERITY_BADGE_CLASS[severity]}`}
+        >
+            {label} — {daysText}
+        </span>
     );
 }
 
@@ -272,12 +315,14 @@ export default function UserDetail({
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        {employee.probation_ends_on && (
-                            <span className="rounded-full border border-amber-400/50 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-600 dark:border-amber-400/40 dark:text-amber-400">
-                                Masa percobaan hingga{' '}
-                                {formatDate(employee.probation_ends_on)}
-                            </span>
-                        )}
+                        <DeadlineBadge
+                            date={employee.probation_ends_on}
+                            label="Masa percobaan"
+                        />
+                        <DeadlineBadge
+                            date={employee.contract_ends_on}
+                            label="Kontrak"
+                        />
                         {!employee.is_payroll_eligible && (
                             <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
                                 Tidak ikut payroll
@@ -287,286 +332,295 @@ export default function UserDetail({
                 </div>
 
                 <div className="grid items-start gap-5 xl:grid-cols-2">
-                    <section className="rounded-2xl border bg-card p-5">
-                        <h2 className="border-b pb-3 font-semibold">
-                            Data Pribadi
-                        </h2>
-                        <div className="grid grid-cols-2 gap-4 pt-4">
-                            <Field label="Nama Lengkap" value={employee.name} />
-                            <Field label="Email" value={employee.email} />
-                            <Field
-                                label="Nomor WhatsApp"
-                                value={employee.phone ?? '-'}
-                            />
-                            <Field
-                                label="Nomor Karyawan"
-                                value={employee.employee_number ?? '-'}
-                            />
-                        </div>
-                    </section>
-
-                    <section className="rounded-2xl border bg-card p-5">
-                        <h2 className="border-b pb-3 font-semibold">
-                            Data Pekerjaan &amp; Status
-                        </h2>
-                        <div className="grid grid-cols-2 gap-4 pt-4">
-                            <Field
-                                label="Instansi"
-                                value={employee.company.name}
-                            />
-                            <Field
-                                label="Jabatan / Divisi"
-                                value={employee.division?.name ?? '-'}
-                            />
-                            <Field
-                                label="Jenis Karyawan"
-                                value={
-                                    EMPLOYMENT_TYPE_LABELS[
-                                        employee.employment_type ?? ''
-                                    ] ?? 'Belum ditentukan'
-                                }
-                            />
-                            <Field
-                                label="Role"
-                                value={
-                                    ROLE_LABELS[employee.role] ?? employee.role
-                                }
-                            />
-                            <Field
-                                label="Status Akun"
-                                value={
-                                    STATUS_LABELS[employee.status] ??
-                                    employee.status
-                                }
-                            />
-                            <Field
-                                label="Ikut Payroll"
-                                value={
-                                    employee.is_payroll_eligible
-                                        ? 'Ya'
-                                        : 'Tidak'
-                                }
-                            />
-                            <Field
-                                label="Dapat Tunjangan"
-                                value={
-                                    employee.is_allowance_eligible
-                                        ? 'Ya'
-                                        : 'Tidak'
-                                }
-                            />
-                        </div>
-                    </section>
-
-                    <section className="rounded-2xl border bg-card p-5">
-                        <h2 className="border-b pb-3 font-semibold">
-                            Tanggal &amp; Kontrak
-                        </h2>
-                        <div className="grid grid-cols-2 gap-4 pt-4">
-                            <Field
-                                label="Tanggal Mulai Kerja"
-                                value={formatDate(
-                                    employee.employment_started_on,
-                                )}
-                            />
-                            <Field
-                                label="Tanggal Berakhir Masa Percobaan"
-                                value={formatDate(
-                                    employee.probation_ends_on,
-                                )}
-                            />
-                            <Field
-                                label="Tanggal Berakhir Kontrak"
-                                value={formatDate(employee.contract_ends_on)}
-                            />
-                            <Field
-                                label="Tanggal Keluar"
-                                value={formatDate(
-                                    employee.employment_ended_on,
-                                )}
-                            />
-                        </div>
-                    </section>
-
-                    <section className="rounded-2xl border bg-card p-5">
-                        <div className="flex items-center justify-between border-b pb-3">
-                            <h2 className="font-semibold">Gaji &amp; Tunjangan</h2>
-                            <Link
-                                href={PayrollProfileController.edit(
-                                    employee.id,
-                                )}
-                            >
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="rounded-full"
-                                >
-                                    Atur di Profil Gaji
-                                </Button>
-                            </Link>
-                        </div>
-                        {salaryProfile ? (
-                            <div className="pt-4">
-                                <div className="flex flex-col gap-1.5 text-sm">
-                                    {salaryProfile.components.map(
-                                        (component, index) => (
-                                            <div
-                                                key={index}
-                                                className="flex items-center justify-between"
-                                            >
-                                                <span>{component.name}</span>
-                                                <span
-                                                    className={
-                                                        component.type ===
-                                                        'deduction'
-                                                            ? 'text-red-600 dark:text-red-400'
-                                                            : ''
-                                                    }
-                                                >
-                                                    {component.type ===
-                                                    'deduction'
-                                                        ? '− '
-                                                        : ''}
-                                                    {formatRupiah(
-                                                        component.amount,
-                                                    )}
-                                                </span>
-                                            </div>
-                                        ),
-                                    )}
-                                </div>
-                                <div className="mt-3 flex items-center justify-between border-t pt-3 font-semibold">
-                                    <span>Total / Bulan</span>
-                                    <span>
-                                        {formatRupiah(
-                                            salaryProfile.monthly_total,
-                                        )}
-                                    </span>
-                                </div>
-                                <p className="mt-2 text-xs text-muted-foreground">
-                                    Ini komponen manual saja — belum termasuk
-                                    tunjangan kehadiran/transport otomatis
-                                    atau potongan dari absensi.
-                                </p>
-                            </div>
-                        ) : (
-                            <p className="pt-4 text-sm text-muted-foreground">
-                                Belum ada profil gaji untuk karyawan ini.
-                            </p>
-                        )}
-                    </section>
-
-                    {(employee.bank_name || employee.bank_account_holder) && (
+                    <div className="flex flex-col gap-5">
                         <section className="rounded-2xl border bg-card p-5">
                             <h2 className="border-b pb-3 font-semibold">
-                                Rekening Bank
+                                Data Pribadi
                             </h2>
                             <div className="grid grid-cols-2 gap-4 pt-4">
                                 <Field
-                                    label="Nama Bank"
-                                    value={employee.bank_name ?? '-'}
+                                    label="Nama Lengkap"
+                                    value={employee.name}
+                                />
+                                <Field label="Email" value={employee.email} />
+                                <Field
+                                    label="Nomor WhatsApp"
+                                    value={employee.phone ?? '-'}
                                 />
                                 <Field
-                                    label="Nama Pemilik Rekening"
+                                    label="Nomor Karyawan"
+                                    value={employee.employee_number ?? '-'}
+                                />
+                            </div>
+                        </section>
+
+                        <section className="rounded-2xl border bg-card p-5">
+                            <h2 className="border-b pb-3 font-semibold">
+                                Tanggal &amp; Kontrak
+                            </h2>
+                            <div className="grid grid-cols-2 gap-4 pt-4">
+                                <Field
+                                    label="Tanggal Mulai Kerja"
+                                    value={formatDate(
+                                        employee.employment_started_on,
+                                    )}
+                                />
+                                <Field
+                                    label="Tanggal Berakhir Masa Percobaan"
+                                    value={formatDate(
+                                        employee.probation_ends_on,
+                                    )}
+                                />
+                                <Field
+                                    label="Tanggal Berakhir Kontrak"
+                                    value={formatDate(
+                                        employee.contract_ends_on,
+                                    )}
+                                />
+                                <Field
+                                    label="Tanggal Keluar"
+                                    value={formatDate(
+                                        employee.employment_ended_on,
+                                    )}
+                                />
+                            </div>
+                        </section>
+
+                        {(employee.bank_name ||
+                            employee.bank_account_holder) && (
+                            <section className="rounded-2xl border bg-card p-5">
+                                <h2 className="border-b pb-3 font-semibold">
+                                    Rekening Bank
+                                </h2>
+                                <div className="grid grid-cols-2 gap-4 pt-4">
+                                    <Field
+                                        label="Nama Bank"
+                                        value={employee.bank_name ?? '-'}
+                                    />
+                                    <Field
+                                        label="Nama Pemilik Rekening"
+                                        value={
+                                            employee.bank_account_holder ?? '-'
+                                        }
+                                    />
+                                </div>
+                            </section>
+                        )}
+                    </div>
+
+                    <div className="flex flex-col gap-5">
+                        <section className="rounded-2xl border bg-card p-5">
+                            <h2 className="border-b pb-3 font-semibold">
+                                Data Pekerjaan &amp; Status
+                            </h2>
+                            <div className="grid grid-cols-2 gap-4 pt-4">
+                                <Field
+                                    label="Instansi"
+                                    value={employee.company.name}
+                                />
+                                <Field
+                                    label="Jabatan / Divisi"
+                                    value={employee.division?.name ?? '-'}
+                                />
+                                <Field
+                                    label="Jenis Karyawan"
                                     value={
-                                        employee.bank_account_holder ?? '-'
+                                        EMPLOYMENT_TYPE_LABELS[
+                                            employee.employment_type ?? ''
+                                        ] ?? 'Belum ditentukan'
+                                    }
+                                />
+                                <Field
+                                    label="Role"
+                                    value={
+                                        ROLE_LABELS[employee.role] ??
+                                        employee.role
+                                    }
+                                />
+                                <Field
+                                    label="Status Akun"
+                                    value={
+                                        STATUS_LABELS[employee.status] ??
+                                        employee.status
+                                    }
+                                />
+                                <Field
+                                    label="Ikut Payroll"
+                                    value={
+                                        employee.is_payroll_eligible
+                                            ? 'Ya'
+                                            : 'Tidak'
+                                    }
+                                />
+                                <Field
+                                    label="Dapat Tunjangan"
+                                    value={
+                                        employee.is_allowance_eligible
+                                            ? 'Ya'
+                                            : 'Tidak'
                                     }
                                 />
                             </div>
                         </section>
-                    )}
 
-                    <section className="rounded-2xl border bg-card p-5 xl:col-span-2">
-                        <h2 className="border-b pb-3 font-semibold">
-                            Dokumen
-                        </h2>
-                        <p className="mt-3 text-xs text-muted-foreground">
-                            Semua dokumen di sini opsional — unggah yang ada
-                            saja, tidak ada yang wajib.
-                        </p>
-
-                        <div className="mt-4">
-                            <DocumentUploadForm
-                                employeeId={employee.id}
-                                documentTypes={documentTypes}
-                            />
-                        </div>
-
-                        {documents.length === 0 ? (
-                            <p className="mt-4 text-sm text-muted-foreground">
-                                Belum ada dokumen diunggah.
-                            </p>
-                        ) : (
-                            <div className="mt-4 flex flex-col gap-2">
-                                {documents.map((document) => (
-                                    <div
-                                        key={document.id}
-                                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm"
+                        <section className="rounded-2xl border bg-card p-5">
+                            <div className="flex items-center justify-between border-b pb-3">
+                                <h2 className="font-semibold">
+                                    Gaji &amp; Tunjangan
+                                </h2>
+                                <Link
+                                    href={PayrollProfileController.edit(
+                                        employee.id,
+                                    )}
+                                >
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="rounded-full"
                                     >
-                                        <div className="flex min-w-0 items-center gap-2">
-                                            <FileText className="size-4 shrink-0 text-muted-foreground" />
-                                            <div className="min-w-0">
-                                                <div className="font-medium">
-                                                    {DOCUMENT_TYPE_LABELS[
-                                                        document.type
-                                                    ] ?? document.type}
-                                                    {document.label
-                                                        ? ` — ${document.label}`
-                                                        : ''}
+                                        Atur di Profil Gaji
+                                    </Button>
+                                </Link>
+                            </div>
+                            {salaryProfile ? (
+                                <div className="pt-4">
+                                    <div className="flex flex-col gap-1.5 text-sm">
+                                        {salaryProfile.components.map(
+                                            (component, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="flex items-center justify-between"
+                                                >
+                                                    <span>
+                                                        {component.name}
+                                                    </span>
+                                                    <span
+                                                        className={
+                                                            component.type ===
+                                                            'deduction'
+                                                                ? 'text-red-600 dark:text-red-400'
+                                                                : ''
+                                                        }
+                                                    >
+                                                        {component.type ===
+                                                        'deduction'
+                                                            ? '− '
+                                                            : ''}
+                                                        {formatRupiah(
+                                                            component.amount,
+                                                        )}
+                                                    </span>
                                                 </div>
-                                                <div className="truncate text-xs text-muted-foreground">
-                                                    {document.file_name} ·{' '}
-                                                    {formatFileSize(
-                                                        document.file_size,
-                                                    )}
-                                                    {document.uploaded_by_name
-                                                        ? ` · diunggah oleh ${document.uploaded_by_name}`
-                                                        : ''}
-                                                </div>
+                                            ),
+                                        )}
+                                    </div>
+                                    <div className="mt-3 flex items-center justify-between border-t pt-3 font-semibold">
+                                        <span>Total / Bulan</span>
+                                        <span>
+                                            {formatRupiah(
+                                                salaryProfile.monthly_total,
+                                            )}
+                                        </span>
+                                    </div>
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                        Ini komponen manual saja — belum
+                                        termasuk tunjangan kehadiran/transport
+                                        otomatis atau potongan dari absensi.
+                                    </p>
+                                </div>
+                            ) : (
+                                <p className="pt-4 text-sm text-muted-foreground">
+                                    Belum ada profil gaji untuk karyawan ini.
+                                </p>
+                            )}
+                        </section>
+                    </div>
+                </div>
+
+                <section className="rounded-2xl border bg-card p-5">
+                    <h2 className="border-b pb-3 font-semibold">Dokumen</h2>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                        Semua dokumen di sini opsional — unggah yang ada saja,
+                        tidak ada yang wajib.
+                    </p>
+
+                    <div className="mt-4">
+                        <DocumentUploadForm
+                            employeeId={employee.id}
+                            documentTypes={documentTypes}
+                        />
+                    </div>
+
+                    {documents.length === 0 ? (
+                        <p className="mt-4 text-sm text-muted-foreground">
+                            Belum ada dokumen diunggah.
+                        </p>
+                    ) : (
+                        <div className="mt-4 flex flex-col gap-2">
+                            {documents.map((document) => (
+                                <div
+                                    key={document.id}
+                                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm"
+                                >
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <FileText className="size-4 shrink-0 text-muted-foreground" />
+                                        <div className="min-w-0">
+                                            <div className="font-medium">
+                                                {DOCUMENT_TYPE_LABELS[
+                                                    document.type
+                                                ] ?? document.type}
+                                                {document.label
+                                                    ? ` — ${document.label}`
+                                                    : ''}
+                                            </div>
+                                            <div className="truncate text-xs text-muted-foreground">
+                                                {document.file_name} ·{' '}
+                                                {formatFileSize(
+                                                    document.file_size,
+                                                )}
+                                                {document.uploaded_by_name
+                                                    ? ` · diunggah oleh ${document.uploaded_by_name}`
+                                                    : ''}
                                             </div>
                                         </div>
-                                        <div className="flex shrink-0 gap-2">
-                                            <a
-                                                href={
-                                                    EmployeeDocumentController.show.url(
-                                                        document.id,
-                                                    )
-                                                }
-                                                target="_blank"
-                                                rel="noreferrer"
-                                            >
-                                                <Button
-                                                    type="button"
-                                                    size="icon"
-                                                    variant="outline"
-                                                    className="rounded-full"
-                                                    aria-label={`Unduh ${document.file_name}`}
-                                                >
-                                                    <Download className="size-4" />
-                                                </Button>
-                                            </a>
+                                    </div>
+                                    <div className="flex shrink-0 gap-2">
+                                        <a
+                                            href={EmployeeDocumentController.show.url(
+                                                document.id,
+                                            )}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                        >
                                             <Button
                                                 type="button"
                                                 size="icon"
                                                 variant="outline"
-                                                className="rounded-full text-destructive hover:text-destructive"
-                                                aria-label={`Hapus ${document.file_name}`}
-                                                onClick={() =>
-                                                    setDeletingDocument(
-                                                        document,
-                                                    )
-                                                }
+                                                className="rounded-full"
+                                                aria-label={`Unduh ${document.file_name}`}
                                             >
-                                                <Trash2 className="size-4" />
+                                                <Download className="size-4" />
                                             </Button>
-                                        </div>
+                                        </a>
+                                        <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="outline"
+                                            className="rounded-full text-destructive hover:text-destructive"
+                                            aria-label={`Hapus ${document.file_name}`}
+                                            onClick={() =>
+                                                setDeletingDocument(document)
+                                            }
+                                        >
+                                            <Trash2 className="size-4" />
+                                        </Button>
                                     </div>
-                                ))}
-                            </div>
-                        )}
-                    </section>
-                </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
             </div>
 
             <ConfirmDialog

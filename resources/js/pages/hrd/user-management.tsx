@@ -25,6 +25,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    daysUntil,
+    deadlineSeverity,
+    isWithinAttentionWindow,
+    SEVERITY_BADGE_CLASS,
+} from '@/lib/deadline-severity';
 import type { Auth } from '@/types';
 
 type Division = { id: number; name: string };
@@ -95,6 +101,44 @@ function initialsOf(name: string): string {
         .map((part) => part[0])
         .join('')
         .toUpperCase();
+}
+
+/**
+ * Only shows up once the date is within the same "perlu perhatian"
+ * window Monitoring HR uses, colored red/amber/green by urgency — so
+ * HRD can spot a contract or probation about to end right from the
+ * user list, not just by opening Monitoring HR separately.
+ */
+function DeadlineBadge({
+    date,
+    label,
+}: {
+    date: string | null;
+    label: string;
+}) {
+    if (!date) {
+        return null;
+    }
+
+    const daysLeft = daysUntil(date);
+
+    if (!isWithinAttentionWindow(daysLeft)) {
+        return null;
+    }
+
+    const severity = deadlineSeverity(daysLeft);
+    const daysText =
+        daysLeft < 0
+            ? `lewat ${Math.abs(daysLeft)} hari`
+            : `${daysLeft} hari lagi`;
+
+    return (
+        <span
+            className={`rounded-full border px-2 py-0.5 text-[11px] font-normal ${SEVERITY_BADGE_CLASS[severity]}`}
+        >
+            {label} — {daysText}
+        </span>
+    );
 }
 
 function UserFormFields({
@@ -240,9 +284,9 @@ function UserFormFields({
                     defaultValue={defaultValues?.probation_ends_on ?? ''}
                 />
                 <p className="text-xs text-muted-foreground">
-                    Isi kalau karyawan ini masih dalam masa percobaan
-                    sebelum diangkat tetap. Kosongkan kalau tidak/sudah
-                    tidak lagi masa percobaan.
+                    Isi kalau karyawan ini masih dalam masa percobaan sebelum
+                    diangkat tetap. Kosongkan kalau tidak/sudah tidak lagi masa
+                    percobaan.
                 </p>
                 <InputError message={errors.probation_ends_on} />
             </div>
@@ -262,9 +306,9 @@ function UserFormFields({
                         defaultValue={defaultValues?.contract_ends_on ?? ''}
                     />
                     <p className="text-xs text-muted-foreground">
-                        Dari Tanggal Mulai Kerja di atas, sampai tanggal
-                        ini. Kosongkan kalau kontraknya belum punya
-                        tanggal berakhir pasti.
+                        Dari Tanggal Mulai Kerja di atas, sampai tanggal ini.
+                        Kosongkan kalau kontraknya belum punya tanggal berakhir
+                        pasti.
                     </p>
                     <InputError message={errors.contract_ends_on} />
                 </div>
@@ -297,10 +341,7 @@ function UserFormFields({
                     value={isPayrollEligible}
                     onValueChange={setIsPayrollEligible}
                 >
-                    <SelectTrigger
-                        id="is_payroll_eligible"
-                        className="w-full"
-                    >
+                    <SelectTrigger id="is_payroll_eligible" className="w-full">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -344,9 +385,9 @@ function UserFormFields({
                 </Select>
                 <p className="text-xs text-muted-foreground">
                     Kalau dipilih "Tidak", karyawan ini tidak dapat Tunjangan
-                    Kehadiran maupun Tunjangan Transport otomatis — tetap
-                    dapat Gaji Pokok dan tetap kena Potongan Telat/Alpha
-                    seperti biasa.
+                    Kehadiran maupun Tunjangan Transport otomatis — tetap dapat
+                    Gaji Pokok dan tetap kena Potongan Telat/Alpha seperti
+                    biasa.
                 </p>
                 <InputError message={errors.is_allowance_eligible} />
             </div>
@@ -690,20 +731,29 @@ export default function UserManagement({ users, search, companies }: Props) {
                                                         {user.name}
                                                         {!user.is_payroll_eligible && (
                                                             <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
-                                                                Tidak ikut payroll
+                                                                Tidak ikut
+                                                                payroll
                                                             </span>
                                                         )}
                                                         {user.is_payroll_eligible &&
                                                             !user.is_allowance_eligible && (
                                                                 <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
-                                                                    Tanpa tunjangan
+                                                                    Tanpa
+                                                                    tunjangan
                                                                 </span>
                                                             )}
-                                                        {user.probation_ends_on && (
-                                                            <span className="rounded-full border border-amber-400/50 bg-amber-500/10 px-2 py-0.5 text-[11px] font-normal text-amber-600 dark:border-amber-400/40 dark:text-amber-400">
-                                                                Masa percobaan
-                                                            </span>
-                                                        )}
+                                                        <DeadlineBadge
+                                                            date={
+                                                                user.probation_ends_on
+                                                            }
+                                                            label="Masa percobaan"
+                                                        />
+                                                        <DeadlineBadge
+                                                            date={
+                                                                user.contract_ends_on
+                                                            }
+                                                            label="Kontrak"
+                                                        />
                                                     </div>
                                                     <div className="text-xs text-muted-foreground">
                                                         {user.email}
@@ -774,8 +824,7 @@ export default function UserManagement({ users, search, companies }: Props) {
                                                     className="rounded-full text-destructive hover:text-destructive"
                                                     aria-label={`Hapus ${user.name}`}
                                                     disabled={
-                                                        user.id ===
-                                                        auth.user.id
+                                                        user.id === auth.user.id
                                                     }
                                                     onClick={() =>
                                                         setDeletingUser(user)

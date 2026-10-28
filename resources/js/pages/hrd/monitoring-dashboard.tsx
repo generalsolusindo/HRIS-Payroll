@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { ListChecks } from 'lucide-react';
 import MonitoringDashboardController from '@/actions/App/Http/Controllers/Hrd/MonitoringDashboardController';
+import { SEVERITY_DOT_CLASS } from '@/lib/deadline-severity';
 
 type Stats = {
     karyawan_aktif: number;
@@ -33,12 +34,6 @@ function formatDate(value: string | null): string {
     });
 }
 
-const SEVERITY_DOT_CLASS: Record<AttentionItem['severity'], string> = {
-    red: 'bg-red-500',
-    amber: 'bg-amber-500',
-    green: 'bg-emerald-500',
-};
-
 function StatCard({
     label,
     value,
@@ -51,9 +46,7 @@ function StatCard({
     return (
         <div className="rounded-xl border p-4 text-center">
             <div className="text-xs text-muted-foreground">{label}</div>
-            <div className="mt-1 text-2xl font-bold tabular-nums">
-                {value}
-            </div>
+            <div className="mt-1 text-2xl font-bold tabular-nums">{value}</div>
             <div className="text-xs text-muted-foreground">{caption}</div>
         </div>
     );
@@ -138,8 +131,8 @@ export default function MonitoringDashboard({ stats, attention }: Props) {
                     {(stats.kandidat_aktif === null ||
                         stats.pkl_aktif === null) && (
                         <p className="mt-3 text-xs text-muted-foreground">
-                            Modul Kandidat dan PKL/Internship belum dibangun
-                            — angkanya baru muncul setelah modul itu ada.
+                            Modul Kandidat dan PKL/Internship belum dibangun —
+                            angkanya baru muncul setelah modul itu ada.
                         </p>
                     )}
                 </div>

@@ -9,13 +9,16 @@ class AttendancePunctuality
 {
     /**
      * Grace periods do not change attendance classification.
-     * Display whole elapsed minutes, with a minimum of one for sub-minute lateness.
+     * Compared at whole-minute precision, matching what a clock-in device
+     * displays (no seconds) — a clock-in anywhere within the scheduled
+     * minute itself (e.g. 08:35:00-08:35:59 against a 08:35 deadline)
+     * reads as on time; lateness is only counted from the next minute.
      *
      * @return array{status: string, minutes: ?int}
      */
     public function evaluate(CarbonInterface $clockIn, string $scheduledTime): array
     {
-        $local = CarbonImmutable::instance($clockIn)->setTimezone('Asia/Jakarta');
+        $local = CarbonImmutable::instance($clockIn)->setTimezone('Asia/Jakarta')->startOfMinute();
         $deadline = $local->startOfDay()->setTimeFromTimeString($scheduledTime);
 
         if ($local->lessThanOrEqualTo($deadline)) {
@@ -24,7 +27,7 @@ class AttendancePunctuality
 
         return [
             'status' => 'telat',
-            'minutes' => max(1, (int) $deadline->diffInMinutes($local)),
+            'minutes' => (int) $deadline->diffInMinutes($local),
         ];
     }
 }

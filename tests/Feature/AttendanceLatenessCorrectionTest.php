@@ -20,7 +20,9 @@ class AttendanceLatenessCorrectionTest extends TestCase
         foreach ([
             ['01:29:59', 'tepat_waktu', null],
             ['01:30:00', 'tepat_waktu', null],
-            ['01:30:01', 'telat', 1],
+            ['01:30:01', 'tepat_waktu', null],
+            ['01:30:59', 'tepat_waktu', null],
+            ['01:31:00', 'telat', 1],
             ['01:34:00', 'telat', 4],
             ['01:34:59', 'telat', 4],
             ['01:35:00', 'telat', 5],

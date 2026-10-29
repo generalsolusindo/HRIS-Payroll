@@ -62,7 +62,7 @@ class LeaveRequestApprovalController extends Controller
                 $request->filled('status'),
                 fn ($query) => $query->where('status', $request->string('status')->toString()),
             )
-            ->with(['user:id,name,company_id,division_id', 'user.company:id,name', 'user.division:id,name', 'hrdProcessedBy:id,name', 'processedBy:id,name'])
+            ->with(['user:id,name,company_id,division_id', 'user.company:id,name', 'user.division:id,name', 'hrdProcessedBy:id,name', 'processedBy:id,name', 'attachments'])
             ->latest('created_at')
             ->paginate(30)
             ->withQueryString();

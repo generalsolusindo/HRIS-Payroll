@@ -1,10 +1,17 @@
 import { Head, router } from '@inertiajs/react';
-import { History } from 'lucide-react';
+import { FileText, History } from 'lucide-react';
 import { useState } from 'react';
 import LeaveRequestApprovalController from '@/actions/App/Http/Controllers/Hrd/LeaveRequestApprovalController';
+import LeaveRequestAttachmentController from '@/actions/App/Http/Controllers/LeaveRequestAttachmentController';
 import { SummaryStat } from '@/components/attendance-summary-stat';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -15,18 +22,35 @@ import {
 } from '@/components/ui/select';
 import { LEAVE_TYPE_LABELS, type LeaveType } from '@/lib/izin';
 
+type Attachment = {
+    id: number;
+    file_name: string;
+};
+
 type LeaveRequestRow = {
     id: number;
     request_number: string;
     type: LeaveType;
     leave_date: string;
+    start_time: string | null;
+    end_time: string | null;
+    estimated_arrival: string | null;
+    duration: string | null;
+    reason: string | null;
+    emergency: boolean;
+    emergency_reason: string | null;
     status: string;
     user: {
         name: string;
         division: { name: string } | null;
     };
     hrd_processed_by: { name: string } | null;
+    hrd_decision: string | null;
+    hrd_note: string | null;
     processed_by: { name: string } | null;
+    approval_note: string | null;
+    rejection_reason: string | null;
+    attachments: Attachment[];
 };
 
 type PaginatedLeaveRequests = {
@@ -105,6 +129,7 @@ export default function LeaveRequestHistory({
     const [type, setType] = useState(filters.type ?? '');
     const [divisionId, setDivisionId] = useState(filters.division_id ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
+    const [selected, setSelected] = useState<LeaveRequestRow | null>(null);
 
     function applyFilters(next: Partial<Props['filters']>) {
         router.get(
@@ -300,7 +325,13 @@ export default function LeaveRequestHistory({
                             </thead>
                             <tbody className="divide-y">
                                 {leaveRequests.data.map((leaveRequest) => (
-                                    <tr key={leaveRequest.id}>
+                                    <tr
+                                        key={leaveRequest.id}
+                                        onClick={() =>
+                                            setSelected(leaveRequest)
+                                        }
+                                        className="cursor-pointer hover:bg-muted/40"
+                                    >
                                         <td className="px-4 py-3 font-medium">
                                             {leaveRequest.request_number}
                                         </td>
@@ -378,6 +409,180 @@ export default function LeaveRequestHistory({
                     </div>
                 )}
             </div>
+
+            <Dialog
+                open={selected !== null}
+                onOpenChange={(open) => !open && setSelected(null)}
+            >
+                <DialogContent className="max-h-[85vh] overflow-y-auto">
+                    {selected && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle>
+                                    {selected.request_number}
+                                </DialogTitle>
+                            </DialogHeader>
+
+                            <div className="flex flex-col gap-4 text-sm">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <div className="font-medium">
+                                            {selected.user.name}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {selected.user.division?.name ??
+                                                '-'}
+                                        </div>
+                                    </div>
+                                    <Badge
+                                        variant={
+                                            STATUS_VARIANTS[
+                                                selected.status
+                                            ] ?? 'secondary'
+                                        }
+                                    >
+                                        {STATUS_LABELS[selected.status] ??
+                                            selected.status}
+                                    </Badge>
+                                </div>
+
+                                <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                                    <dt className="text-muted-foreground">
+                                        Jenis Izin
+                                    </dt>
+                                    <dd>
+                                        {LEAVE_TYPE_LABELS[selected.type] ??
+                                            selected.type}
+                                    </dd>
+
+                                    <dt className="text-muted-foreground">
+                                        Tanggal Izin
+                                    </dt>
+                                    <dd>{formatDate(selected.leave_date)}</dd>
+
+                                    {selected.start_time && (
+                                        <>
+                                            <dt className="text-muted-foreground">
+                                                Jam
+                                            </dt>
+                                            <dd>
+                                                {selected.start_time}
+                                                {selected.end_time
+                                                    ? ` – ${selected.end_time}`
+                                                    : ''}
+                                            </dd>
+                                        </>
+                                    )}
+
+                                    {selected.estimated_arrival && (
+                                        <>
+                                            <dt className="text-muted-foreground">
+                                                Estimasi Tiba
+                                            </dt>
+                                            <dd>
+                                                {selected.estimated_arrival}
+                                            </dd>
+                                        </>
+                                    )}
+
+                                    {selected.duration && (
+                                        <>
+                                            <dt className="text-muted-foreground">
+                                                Durasi
+                                            </dt>
+                                            <dd>{selected.duration} hari</dd>
+                                        </>
+                                    )}
+
+                                    {selected.emergency && (
+                                        <>
+                                            <dt className="text-muted-foreground">
+                                                Darurat
+                                            </dt>
+                                            <dd>
+                                                {selected.emergency_reason ??
+                                                    'Ya'}
+                                            </dd>
+                                        </>
+                                    )}
+                                </dl>
+
+                                {selected.reason && (
+                                    <div>
+                                        <div className="mb-1 text-xs font-medium text-muted-foreground uppercase">
+                                            Alasan
+                                        </div>
+                                        <p className="whitespace-pre-wrap">
+                                            {selected.reason}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {selected.attachments.length > 0 && (
+                                    <div>
+                                        <div className="mb-1 text-xs font-medium text-muted-foreground uppercase">
+                                            Lampiran
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            {selected.attachments.map(
+                                                (attachment) => (
+                                                    <a
+                                                        key={attachment.id}
+                                                        href={
+                                                            LeaveRequestAttachmentController.show(
+                                                                attachment.id,
+                                                            ).url
+                                                        }
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="flex items-center gap-2 text-primary hover:underline"
+                                                    >
+                                                        <FileText className="size-4" />
+                                                        {attachment.file_name}
+                                                    </a>
+                                                ),
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(selected.hrd_note ||
+                                    selected.hrd_decision) && (
+                                    <div className="rounded-lg border bg-muted/30 p-3">
+                                        <div className="mb-1 text-xs font-medium text-muted-foreground uppercase">
+                                            Catatan HRD
+                                            {selected.hrd_processed_by
+                                                ? ` — ${selected.hrd_processed_by.name}`
+                                                : ''}
+                                        </div>
+                                        {selected.hrd_note && (
+                                            <p className="whitespace-pre-wrap">
+                                                {selected.hrd_note}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {(selected.approval_note ||
+                                    selected.rejection_reason) && (
+                                    <div className="rounded-lg border bg-muted/30 p-3">
+                                        <div className="mb-1 text-xs font-medium text-muted-foreground uppercase">
+                                            Catatan Manager
+                                            {selected.processed_by
+                                                ? ` — ${selected.processed_by.name}`
+                                                : ''}
+                                        </div>
+                                        <p className="whitespace-pre-wrap">
+                                            {selected.approval_note ??
+                                                selected.rejection_reason}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

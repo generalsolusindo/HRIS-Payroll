@@ -305,20 +305,36 @@ export default function AttendanceRangeSummary({
                                             name="version"
                                             value={review.version}
                                         />
-                                        <Label htmlFor={`out-${review.id}`}>
-                                            Jam pulang terkonfirmasi (WIB)
-                                        </Label>
-                                        <Input
-                                            id={`out-${review.id}`}
-                                            type="time"
-                                            name="clock_out"
-                                            required
-                                            disabled={!review.can_confirm}
-                                            className="max-w-48"
-                                        />
-                                        <InputError
-                                            message={errors.clock_out}
-                                        />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <Label htmlFor={`in-${review.id}`}>
+                                                    Jam masuk terkonfirmasi (WIB)
+                                                </Label>
+                                                <Input
+                                                    id={`in-${review.id}`}
+                                                    type="time"
+                                                    name="clock_in"
+                                                    defaultValue={review.clock_in ?? undefined}
+                                                    disabled={!review.can_confirm}
+                                                    className="max-w-48"
+                                                />
+                                                <InputError message={errors.clock_in} />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor={`out-${review.id}`}>
+                                                    Jam pulang terkonfirmasi (WIB)
+                                                </Label>
+                                                <Input
+                                                    id={`out-${review.id}`}
+                                                    type="time"
+                                                    name="clock_out"
+                                                    required
+                                                    disabled={!review.can_confirm}
+                                                    className="max-w-48"
+                                                />
+                                                <InputError message={errors.clock_out} />
+                                            </div>
+                                        </div>
                                         <Label htmlFor={`reason-${review.id}`}>
                                             Alasan / dasar konfirmasi
                                         </Label>

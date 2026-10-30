@@ -185,7 +185,7 @@ class AttendanceController extends Controller
                     'clock_out_distance_meter' => $distance,
                     'clock_out_photo_path' => $photoPath,
                     'clock_out_status' => $isEarly ? 'pulang_cepat' : 'tepat_waktu',
-                    'clock_out_early_minutes' => $isEarly ? max(1, (int) $clockOut->diffInMinutes($scheduledClockOut)) : null,
+                    'clock_out_early_minutes' => $isEarly ? max(1, (int) $scheduledClockOut->diffInMinutes($clockOut)) : null,
                     'clock_out_face_match' => $face['match'],
                     'clock_out_face_distance' => $face['distance'],
                 ])->save();

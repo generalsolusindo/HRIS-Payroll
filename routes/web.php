@@ -50,11 +50,6 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('absen/masuk', [AttendanceController::class, 'clockIn'])->middleware('face.enrolled')->name('absen.masuk');
     Route::post('absen/pulang', [AttendanceController::class, 'clockOut'])->middleware('face.enrolled')->name('absen.pulang');
 
-    // Live preview only — never the authoritative check, see
-    // FaceVerificationController's docblock. Throttle is generous enough
-    // for ~1 request/1.5s of normal polling (≈40/min) while still
-    // capping abuse; the worker's own bounded queue is the second layer
-    // of capacity protection.
     Route::post('absen/face-verification', [FaceVerificationController::class, 'check'])
         ->middleware(['face.enrolled', 'throttle:40,1'])
         ->name('absen.face-verification');

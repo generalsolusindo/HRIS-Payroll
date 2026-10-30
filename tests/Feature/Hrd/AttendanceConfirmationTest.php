@@ -43,6 +43,25 @@ class AttendanceConfirmationTest extends TestCase
         $this->actingAs($hrd)->patch(route('hrd.konfirmasi-absensi.update', $review), ['version' => 1, 'clock_out' => '16:30', 'reason' => 'Permintaan lama terkirim ulang.'])->assertSessionHasErrors('confirmation');
     }
 
+    public function test_hrd_can_manual_correct_clock_in_and_clock_out_for_unresolved_review(): void
+    {
+        [$hrd, $review] = $this->setupReview();
+
+        $this->actingAs($hrd)->patch(route('hrd.konfirmasi-absensi.update', $review), [
+            'version' => $review->version,
+            'clock_in' => '07:45',
+            'clock_out' => '11:00',
+            'reason' => 'Jam masuk dan pulang dikoreksi berdasarkan bukti valid.',
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $review->refresh();
+        $this->assertSame('07:45', $review->clock_in_at->format('H:i'));
+        $this->assertSame('11:00', $review->clock_out_at->format('H:i'));
+        $this->assertSame(195, $review->worked_minutes);
+        $this->assertSame(0, $review->late_minutes);
+        $this->assertSame('half_day', $review->classification);
+    }
+
     public function test_company_role_invalid_time_and_reason_are_enforced(): void
     {
         [$hrd, $review] = $this->setupReview();

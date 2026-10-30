@@ -37,9 +37,6 @@ class AttendanceConfirmationController extends Controller
                 || ! $attendance->clock_in_time->equalTo($locked->clock_in_at)) {
                 throw ValidationException::withMessages(['confirmation' => 'Data absensi berubah atau sudah dikonfirmasi. Muat ulang rekap.']);
             }
-            if (! $locked->date->endOfDay()->isPast()) {
-                throw ValidationException::withMessages(['confirmation' => 'Konfirmasi tersedia setelah hari absensi selesai.']);
-            }
             if ($locked->scheduled_minutes <= 0 || ! isset($locked->schedule_snapshot['jam_masuk'], $locked->schedule_snapshot['jam_pulang'])) {
                 throw ValidationException::withMessages(['confirmation' => 'Jadwal kerja belum lengkap. Lengkapi jadwal lalu muat ulang rekap.']);
             }

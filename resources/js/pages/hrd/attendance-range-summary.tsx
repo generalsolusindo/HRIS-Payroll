@@ -276,13 +276,13 @@ export default function AttendanceRangeSummary({
                 <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-md">
                     <SheetHeader>
                         <SheetTitle>
-                            Konfirmasi Absen Pulang
+                            Konfirmasi / Koreksi Absensi
                             {activeEmployee ? ` — ${activeEmployee.name}` : ''}
                         </SheetTitle>
                         <SheetDescription>
-                            Isi jam pulang yang sudah diverifikasi dan alasan
-                            koreksi. Catatan absensi asli tetap disimpan.
-                            Setelah konfirmasi, perbarui draft payroll.
+                            Isi jam masuk dan jam pulang yang sudah diverifikasi,
+                            serta alasan koreksi. Catatan absensi asli tetap
+                            disimpan. Setelah konfirmasi, perbarui draft payroll.
                         </SheetDescription>
                     </SheetHeader>
                     <div className="flex flex-col gap-4 px-4 pb-4">

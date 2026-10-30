@@ -74,14 +74,14 @@ class AttendanceConfirmationTest extends TestCase
         $this->assertSame('unresolved', $review->fresh()->classification);
     }
 
-    public function test_current_day_and_changed_source_cannot_be_confirmed(): void
+    public function test_current_day_review_can_be_confirmed_and_changed_source_is_rejected(): void
     {
         [$hrd, $review, $attendance] = $this->setupReview();
-        $payload = ['version' => $review->version, 'clock_out' => '16:30', 'reason' => 'Dikonfirmasi oleh atasan.'];
+        $payload = ['version' => $review->version, 'clock_in' => '08:15', 'clock_out' => '16:30', 'reason' => 'Dikonfirmasi oleh atasan.'];
         $this->travelTo(Carbon::parse('2026-10-09 10:00:00'));
-        $this->actingAs($hrd)->patch(route('hrd.konfirmasi-absensi.update', $review), $payload)->assertSessionHasErrors('confirmation');
+        $this->actingAs($hrd)->patch(route('hrd.konfirmasi-absensi.update', $review), $payload)->assertSessionHasNoErrors()->assertRedirect();
         $this->travelTo(Carbon::parse('2026-10-10 10:00:00'));
-        $attendance->update(['clock_out_time' => '2026-10-09 16:30:00']);
+        $attendance->update(['clock_in_time' => '2026-10-09 08:45:00']);
         $this->actingAs($hrd)->patch(route('hrd.konfirmasi-absensi.update', $review), $payload)->assertSessionHasErrors('confirmation');
     }
 }

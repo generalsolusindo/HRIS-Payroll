@@ -91,7 +91,7 @@ class AttendanceRangeSummaryController extends Controller
                     'id' => $review->id, 'user_id' => $review->user_id, 'name' => $review->user->name,
                     'date' => $review->date->toDateString(), 'version' => $review->version,
                     'clock_in' => $review->clock_in_at?->format('H:i'),
-                    'can_confirm' => $review->date->endOfDay()->isPast(),
+                    'can_confirm' => $review->classification === 'unresolved',
                 ]),
         ]);
     }

@@ -76,14 +76,36 @@ class PayrollAdjustmentTest extends TestCase
 
     public function test_negative_net_and_invalid_payload_roll_back_changes(): void
     {
+        $this->entry->lines()->create([
+            'payroll_component_id' => PayrollComponent::firstOrCreate(['company_id' => $this->hrd->company_id, 'code' => 'MANUAL_DEDUCTION'], ['name' => 'Potongan manual', 'type' => 'deduction', 'is_active' => true])->id,
+            'line_key' => 'manual-negative-deduction',
+            'component_code' => 'MANUAL_DEDUCTION',
+            'component_name' => 'Potongan manual',
+            'type' => 'deduction',
+            'source' => 'manual',
+            'quantity' => '1',
+            'rate' => '3000000.02',
+            'amount' => '3000000.02',
+            'adjustment_reason' => 'Simulasi negatif',
+            'created_by' => $this->hrd->id,
+            'calculation_snapshot' => [],
+        ]);
+        app(\App\Services\PayrollTotals::class)->refreshEntry($this->entry);
+        $this->run->refresh();
+        $this->assertSame('-0.01', $this->entry->fresh()->net_amount);
+
+        $this->post(route('hrd.hasil-payroll.penyesuaian.store', $this->entry), $this->payload('earning', '10.00'))->assertSessionDoesntHaveErrors();
+        $this->assertSame(2, $this->entry->lines()->where('source', 'manual')->count());
+        $this->assertSame('9.99', $this->entry->fresh()->net_amount);
+
         $this->post(route('hrd.hasil-payroll.penyesuaian.store', $this->entry), $this->payload('deduction', '3000000.02'))->assertSessionHasErrors('amount');
         $bad = $this->payload();
         $bad['amount'] = '1.001';
         $bad['reason'] = '';
         $this->post(route('hrd.hasil-payroll.penyesuaian.store', $this->entry), $bad)->assertSessionHasErrors(['amount', 'reason']);
-        $this->assertSame(0, $this->entry->lines()->where('source', 'manual')->count());
-        $this->assertSame(0, PayrollAuditLog::where('action', 'manual_added')->count());
-        $this->assertSame('3000000.01', $this->run->fresh()->net_total);
+        $this->assertSame(2, $this->entry->lines()->where('source', 'manual')->count());
+        $this->assertSame(1, PayrollAuditLog::where('action', 'manual_added')->count());
+        $this->assertSame('9.99', $this->run->fresh()->net_total);
     }
 
     public function test_non_draft_and_other_company_and_wrong_roles_cannot_adjust(): void

@@ -62,7 +62,7 @@ class PayrollAdjustmentController extends Controller
                 'calculation_snapshot' => ['request_hash' => $hash, 'original_amount' => $amount],
             ]);
             $totals->refreshEntry($lockedEntry);
-            $this->assertNonNegative($lockedEntry);
+            $this->assertNonNegative($lockedEntry, $data['type']);
             $totals->refreshRun($run);
             $audit->log($run->period->company_id, 'PayrollEntryLine', $line->id, 'manual_added', $before,
                 ['line' => $line->only(['component_name', 'type', 'amount']), 'totals' => $lockedEntry->only(['gross_amount', 'deduction_amount', 'net_amount'])],
@@ -108,8 +108,12 @@ class PayrollAdjustmentController extends Controller
         }
     }
 
-    private function assertNonNegative(PayrollEntry $entry): void
+    private function assertNonNegative(PayrollEntry $entry, ?string $type = null): void
     {
+        if ($type === 'earning') {
+            return;
+        }
+
         if (bccomp($entry->net_amount, '0', 2) < 0) {
             throw ValidationException::withMessages(['amount' => 'Penyesuaian tidak dapat membuat gaji bersih negatif.']);
         }

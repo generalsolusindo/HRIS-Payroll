@@ -29,17 +29,18 @@ class PayrollReadiness
             $issues[] = 'Belum ada karyawan dalam hasil payroll.';
         }
         // Periode absensi belum selesai jika batas waktu cutoff (15:00) belum lewat,
-        // KECUALI jika semua karyawan sudah dikonfirmasi jam pulang (tidak ada lagi
-        // attendance yang unresolved / belum ada clock_out_time di periode ini).
+        // KECUALI jika semua karyawan sudah dikonfirmasi jam pulang — ditandai dengan
+        // tidak adanya AttendanceReview ber-classification 'unresolved' di periode ini.
         if ($run->period->attendance_ends_on->copy()->setTime(self::CUTOFF_HOUR, 0)->isFuture()) {
-            $hasUnconfirmed = Attendance::whereHas('user', fn ($q) => $q->where('company_id', $run->period->company_id))
-                ->whereDate('tanggal', '>=', $run->period->attendance_starts_on->toDateString())
-                ->whereDate('tanggal', '<=', $run->period->attendance_ends_on->toDateString())
-                ->whereNotNull('clock_in_time')
-                ->whereNull('clock_out_time')
+            $hasUnresolved = AttendanceReview::where('company_id', $run->period->company_id)
+                ->whereBetween('date', [
+                    $run->period->attendance_starts_on->toDateString(),
+                    $run->period->attendance_ends_on->toDateString(),
+                ])
+                ->where('classification', 'unresolved')
                 ->exists();
 
-            if ($hasUnconfirmed) {
+            if ($hasUnresolved) {
                 $issues[] = 'Periode absensi belum selesai.';
             }
         }

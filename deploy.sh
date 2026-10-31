@@ -1,82 +1,108 @@
-#!/usr/bin/env bash
-#
-# Pulls the latest main and brings this server's copy of the app fully up
-# to date: dependencies, migrations, built frontend assets, caches, and a
-# php-fpm restart. Run this after every `git pull` on a deploy target —
-# never pull by hand and reconstruct the rest of these steps from memory,
-# that's exactly what left Wayfinder unable to find newly pulled
-# controllers the last time this was done manually.
-#
-# Usage: ./deploy.sh [branch]   (branch defaults to main)
+#!/bin/bash
 
-set -euo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")"
+# ============================================================
+# deploy.sh — Push ke GitHub & Pull di Server
+# Usage:
+#   ./deploy.sh                    → commit + push ke main & dev
+#   ./deploy.sh "pesan commit"     → commit dengan pesan kustom
+#   ./deploy.sh --server-only      → hanya pull di server
+# ============================================================
 
-BRANCH="${1:-main}"
-PHP_FPM_SERVICE="${PHP_FPM_SERVICE:-php8.5-fpm}"
+set -e
 
-log() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
+# Warna output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Always try to bring the app back out of maintenance mode, even if a
-# later step fails — a half-finished deploy must never leave the site
-# stuck behind the maintenance page with no way back in.
-cleanup() { php artisan up >/dev/null 2>&1 || true; }
-trap cleanup EXIT
+log()    { echo -e "${GREEN}[✔]${NC} $1"; }
+warn()   { echo -e "${YELLOW}[!]${NC} $1"; }
+error()  { echo -e "${RED}[✗]${NC} $1"; exit 1; }
+step()   { echo -e "\n${BLUE}══════════════════════════════════════${NC}"; echo -e "${BLUE}  $1${NC}"; echo -e "${BLUE}══════════════════════════════════════${NC}"; }
 
-log "Checking for local changes before pulling"
-if [[ -n "$(git status --porcelain)" ]]; then
-    stash_message="deploy.sh auto-stash $(date '+%Y-%m-%d %H:%M:%S')"
-    echo "Local changes found — stashing them as: $stash_message"
-    echo "(run 'git stash list' / 'git stash pop' afterwards if you need them back)"
-    git stash push -u -m "$stash_message"
+# ─── Konfigurasi ───────────────────────────────────────────
+SERVER_USER="qs"
+SERVER_HOST="172.16.10.127"
+SERVER_PATH="~/HRIS-Payroll"
+REMOTE="origin"
+BRANCHES=("main" "dev")
+
+COMMIT_MSG="${1:-"fix: update validasi payroll period & izin setengah hari"}"
+
+# ─── Jika hanya pull server ────────────────────────────────
+if [[ "$1" == "--server-only" ]]; then
+    step "Pull di Server ($SERVER_HOST)"
+    ssh ${SERVER_USER}@${SERVER_HOST} "
+        cd ${SERVER_PATH}
+        echo '--- git pull main ---'
+        git pull origin main
+        echo '--- composer install ---'
+        composer install --no-dev --optimize-autoloader
+        echo '--- php artisan migrate ---'
+        php artisan migrate --force
+        echo '--- php artisan optimize ---'
+        php artisan optimize
+        echo '--- Done ---'
+    "
+    log "Server berhasil diperbarui!"
+    exit 0
 fi
 
-log "Pulling origin/$BRANCH"
-git pull origin "$BRANCH"
+# ─── 1. Commit semua perubahan ─────────────────────────────
+step "1. Git Add & Commit"
 
-log "Putting the app into maintenance mode"
-php artisan down --render="errors::503" || true
+git add \
+    app/Http/Requests/Hrd/StorePayrollPeriodRequest.php \
+    app/Http/Requests/Hrd/UpdatePayrollPeriodRequest.php \
+    resources/js/pages/izin-detail.tsx \
+    database/migrations/2026_10_31_110153_drop_payroll_period_dates_unique_constraint.php
 
-log "Installing PHP dependencies"
-composer install --no-dev --optimize-autoloader
+git status --short
 
-log "Running database migrations"
-php artisan migrate --force
+echo ""
+read -p "Commit dengan pesan: \"${COMMIT_MSG}\" ? (y/n): " CONFIRM
+if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
+    warn "Dibatalkan."
+    exit 0
+fi
 
-log "Installing JS dependencies"
-npm ci
+git commit -m "${COMMIT_MSG}"
+log "Commit berhasil."
 
-log "Clearing stale route/config cache before building"
-# Must run before the build, not just after: Wayfinder generates
-# resources/js/actions and resources/js/routes by reflecting on the
-# app's own *currently loaded* routes — if a previous deploy left a
-# route cache (bootstrap/cache/routes-v7.php) on disk from before this
-# pull's new routes existed, Wayfinder reflects on that stale cached
-# list and silently omits the new routes' helpers, instead of the fresh
-# ones from routes/web.php. The app then throws "X is not a function"
-# at runtime for any of those routes, on every single page, the moment
-# the JS tries to call the missing helper — this bit us for real once,
-# don't let it regress to "after the build" again.
-php artisan route:clear
-php artisan config:clear
+# ─── 2. Push ke main ───────────────────────────────────────
+step "2. Push ke branch: main"
+git push ${REMOTE} main
+log "Push ke main selesai."
 
-log "Building frontend assets"
-# Must run after composer install: Wayfinder generates resources/js/actions
-# and resources/js/routes by reflecting on the app's own PHP controllers —
-# if a controller added in this pull isn't autoloadable yet, its action
-# file silently never gets generated and the build fails with
-# "Could not load .../SomeController".
-npm run build
+# ─── 3. Merge main → dev & push ────────────────────────────
+step "3. Push ke branch: dev"
+git checkout dev
+git merge main --no-edit
+git push ${REMOTE} dev
+git checkout main
+log "Push ke dev selesai."
 
-log "Refreshing remaining caches"
-php artisan view:clear
-php artisan cache:clear
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+# ─── 4. Pull di Server ─────────────────────────────────────
+step "4. Deploy ke Server ($SERVER_HOST)"
+ssh ${SERVER_USER}@${SERVER_HOST} "
+    cd ${SERVER_PATH}
+    echo '--- git pull origin main ---'
+    git pull origin main
+    echo '--- composer install ---'
+    composer install --no-dev --optimize-autoloader
+    echo '--- php artisan migrate ---'
+    php artisan migrate --force
+    echo '--- php artisan optimize:clear ---'
+    php artisan optimize:clear
+    echo '--- php artisan optimize ---'
+    php artisan optimize
+    echo ''
+    echo '✔ Deploy selesai!'
+"
 
-log "Restarting php-fpm ($PHP_FPM_SERVICE)"
-sudo systemctl restart "$PHP_FPM_SERVICE"
-
-log "Done — app is back up"
-# cleanup() (php artisan up) still runs via the EXIT trap above.
+log "============================================="
+log " DEPLOY SELESAI!"
+log " main  ✔  dev  ✔  server  ✔"
+log "============================================="

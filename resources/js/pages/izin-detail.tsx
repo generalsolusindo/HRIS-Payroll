@@ -103,6 +103,7 @@ export default function IzinDetail({ leaveRequest }: Props) {
     const showStartTime =
         leaveRequest.type === 'half_day' ||
         leaveRequest.type === 'temporary_exit';
+    const showEndTime = leaveRequest.type === 'half_day';
     const showEstimatedArrival =
         leaveRequest.type === 'late' || leaveRequest.type === 'temporary_exit';
     const showDuration =
@@ -169,12 +170,14 @@ export default function IzinDetail({ leaveRequest }: Props) {
                         />
                         {showStartTime && leaveRequest.start_time && (
                             <DetailRow
-                                label={
-                                    leaveRequest.type === 'half_day'
-                                        ? 'Jam Mulai'
-                                        : 'Jam Keluar'
-                                }
+                                label={leaveRequest.type === 'half_day' ? 'Jam Mulai' : 'Jam Keluar'}
                                 value={formatTime(leaveRequest.start_time)}
+                            />
+                        )}
+                        {showEndTime && leaveRequest.end_time && (
+                            <DetailRow
+                                label='Jam Selesai'
+                                value={formatTime(leaveRequest.end_time)}
                             />
                         )}
                         {showEstimatedArrival &&

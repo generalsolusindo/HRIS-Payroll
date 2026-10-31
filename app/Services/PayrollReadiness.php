@@ -28,9 +28,22 @@ class PayrollReadiness
         if ($run->entries->isEmpty()) {
             $issues[] = 'Belum ada karyawan dalam hasil payroll.';
         }
+        // Periode absensi belum selesai jika batas waktu cutoff (15:00) belum lewat,
+        // KECUALI jika semua karyawan sudah dikonfirmasi jam pulang (tidak ada lagi
+        // attendance yang unresolved / belum ada clock_out_time di periode ini).
         if ($run->period->attendance_ends_on->copy()->setTime(self::CUTOFF_HOUR, 0)->isFuture()) {
-            $issues[] = 'Periode absensi belum selesai.';
+            $hasUnconfirmed = Attendance::whereHas('user', fn ($q) => $q->where('company_id', $run->period->company_id))
+                ->whereDate('tanggal', '>=', $run->period->attendance_starts_on->toDateString())
+                ->whereDate('tanggal', '<=', $run->period->attendance_ends_on->toDateString())
+                ->whereNotNull('clock_in_time')
+                ->whereNull('clock_out_time')
+                ->exists();
+
+            if ($hasUnconfirmed) {
+                $issues[] = 'Periode absensi belum selesai.';
+            }
         }
+
         $missing = User::where('company_id', $run->period->company_id)->where('role', 'karyawan')->where('status', 'active')
             ->where('is_payroll_eligible', true)
             ->whereNotIn('id', $run->entries->pluck('user_id'))->count();
